@@ -2,6 +2,7 @@ plugins {
     id 'multiloader-loader'
     id 'net.neoforged.moddev' version "${neo_moddev}"
     id 'me.modmuss50.mod-publish-plugin' version "${modmuss50_mod_publish_version}"
+    id 'com.diffplug.spotless'
 }
 
 neoForge {
@@ -16,14 +17,16 @@ neoForge {
     runs {
         client {
             client()
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            gameDirectory = this.mkdir(this.file('runs/client'))
         }
         server {
             server()
             programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            gameDirectory = this.mkdir(this.file('runs/server'))
         }
         configureEach {
+            systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
+            ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
             logLevel = org.slf4j.event.Level.DEBUG
         }
     }

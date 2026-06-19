@@ -1,0 +1,18 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:tnt",
+    {
+      "id": "gigeresque:acid",
+      "required": false
+    },
+    {
+      "id": "gigeresque:goo",
+      "required": false
+    },
+    {
+      "id": "avp_alien:acid",
+      "required": false
+    }
+  ]
+}

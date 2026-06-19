@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "renameme",
+  "id": "xenogenesis",
   "version": "${version}",
   "name": "${mod_name}",
   "description": "${mod_description}",
@@ -17,7 +17,10 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "mod.azure.renameme.FabricLibMod"
+      "mod.azure.xenogenesis.FabricLibMod"
+    ],
+    "client": [
+      "mod.azure.xenogenesis.FabricLibClientMod"
     ]
   },
   "mixins": [

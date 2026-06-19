@@ -1,0 +1,88 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"idle": {
+			"loop": "once"
+		},
+		"hatching": {
+			"loop": "hold_on_last_frame",
+			"animation_length": 1,
+			"bones": {
+				"gEastPetal": {
+					"rotation": {
+						"0": {
+							"vector": [0, 0, 0]
+						},
+						"1": {
+							"vector": [0, 0, -72.5],
+							"easing": "easeInOutQuad"
+						}
+					}
+				},
+				"gWestPetal": {
+					"rotation": {
+						"0": {
+							"vector": [0, 0, 0]
+						},
+						"1": {
+							"vector": [0, 0, 72.5],
+							"easing": "easeInOutQuad"
+						}
+					}
+				},
+				"gNorthPetal": {
+					"rotation": {
+						"0": {
+							"vector": [0, 0, 0]
+						},
+						"1": {
+							"vector": [72.5, 0, 0],
+							"easing": "easeInOutQuad"
+						}
+					}
+				},
+				"gSouthPetal": {
+					"rotation": {
+						"0": {
+							"vector": [0, 0, 0]
+						},
+						"1": {
+							"vector": [-72.5, 0, 0],
+							"easing": "easeInOutQuad"
+						}
+					}
+				}
+			}
+		},
+		"hatched": {
+			"loop": "once",
+			"animation_length": 0.041667,
+			"bones": {
+				"gEastPetal": {
+					"rotation": {
+						"vector": [0, 0, -72.5],
+						"easing": "easeInOutQuad"
+					}
+				},
+				"gWestPetal": {
+					"rotation": {
+						"vector": [0, 0, 72.5],
+						"easing": "easeInOutQuad"
+					}
+				},
+				"gNorthPetal": {
+					"rotation": {
+						"vector": [72.5, 0, 0],
+						"easing": "easeInOutQuad"
+					}
+				},
+				"gSouthPetal": {
+					"rotation": {
+						"vector": [-72.5, 0, 0],
+						"easing": "easeInOutQuad"
+					}
+				}
+			}
+		}
+	}
+}

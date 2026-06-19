@@ -1,0 +1,13 @@
+{
+  "entity.xenogenesis.ovomorph": "Ovomorph",
+  "entity.xenogenesis.facehugger": "Facehugger",
+  "entity.xenogenesis.chestburster": "Chestburster",
+  "entity.xenogenesis.xenomorph": "Xenomorph",
+  "entity.xenogenesis.queen": "Queen",
+  "item.xenogenesis.ovomorph_spawn_egg": "Ovomorph Spawn Egg",
+  "item.xenogenesis.facehugger_spawn_egg": "Facehugger Spawn Egg",
+  "item.xenogenesis.chestburster_spawn_egg": "Chestburster Spawn Egg",
+  "item.xenogenesis.xenomorph_spawn_egg": "Xenomorph Spawn Egg",
+  "item.xenogenesis.queen_spawn_egg": "Queen Spawn Egg",
+  "death.attack.chest_burst": "%s's chest exploded!"
+}

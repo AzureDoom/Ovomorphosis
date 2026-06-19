@@ -1,0 +1,20 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"idle": {
+			"loop": "once"
+		},
+		"walk": {
+			"loop": "once"
+		},
+		"run": {
+			"loop": "once"
+		},
+		"death": {
+			"loop": "once"
+		},
+		"eat": {
+			"loop": "once"
+		}
+	}
+}

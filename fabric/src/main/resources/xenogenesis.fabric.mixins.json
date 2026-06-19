@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "package": "mod.azure.xenogenesis.mixins",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "AbstractHorseMixin",
+    "EntityMixin",
+    "FoxMixin",
+    "LivingEntityMixin",
+    "MixinEntityTypeBuilder_SilenceDataFixerError",
+    "MobEntityMixin",
+    "PlayerEntityMixin",
+    "ServerLevelMixin",
+    "VillagerHostilesSensorMixin",
+    "WardenEntityMixin"
+  ]
+}

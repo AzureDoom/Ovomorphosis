@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "xenogenesis:ovomorph",
+    "xenogenesis:facehugger",
+    "xenogenesis:chestburster",
+    "xenogenesis:xenomorph",
+    "xenogenesis:queen",
+    "xenogenesis:acid"
+  ]
+}
