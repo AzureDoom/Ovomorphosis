@@ -189,6 +189,14 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
 
         if (moveAnalysis != null)
             moveAnalysis.update();
+
+        if (this.isNoAi()) {
+            var yaw = 90.0f;
+            this.setYRot(yaw);
+            this.yRotO = yaw;
+            this.yBodyRot = yaw;
+            this.yBodyRotO = yaw;
+        }
     }
 
     @Override

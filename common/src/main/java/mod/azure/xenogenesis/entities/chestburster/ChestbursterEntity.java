@@ -78,13 +78,6 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
                 grow(this, 1);
             }
         }
-        if (this.isNoAi()) {
-            var yaw = 90.0f;
-            this.setYRot(yaw);
-            this.yRotO = yaw;
-            this.yBodyRot = yaw;
-            this.yBodyRotO = yaw;
-        }
     }
 
     @Override

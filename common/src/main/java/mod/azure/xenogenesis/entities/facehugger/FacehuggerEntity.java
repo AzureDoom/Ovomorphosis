@@ -89,13 +89,6 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         if (this.isInfertile() || this.isDeadOrDying()) {
             animationDispatcher.clientDeath();
         }
-        if (this.isNoAi()) {
-            var yaw = 90.0f;
-            this.setYRot(yaw);
-            this.yRotO = yaw;
-            this.yBodyRot = yaw;
-            this.yBodyRotO = yaw;
-        }
     }
 
     @Override
