@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import mod.azure.xenogenesis.entities.AbstractAlienEntity;
+import mod.azure.xenogenesis.entities.xenomorph.XenomorphEntity;
 
 /**
  * Thanks to Boston for this fix!
@@ -22,7 +22,7 @@ public abstract class VillagerHostilesSensorMixin extends NearestVisibleLivingEn
         LivingEntity livingEntity2,
         CallbackInfoReturnable<Boolean> callbackInfoReturnable
     ) {
-        if (!(livingEntity2 instanceof AbstractAlienEntity))
+        if (!(livingEntity2 instanceof XenomorphEntity))
             return;
 
         var distance = 12F;
@@ -32,7 +32,7 @@ public abstract class VillagerHostilesSensorMixin extends NearestVisibleLivingEn
 
     @Inject(at = @At("HEAD"), method = "isHostile", cancellable = true)
     void xenogenesis$isHostile(LivingEntity livingEntity, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        if (livingEntity instanceof AbstractAlienEntity) {
+        if (livingEntity instanceof XenomorphEntity) {
             callbackInfoReturnable.setReturnValue(true);
         }
     }

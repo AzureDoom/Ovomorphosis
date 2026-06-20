@@ -1,15 +1,15 @@
 package mod.azure.xenogenesis.ai.actions.xenomorph;
 
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
 import mod.azure.xenogenesis.ai.core.*;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
+import mod.azure.xenogenesis.entities.xenomorph.XenomorphEntity;
 
-public final class GrabAndExecuteAction<E extends Mob> implements Action<E> {
+public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Action<E> {
 
     private static final int HOLD_DURATION_TICKS = 200;
 
@@ -27,7 +27,7 @@ public final class GrabAndExecuteAction<E extends Mob> implements Action<E> {
 
     private boolean killed = false;
 
-    public GrabAndExecuteAction(int priority, java.util.function.Consumer<E> animationCallback) {
+    public GrabAndExecuteAction(int priority, Consumer<E> animationCallback) {
         this.priority = priority;
         this.animationCallback = animationCallback;
     }
@@ -38,6 +38,7 @@ public final class GrabAndExecuteAction<E extends Mob> implements Action<E> {
         grabbed = false;
         killed = false;
         mob.setAggressive(true);
+        mob.setIsExecuting(true);
     }
 
     @Override
@@ -94,6 +95,7 @@ public final class GrabAndExecuteAction<E extends Mob> implements Action<E> {
         if (target != null && target.getVehicle() == mob) {
             target.stopRiding();
         }
+        mob.setIsExecuting(false);
     }
 
     @Override

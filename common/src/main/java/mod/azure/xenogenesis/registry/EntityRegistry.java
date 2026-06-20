@@ -49,7 +49,7 @@ public class EntityRegistry {
         XenomorphEntity::new,
         MobCategory.MONSTER,
         0.9f,
-        1.9f,
+        2.9f,
         false
     );
 

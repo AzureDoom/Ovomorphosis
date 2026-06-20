@@ -18,9 +18,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
-import mod.azure.xenogenesis.ai.util.NearestHostileTargetSelector;
-import mod.azure.xenogenesis.ai.util.TargetingSystem;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
 import mod.azure.xenogenesis.entities.xenomorph.XenomorphEntity;
 import mod.azure.xenogenesis.registry.EntityRegistry;
@@ -44,25 +43,25 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         this.moveAnalysis = new MoveAnalysis(this);
         this.brainRuntime = new MobBrainRuntime<>(
             this,
-            new TargetingSystem<>(
-                new NearestHostileTargetSelector<>(16.0D),
-                10
-            ),
+            null,
             ChestbursterTree.create()
         );
     }
 
     public static AttributeSupplier.Builder createAttributes() {
         return LivingEntity.createLivingAttributes()
-            .add(Attributes.MAX_HEALTH, 30)
+            .add(Attributes.MAX_HEALTH, CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterHealth)
             .add(
                 Attributes.ARMOR,
-                1.0
+                CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterArmor
             )
-            .add(Attributes.ARMOR_TOUGHNESS, 0.0)
+            .add(
+                Attributes.ARMOR_TOUGHNESS,
+                CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterArmorToughness
+            )
             .add(
                 Attributes.KNOCKBACK_RESISTANCE,
-                0.0
+                CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterKnockbackRes
             )
             .add(Attributes.FOLLOW_RANGE, 0.0)
             .add(Attributes.MOVEMENT_SPEED, 0.0);

@@ -7,8 +7,11 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.Mth;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -18,6 +21,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.SplittableRandom;
+
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
 import mod.azure.xenogenesis.ai.util.NearestHostileTargetSelector;
 import mod.azure.xenogenesis.ai.util.TargetingSystem;
@@ -32,6 +38,11 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         EntityDataSerializers.FLOAT
     );
 
+    protected static final EntityDataAccessor<Boolean> IS_EXECUTION = SynchedEntityData.defineId(
+        XenomorphEntity.class,
+        EntityDataSerializers.BOOLEAN
+    );
+
     private final MobBrainRuntime<XenomorphEntity> brainRuntime;
 
     public final XenomorphAnimationDispatcher animationDispatcher;
@@ -43,7 +54,9 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         this.brainRuntime = new MobBrainRuntime<>(
             this,
             new TargetingSystem<>(
-                new NearestHostileTargetSelector<>(16.0D),
+                new NearestHostileTargetSelector<>(
+                    CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoHostileRange
+                ),
                 10
             ),
             XenomorphTree.create()
@@ -52,19 +65,19 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
     public static AttributeSupplier.Builder createAttributes() {
         return LivingEntity.createLivingAttributes()
-            .add(Attributes.MAX_HEALTH, 100)
+            .add(Attributes.MAX_HEALTH, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoHealth)
             .add(
                 Attributes.ARMOR,
-                3.0
+                CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoArmor
             )
-            .add(Attributes.ARMOR_TOUGHNESS, 3.0)
+            .add(Attributes.ARMOR_TOUGHNESS, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoArmorToughness)
             .add(
                 Attributes.KNOCKBACK_RESISTANCE,
-                1.0
+                CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoKnockbackRes
             )
             .add(Attributes.FOLLOW_RANGE, 0.0)
             .add(Attributes.MOVEMENT_SPEED, 0.0)
-            .add(Attributes.ATTACK_DAMAGE, 5.0);
+            .add(Attributes.ATTACK_DAMAGE, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoAttackDamage);
     }
 
     @Override
@@ -135,18 +148,58 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
         super.defineSynchedData(builder);
         builder.define(GROWTH, 0.0F);
+        builder.define(IS_EXECUTION, false);
     }
 
     @Override
     public void addAdditionalSaveData(@NotNull CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putFloat("growth", getGrowth());
+        tag.putBoolean("isExecuting", this.isExecuting());
     }
 
     @Override
     public void readAdditionalSaveData(@NotNull CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         this.setGrowth(tag.getFloat("growth"));
+        this.setIsExecuting(tag.getBoolean("isExecuting"));
+    }
+
+    @Override
+    protected boolean canRide(@NotNull Entity vehicle) {
+        return false;
+    }
+
+    @Override
+    public void positionRider(@NotNull Entity entity, @NotNull MoveFunction moveFunction) {
+        if (entity instanceof LivingEntity mob) {
+            var random = new SplittableRandom();
+            mob.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 100, true, true));
+            mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 40, 1, true, true));
+            var f = Mth.sin(this.yBodyRot * ((float) Math.PI / 180));
+            var g = Mth.cos(this.yBodyRot * ((float) Math.PI / 180));
+            var y1 = random.nextFloat(0.14F, 0.15F);
+            var y3 = random.nextFloat(0.44F, 0.45F);
+            var y = random.nextFloat(0.74F, 0.75f);
+            var y2 = random.nextFloat(1.14F, 1.15f);
+            mob.setPos(
+                this.getX() + ((this.isExecuting() ? -1.4f : -1.85f) * f),
+                this.getY() + (this.isExecuting()
+                    ? (mob.getBbHeight() < 1.4 ? y2 : y)
+                    : (mob.getBbHeight() < 1.4 ? y3 : y1)),
+                this.getZ() - ((this.isExecuting() ? -1.4f : -1.85f) * g)
+            );
+            mob.yBodyRot = this.yBodyRot;
+            mob.setSpeed(0);
+        }
+    }
+
+    public boolean isExecuting() {
+        return entityData.get(IS_EXECUTION);
+    }
+
+    public void setIsExecuting(boolean isExecuting) {
+        entityData.set(IS_EXECUTION, isExecuting);
     }
 
     public void updateAnimations() {

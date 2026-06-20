@@ -14,7 +14,7 @@ public class XenogenesisConfig {
 
     @Configurable
     @Configurable.Synchronized
-    @Configurable.Range(min = 1200)
+    @Configurable.DecimalRange(min = 1200)
     public float eggmorphTotalTicks = 1200;
 
     @Configurable
@@ -63,6 +63,30 @@ public class XenogenesisConfig {
 
         public static class OvomorphConfigs {
 
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double ovomorphHealth = 10.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double ovomorphArmor = 1.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double ovomorphArmorToughness = 0.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double ovomorphKnockbackRes = 0.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double ovomorphSearchRange = 6D;
         }
 
         @Configurable
@@ -73,7 +97,27 @@ public class XenogenesisConfig {
 
             @Configurable
             @Configurable.Synchronized
-            @Configurable.Range(min = 1200)
+            @Configurable.DecimalRange(min = 0.0D)
+            public double facehuggerHealth = 20.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double facehuggerArmor = 1.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double facehuggerArmorToughness = 0.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double facehuggerKnockbackRes = 0.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 1200)
             public float facehuggerAttachMaxTicks = 1200;
         }
 
@@ -85,7 +129,27 @@ public class XenogenesisConfig {
 
             @Configurable
             @Configurable.Synchronized
-            @Configurable.Range(min = 1)
+            @Configurable.DecimalRange(min = 0.0D)
+            public double chestbursterHealth = 30.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double chestbursterArmor = 1.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double chestbursterArmorToughness = 0.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double chestbursterKnockbackRes = 0.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 1)
             public float chestbursterFoodGrowthValue = 10;
         }
 
@@ -94,6 +158,46 @@ public class XenogenesisConfig {
         public XenomorphConfigs xenomorphConfigs = new XenomorphConfigs();
 
         public static class XenomorphConfigs {
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double xenoHealth = 100.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double xenoArmor = 3.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double xenoArmorToughness = 3.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double xenoKnockbackRes = 1.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double xenoAttackDamage = 5.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double xenoHostileRange = 16.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0F)
+            public float xenoExecuteChance = 0.05F;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0F)
+            public float xenoCarryToResinChance = 0.08F;
 
         }
     }

@@ -16,6 +16,7 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
@@ -85,15 +86,15 @@ public class OvomorphEntity extends AbstractAlienEntity {
 
     public static AttributeSupplier.Builder createAttributes() {
         return LivingEntity.createLivingAttributes()
-            .add(Attributes.MAX_HEALTH, 10)
+            .add(Attributes.MAX_HEALTH, CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphHealth)
             .add(
                 Attributes.ARMOR,
-                1.0
+                CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphArmor
             )
-            .add(Attributes.ARMOR_TOUGHNESS, 0.0)
+            .add(Attributes.ARMOR_TOUGHNESS, CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphArmorToughness)
             .add(
                 Attributes.KNOCKBACK_RESISTANCE,
-                0.0
+                CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphKnockbackRes
             )
             .add(Attributes.FOLLOW_RANGE, 0.0)
             .add(Attributes.MOVEMENT_SPEED, 0.0);

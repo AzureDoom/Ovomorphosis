@@ -22,9 +22,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
-import mod.azure.xenogenesis.ai.util.FacehuggerHostileTargetSelector;
-import mod.azure.xenogenesis.ai.util.TargetingSystem;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
 import mod.azure.xenogenesis.registry.SoundRegistry;
 
@@ -45,10 +44,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         this.moveAnalysis = new MoveAnalysis(this);
         this.brainRuntime = new MobBrainRuntime<>(
             this,
-            new TargetingSystem<>(
-                new FacehuggerHostileTargetSelector<>(16.0D),
-                10
-            ),
+            null,
             FacehuggerTree.create()
         );
     }
@@ -157,15 +153,18 @@ public class FacehuggerEntity extends AbstractAlienEntity {
 
     public static AttributeSupplier.Builder createAttributes() {
         return LivingEntity.createLivingAttributes()
-            .add(Attributes.MAX_HEALTH, 20)
+            .add(Attributes.MAX_HEALTH, CommonMod.getConfig().entityConfigs.facehuggerConfigs.facehuggerHealth)
             .add(
                 Attributes.ARMOR,
-                1.0
+                CommonMod.getConfig().entityConfigs.facehuggerConfigs.facehuggerArmor
             )
-            .add(Attributes.ARMOR_TOUGHNESS, 0.0)
+            .add(
+                Attributes.ARMOR_TOUGHNESS,
+                CommonMod.getConfig().entityConfigs.facehuggerConfigs.facehuggerArmorToughness
+            )
             .add(
                 Attributes.KNOCKBACK_RESISTANCE,
-                0.0
+                CommonMod.getConfig().entityConfigs.facehuggerConfigs.facehuggerKnockbackRes
             )
             .add(Attributes.FOLLOW_RANGE, 0.0)
             .add(Attributes.MOVEMENT_SPEED, 0.0);

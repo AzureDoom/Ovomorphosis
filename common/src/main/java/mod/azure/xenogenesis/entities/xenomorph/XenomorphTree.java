@@ -3,6 +3,7 @@ package mod.azure.xenogenesis.entities.xenomorph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.actions.*;
 import mod.azure.xenogenesis.ai.actions.xenomorph.CarryToWebAction;
 import mod.azure.xenogenesis.ai.actions.xenomorph.GrabAndExecuteAction;
@@ -129,7 +130,8 @@ public class XenomorphTree {
                         && cooldowns.ready(AiKeys.GRAB_COOLDOWN)
                         && cooldowns.ready("normal_attack")
                         && hasNearbyWebCross(blackboard, xenomorph)
-                        && xenomorph.getRandom().nextFloat() < 0.08F
+                        && xenomorph.getRandom().nextFloat() < CommonMod
+                            .getConfig().entityConfigs.xenomorphConfigs.xenoCarryToResinChance
                 ) {
                     return BehaviorResult.run(carryToWeb, 115);
                 }
@@ -140,7 +142,8 @@ public class XenomorphTree {
                         && cooldowns.ready(AiKeys.GRAB_COOLDOWN)
                         && cooldowns.ready("normal_attack")
                         && cooldowns.ready("heavy_attack")
-                        && xenomorph.getRandom().nextFloat() < 0.05F
+                        && xenomorph.getRandom().nextFloat() < CommonMod
+                            .getConfig().entityConfigs.xenomorphConfigs.xenoExecuteChance
                 ) {
                     return BehaviorResult.run(grabAndExecute, 120);
                 }

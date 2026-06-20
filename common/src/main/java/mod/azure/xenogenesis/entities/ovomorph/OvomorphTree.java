@@ -2,6 +2,7 @@ package mod.azure.xenogenesis.entities.ovomorph;
 
 import net.minecraft.world.entity.LivingEntity;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.actions.IdleAction;
 import mod.azure.xenogenesis.ai.actions.ovomorph.HatchFacehuggerAction;
 import mod.azure.xenogenesis.ai.core.AiKeys;
@@ -48,14 +49,15 @@ public class OvomorphTree {
      * @return the nearest valid host, or {@code null} if none is found
      */
     private static LivingEntity findHostNearEgg(OvomorphEntity egg) {
-        var searchBox = egg.getBoundingBox().inflate(6);
+        var searchRange = CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphSearchRange;
+        var searchBox = egg.getBoundingBox().inflate(searchRange);
 
         var candidates = egg.level()
             .getEntitiesOfClass(
                 LivingEntity.class,
                 searchBox,
                 candidate -> {
-                    if (egg.distanceToSqr(candidate) > (6 * 6)) {
+                    if (egg.distanceToSqr(candidate) > (searchRange * searchRange)) {
                         return false;
                     }
                     if (!TargetingUtils.faceHuggerTest(egg, candidate)) {
@@ -71,7 +73,7 @@ public class OvomorphTree {
 
         LivingEntity nearest = null;
         var nearestDist = Double.MAX_VALUE;
-        for (LivingEntity candidate : candidates) {
+        for (var candidate : candidates) {
             var dist = egg.distanceToSqr(candidate);
             if (dist < nearestDist) {
                 nearestDist = dist;
