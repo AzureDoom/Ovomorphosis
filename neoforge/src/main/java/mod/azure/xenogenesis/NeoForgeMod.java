@@ -1,25 +1,17 @@
 package mod.azure.xenogenesis;
 
-import com.mojang.serialization.MapCodec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.core.Holder;
-import net.minecraft.core.HolderSet;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.SpawnPlacementTypes;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.biome.MobSpawnSettings;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.world.BiomeModifier;
-import net.neoforged.neoforge.common.world.ModifiableBiomeInfo;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
@@ -27,10 +19,6 @@ import net.neoforged.neoforge.event.entity.RegisterSpawnPlacementsEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import net.neoforged.neoforge.registries.DeferredRegister;
-import net.neoforged.neoforge.registries.NeoForgeRegistries;
-import org.jetbrains.annotations.NotNull;
-
-import java.util.function.Supplier;
 
 import mod.azure.xenogenesis.client.facehugger.EntityHeadOffsetData;
 import mod.azure.xenogenesis.entities.chestburster.ChestbursterEntity;
@@ -50,6 +38,11 @@ public final class NeoForgeMod {
         CommonMod.MOD_ID
     );
 
+    public static DeferredRegister<Block> blockDeferredRegister = DeferredRegister.create(
+        BuiltInRegistries.BLOCK,
+        CommonMod.MOD_ID
+    );
+
     public static DeferredRegister<Item> itemDeferredRegister = DeferredRegister.create(
         BuiltInRegistries.ITEM,
         CommonMod.MOD_ID
@@ -62,18 +55,15 @@ public final class NeoForgeMod {
 
     public NeoForgeMod(IEventBus modEventBus) {
         CommonMod.initRegistries();
-        if (entityTypeDeferredRegister != null)
-            entityTypeDeferredRegister.register(modEventBus);
-        if (itemDeferredRegister != null)
-            itemDeferredRegister.register(modEventBus);
-        if (soundEventDeferredRegister != null)
-            soundEventDeferredRegister.register(modEventBus);
+        blockDeferredRegister.register(modEventBus);
+        entityTypeDeferredRegister.register(modEventBus);
+        itemDeferredRegister.register(modEventBus);
+        soundEventDeferredRegister.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(
             (AddReloadListenerEvent event) -> event.addListener(new EntityHeadOffsetData.ReloadListener())
         );
         modEventBus.addListener(this::createEntityAttributes);
         modEventBus.addListener(this::addSpawnPlacements);
-        ModEntitySpawn.SERIALIZER.register(modEventBus);
         modEventBus.addListener(this::addCreativeTabs);
         modEventBus.addListener(this::registerMessages);
     }
@@ -139,45 +129,5 @@ public final class NeoForgeMod {
             ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
             RegisterSpawnPlacementsEvent.Operation.AND
         );
-    }
-
-    record ModEntitySpawn(
-        HolderSet<Biome> biomes,
-        MobSpawnSettings.SpawnerData spawn
-    ) implements BiomeModifier {
-
-        public static DeferredRegister<MapCodec<? extends BiomeModifier>> SERIALIZER = DeferredRegister.create(
-            NeoForgeRegistries.Keys.BIOME_MODIFIER_SERIALIZERS,
-            CommonMod.MOD_ID
-        );
-
-        static Supplier<MapCodec<ModEntitySpawn>> SPAWN_CODEC = SERIALIZER.register(
-            "mobspawns",
-            () -> RecordCodecBuilder.mapCodec(
-                builder -> builder.group(
-                    Biome.LIST_CODEC.fieldOf("biomes").forGetter(ModEntitySpawn::biomes),
-                    MobSpawnSettings.SpawnerData.CODEC.fieldOf("spawn")
-                        .forGetter(
-                            ModEntitySpawn::spawn
-                        )
-                ).apply(builder, ModEntitySpawn::new)
-            )
-        );
-
-        @Override
-        public void modify(
-            @NotNull Holder<Biome> biome,
-            @NotNull Phase phase,
-            ModifiableBiomeInfo.BiomeInfo.@NotNull Builder builder
-        ) {
-            if (phase == Phase.ADD && this.biomes.contains(biome)) {
-                builder.getMobSpawnSettings().addSpawn(MobCategory.MONSTER, this.spawn);
-            }
-        }
-
-        @Override
-        public @NotNull MapCodec<? extends BiomeModifier> codec() {
-            return SPAWN_CODEC.get();
-        }
     }
 }

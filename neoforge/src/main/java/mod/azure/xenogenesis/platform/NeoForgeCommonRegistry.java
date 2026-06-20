@@ -7,6 +7,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.world.level.block.Block;
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 
 import java.util.function.Supplier;
@@ -19,7 +20,9 @@ public class NeoForgeCommonRegistry implements CommonRegistry {
     @SuppressWarnings("unchecked")
     @Override
     public <T> Supplier<T> register(Registry<? super T> registry, String registryName, Supplier<? extends T> supplier) {
-        if (registry == BuiltInRegistries.ITEM) {
+        if (registry == BuiltInRegistries.BLOCK) {
+            return (Supplier<T>) NeoForgeMod.blockDeferredRegister.register(registryName, (Supplier<Block>) supplier);
+        } else if (registry == BuiltInRegistries.ITEM) {
             return (Supplier<T>) NeoForgeMod.itemDeferredRegister.register(registryName, (Supplier<Item>) supplier);
         } else if (registry == BuiltInRegistries.ENTITY_TYPE) {
             return (Supplier<T>) NeoForgeMod.entityTypeDeferredRegister.register(
