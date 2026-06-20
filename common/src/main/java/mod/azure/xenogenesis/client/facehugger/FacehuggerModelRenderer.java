@@ -6,6 +6,7 @@ import mod.azure.azurelib.common.render.AzLayerRenderer;
 import mod.azure.azurelib.common.render.entity.AzEntityRendererPipeline;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.npc.AbstractVillager;
 
 import java.util.UUID;
 
@@ -64,25 +65,19 @@ public class FacehuggerModelRenderer extends XenoModelRenderer<FacehuggerEntity>
         var headYaw = Mth.rotLerp(partialTick, host.yHeadRotO, host.yHeadRot) - bodyYaw;
         var headPitch = Mth.rotLerp(partialTick, host.getXRot(), host.xRotO);
 
-        var xPivot = data.pivot().x;
-        var yPivot = data.pivot().y;
-        var zPivot = data.pivot().z;
-        var ySize = data.size().y;
-        var zSize = data.size().z;
-
         poseStack.mulPose(Axis.YN.rotationDegrees(bodyYaw));
-
-        poseStack.translate(xPivot, yPivot - host.getBbHeight(), -zPivot);
         poseStack.mulPose(Axis.YN.rotationDegrees(headYaw));
         poseStack.mulPose(Axis.XP.rotationDegrees(headPitch));
-        poseStack.translate(-xPivot, -yPivot + host.getBbHeight(), zPivot);
 
+        var offsetZ = 0.0;
+        if (host instanceof AbstractVillager) {
+            offsetZ = 0.2;
+        }
         var result = EntityHeadOffsetData.resolve(host.getType(), data, facehuggerEntity);
-
         if (result != null) {
             poseStack.translate(0, result.vertical(), result.face());
         } else {
-            poseStack.translate(0, -ySize, zSize);
+            poseStack.translate(0, -data.size().y / 2.0, data.size().z - offsetZ);
         }
     }
 }
