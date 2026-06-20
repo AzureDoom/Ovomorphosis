@@ -3,7 +3,6 @@ package mod.azure.xenogenesis.ai.actions.xenomorph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
@@ -47,7 +46,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
             return ActionStatus.INTERRUPTED;
 
         var mobPos = mob.blockPosition();
-        if (mob.level().getBrightness(LightLayer.BLOCK, mobPos) > MAX_LIGHT_LEVEL)
+        if (mob.level().getMaxLocalRawBrightness(mobPos) > MAX_LIGHT_LEVEL)
             return ActionStatus.FAILURE;
 
         if (!placed) {
@@ -121,7 +120,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
                 for (var y = -1; y <= 1; y++) {
                     var pos = origin.offset(x, y, z);
 
-                    if (level.getBrightness(LightLayer.BLOCK, pos) > MAX_LIGHT_LEVEL)
+                    if (level.getMaxLocalRawBrightness(pos) > MAX_LIGHT_LEVEL)
                         continue;
 
                     if (!level.getBlockState(pos).canBeReplaced())
