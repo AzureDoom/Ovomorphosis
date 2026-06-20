@@ -4,11 +4,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 import mod.azure.xenogenesis.ai.actions.*;
+import mod.azure.xenogenesis.ai.actions.xenomorph.CarryToWebAction;
 import mod.azure.xenogenesis.ai.actions.xenomorph.GrabAndExecuteAction;
+import mod.azure.xenogenesis.ai.actions.xenomorph.PlaceResinAction;
 import mod.azure.xenogenesis.ai.core.AiKeys;
 import mod.azure.xenogenesis.ai.core.BehaviorNode;
 import mod.azure.xenogenesis.ai.core.BehaviorResult;
 import mod.azure.xenogenesis.ai.util.CrawlingManager;
+import mod.azure.xenogenesis.ai.util.HiveMemory;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 
 public class XenomorphTree {
@@ -86,6 +89,14 @@ public class XenomorphTree {
             x -> x.animationDispatcher.serverExecute()
         );
 
+        var placeResin = new PlaceResinAction<XenomorphEntity>(3, 200);
+
+        var carryToWeb = new CarryToWebAction<XenomorphEntity>(
+            115,
+            x -> x.animationDispatcher.serverExecute(),
+            x -> {}
+        );
+
         return (xenomorph, blackboard, cooldowns) -> {
 
             var currentTarget = blackboard.get(AiKeys.TARGET, LivingEntity.class);
@@ -110,6 +121,18 @@ public class XenomorphTree {
             if (currentTarget != null && currentTarget.isAlive()) {
                 var yGap = currentTarget.getY() - xenomorph.getY();
                 var canReachVertically = yGap <= 1.5D;
+
+                if (
+                    canReachVertically
+                        && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 1.5D)
+                        && cooldowns.ready(AiKeys.CARRY_COOLDOWN)
+                        && cooldowns.ready(AiKeys.GRAB_COOLDOWN)
+                        && cooldowns.ready("normal_attack")
+                        && hasNearbyWebCross(blackboard, xenomorph)
+                        && xenomorph.getRandom().nextFloat() < 0.08F
+                ) {
+                    return BehaviorResult.run(carryToWeb, 115);
+                }
 
                 if (
                     canReachVertically
@@ -139,15 +162,16 @@ public class XenomorphTree {
                 }
 
                 if (CrawlingManager.shouldUseWallCrawlingToTarget(xenomorph, currentTarget)) {
-                    return BehaviorResult.run(
-                        crawlToTargetCombat,
-                        20
-                    );
+                    return BehaviorResult.run(crawlToTargetCombat, 20);
                 }
-                return BehaviorResult.run(
-                    moveToTargetCombat,
-                    20
-                );
+                return BehaviorResult.run(moveToTargetCombat, 20);
+            }
+
+            if (
+                cooldowns.ready(AiKeys.RESIN_PLACE_COOLDOWN)
+                    && xenomorph.getRandom().nextFloat() < 0.4F
+            ) {
+                return BehaviorResult.run(placeResin, 3);
             }
 
             if (xenomorph.getRandom().nextFloat() < 0.3F) {
@@ -156,5 +180,15 @@ public class XenomorphTree {
 
             return BehaviorResult.run(idle, 5);
         };
+    }
+
+    private static boolean hasNearbyWebCross(
+        mod.azure.xenogenesis.ai.core.Blackboard blackboard,
+        XenomorphEntity xenomorph
+    ) {
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        if (memory == null)
+            return false;
+        return memory.findNearestWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D).isPresent();
     }
 }

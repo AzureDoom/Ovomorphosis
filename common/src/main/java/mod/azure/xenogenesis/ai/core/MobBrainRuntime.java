@@ -1,6 +1,7 @@
 package mod.azure.xenogenesis.ai.core;
 
 import net.minecraft.world.entity.Mob;
+import org.jetbrains.annotations.Nullable;
 
 import mod.azure.xenogenesis.ai.util.TargetingSystem;
 
@@ -32,9 +33,9 @@ public final class MobBrainRuntime<E extends Mob> {
      *
      * @param mob             the mob this brain controls
      * @param targetingSystem the system responsible for finding and updating the mob's target
-     * @param root            the root behaviour node evaluated each tick
+     * @param root            the root behavior node evaluated each tick
      */
-    public MobBrainRuntime(E mob, TargetingSystem<E> targetingSystem, BehaviorNode<E> root) {
+    public MobBrainRuntime(E mob, @Nullable TargetingSystem<E> targetingSystem, BehaviorNode<E> root) {
         this.mob = mob;
         this.targetingSystem = targetingSystem;
         this.root = root;
@@ -48,12 +49,13 @@ public final class MobBrainRuntime<E extends Mob> {
      * <li>Decrement all cooldowns.</li>
      * <li>Run the targeting system to refresh {@link AiKeys#TARGET}.</li>
      * <li>Tick the current action; stop it if it finished.</li>
-     * <li>Evaluate the behaviour tree; start a new action if one outranks the current.</li>
+     * <li>Evaluate the behavior tree; start a new action if one outranks the current.</li>
      * </ol>
      */
     public void tick() {
         cooldowns.tick();
-        targetingSystem.tick(mob, blackboard);
+        if (targetingSystem != null)
+            targetingSystem.tick(mob, blackboard);
 
         if (currentAction != null) {
             var status = currentAction.tick(mob, blackboard, cooldowns);

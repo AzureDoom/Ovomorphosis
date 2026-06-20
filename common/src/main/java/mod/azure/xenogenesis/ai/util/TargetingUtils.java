@@ -14,6 +14,8 @@ import java.util.function.Predicate;
 
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
 import mod.azure.xenogenesis.entities.facehugger.FacehuggerEntity;
+import mod.azure.xenogenesis.infection.InfectionManager;
+import mod.azure.xenogenesis.registry.BlockRegistry;
 import mod.azure.xenogenesis.util.ModTags;
 
 /**
@@ -60,7 +62,11 @@ public final class TargetingUtils {
             e != mob &&
             !e.isSpectator() &&
             !(e instanceof Player p && (p.isCreative() || p.isSpectator())) &&
-            e.getType() != mob.getType() && !(e instanceof AbstractAlienEntity);
+            e.getType() != mob.getType() && !(e instanceof AbstractAlienEntity) && e.getPassengers()
+                .stream()
+                .noneMatch(AbstractAlienEntity.class::isInstance) && !e.hasControllingPassenger() && e
+                    .getInBlockState() != BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState() && !InfectionManager
+                        .isInfected(e);
     }
 
     /**
@@ -135,6 +141,9 @@ public final class TargetingUtils {
         if (isFacehuggerAttached(target)) {
             return false;
         }
+
+        if (InfectionManager.isInfected(target))
+            return false;
 
         return validTargetSmallDistance(self).test(target);
     }

@@ -1,6 +1,7 @@
 package mod.azure.xenogenesis.ai.core;
 
 import mod.azure.xenogenesis.ai.actions.xenomorph.GrabAndExecuteAction;
+import mod.azure.xenogenesis.ai.util.HiveMemory;
 
 /**
  * Central repository of {@link Blackboard} key constants used across all AI actions and nodes.
@@ -41,7 +42,25 @@ public final class AiKeys {
      * Cooldown applied after a {@link GrabAndExecuteAction} completes, preventing the xenomorph from immediately
      * grabbing again.
      */
-    public static final String GRAB_COOLDOWN = "xenomorph:grab_cooldown";
+    public static final String GRAB_COOLDOWN = "grab_cooldown";
+
+    /**
+     * The {@link HiveMemory} instance tracking all resin blocks placed by this xenomorph. Stored as an object
+     * reference; retrieve with {@code blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class)}.
+     */
+    public static final String HIVE_MEMORY = "hive_memory";
+
+    /**
+     * Cooldown between individual resin-block placements. Set by {@link PlaceResinAction} after each successful
+     * placement.
+     */
+    public static final String RESIN_PLACE_COOLDOWN = "resin_place_cooldown";
+
+    /**
+     * Cooldown applied after a carry-to-web action completes, preventing the xenomorph from immediately carrying
+     * another target.
+     */
+    public static final String CARRY_COOLDOWN = "carry_cooldown";
 
     private AiKeys() {}
 }

@@ -4,6 +4,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.*;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 import mod.azure.xenogenesis.entities.facehugger.FacehuggerEntity;
@@ -33,7 +34,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
         if (mob.isAttachedToHost()) {
             attachedTicks++;
 
-            if (attachedTicks >= 1200) {
+            if (attachedTicks >= CommonMod.getConfig().entityConfigs.facehuggerConfigs.facehuggerAttachMaxTicks) {
                 mob.stopRiding();
                 mob.setIsInfertile(true);
                 mob.kill();

@@ -24,6 +24,8 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.RegisterSpawnPlacementsEvent;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import org.jetbrains.annotations.NotNull;
@@ -34,8 +36,9 @@ import mod.azure.xenogenesis.client.facehugger.EntityHeadOffsetData;
 import mod.azure.xenogenesis.entities.chestburster.ChestbursterEntity;
 import mod.azure.xenogenesis.entities.facehugger.FacehuggerEntity;
 import mod.azure.xenogenesis.entities.ovomorph.OvomorphEntity;
-import mod.azure.xenogenesis.entities.queen.QueenEntity;
 import mod.azure.xenogenesis.entities.xenomorph.XenomorphEntity;
+import mod.azure.xenogenesis.network.EggmorphProgressPacket;
+import mod.azure.xenogenesis.registry.BlockRegistry;
 import mod.azure.xenogenesis.registry.EntityRegistry;
 import mod.azure.xenogenesis.registry.ItemRegistry;
 
@@ -72,6 +75,17 @@ public final class NeoForgeMod {
         modEventBus.addListener(this::addSpawnPlacements);
         ModEntitySpawn.SERIALIZER.register(modEventBus);
         modEventBus.addListener(this::addCreativeTabs);
+        modEventBus.addListener(this::registerMessages);
+    }
+
+    public void registerMessages(final RegisterPayloadHandlersEvent event) {
+        PayloadRegistrar registrar = event.registrar(CommonMod.MOD_ID);
+
+        registrar.playToClient(
+            EggmorphProgressPacket.TYPE,
+            EggmorphProgressPacket.CODEC,
+            (msg, ctx) -> msg.handle()
+        );
     }
 
     public void createEntityAttributes(final EntityAttributeCreationEvent event) {
@@ -79,7 +93,6 @@ public final class NeoForgeMod {
         event.put(EntityRegistry.FACEHUGGER.get(), FacehuggerEntity.createAttributes().build());
         event.put(EntityRegistry.CHESTBURSTER.get(), ChestbursterEntity.createAttributes().build());
         event.put(EntityRegistry.XENOMORPH.get(), XenomorphEntity.createAttributes().build());
-        event.put(EntityRegistry.QUEEN.get(), QueenEntity.createAttributes().build());
     }
 
     public void addCreativeTabs(final BuildCreativeModeTabContentsEvent event) {
@@ -88,7 +101,12 @@ public final class NeoForgeMod {
             event.accept(ItemRegistry.FACEHUGGER_SPAWN_EGG.get());
             event.accept(ItemRegistry.CHESTBURSTER_SPAWN_EGG.get());
             event.accept(ItemRegistry.XENOMORPH_SPAWN_EGG.get());
-            event.accept(ItemRegistry.QUEEN_SPAWN_EGG.get());
+        }
+        if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
+            event.accept(BlockRegistry.RESIN_ITEM.get());
+            event.accept(BlockRegistry.RESIN_BLOCK_ITEM.get());
+            event.accept(BlockRegistry.RESIN_WEB_ITEM.get());
+            event.accept(BlockRegistry.RESIN_WEB_CROSS_ITEM.get());
         }
     }
 
@@ -116,13 +134,6 @@ public final class NeoForgeMod {
         );
         event.register(
             EntityRegistry.XENOMORPH.get(),
-            SpawnPlacementTypes.ON_GROUND,
-            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-            ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
-            RegisterSpawnPlacementsEvent.Operation.AND
-        );
-        event.register(
-            EntityRegistry.QUEEN.get(),
             SpawnPlacementTypes.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),

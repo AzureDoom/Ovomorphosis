@@ -8,6 +8,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.Action;
 import mod.azure.xenogenesis.ai.core.ActionStatus;
 import mod.azure.xenogenesis.ai.core.Blackboard;
@@ -91,7 +92,7 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
             if (this.food != null && this.food.isAlive() && !this.food.getItem().isEmpty()) {
                 consumeOneFoodItem(mob, this.food);
                 mob.playSound(SoundEvents.GENERIC_EAT);
-                mob.grow(mob, 10);
+                mob.grow(mob, CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterFoodGrowthValue);
             }
             this.consumed = true;
         }
@@ -201,6 +202,7 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
             itemEntity.setItem(stack);
     }
 
+    // TODO: Move to tag
     private boolean isCookedFood(ItemStack stack) {
         return stack.is(Items.COOKED_BEEF)
             || stack.is(Items.COOKED_CHICKEN)

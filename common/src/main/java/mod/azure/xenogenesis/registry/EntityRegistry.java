@@ -12,7 +12,6 @@ import mod.azure.xenogenesis.entities.SilencedEntityTypeBuilder;
 import mod.azure.xenogenesis.entities.chestburster.ChestbursterEntity;
 import mod.azure.xenogenesis.entities.facehugger.FacehuggerEntity;
 import mod.azure.xenogenesis.entities.ovomorph.OvomorphEntity;
-import mod.azure.xenogenesis.entities.queen.QueenEntity;
 import mod.azure.xenogenesis.entities.xenomorph.XenomorphEntity;
 import mod.azure.xenogenesis.services.XenoServices;
 
@@ -51,15 +50,6 @@ public class EntityRegistry {
         MobCategory.MONSTER,
         0.9f,
         1.9f,
-        false
-    );
-
-    public static final Supplier<EntityType<QueenEntity>> QUEEN = registerEntity(
-        "queen",
-        QueenEntity::new,
-        MobCategory.MONSTER,
-        1.9f,
-        3.9f,
         false
     );
 

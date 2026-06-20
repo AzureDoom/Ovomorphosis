@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
+import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.registry.SoundRegistry;
 import mod.azure.xenogenesis.util.BlockBreakProgressManager;
 import mod.azure.xenogenesis.util.ModTags;
@@ -61,32 +62,36 @@ public class AcidEntity extends Entity {
         super.tick();
         age++;
         if (level().isClientSide()) {
-            for (var i = 0; i < random.nextIntBetweenInclusive(0, 4); i++) {
-                level().addAlwaysVisibleParticle(
-                    ParticleTypes.COMPOSTER,
-                    blockPosition().getX() + random.nextDouble(),
-                    blockPosition().getY() + 0.09,
-                    blockPosition().getZ() + random.nextDouble(),
-                    0.0,
-                    0.0,
-                    0.0
-                );
-            }
+            this.applyParticles();
             return;
         }
         if (age == 1) {
             moveTo(blockPosition().offset(0, 0, 0), getYRot(), getXRot());
         }
-        applyCustomGravity();
-        applyBlockBreaking();
-        applyContactEffects();
-        applySounds();
+        this.applyCustomGravity();
+        this.applyBlockBreaking();
+        this.applyContactEffects();
+        this.applySounds();
 
         if (
             age >= random.nextIntBetweenInclusive(400, 800) || level().getBlockState(blockPosition())
                 .is(Blocks.LAVA)
         ) {
             kill();
+        }
+    }
+
+    private void applyParticles() {
+        for (var i = 0; i < random.nextIntBetweenInclusive(0, 4); i++) {
+            level().addAlwaysVisibleParticle(
+                ParticleTypes.COMPOSTER,
+                blockPosition().getX() + random.nextDouble(),
+                blockPosition().getY() + 0.09,
+                blockPosition().getZ() + random.nextDouble(),
+                0.0,
+                0.0,
+                0.0
+            );
         }
     }
 
@@ -108,7 +113,8 @@ public class AcidEntity extends Entity {
     private void applyBlockBreaking() {
         if (
             age % 5 == 0 &&
-                level().getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
+                (CommonMod.getConfig().enableAcidBlockBreaking || level().getGameRules()
+                    .getBoolean(GameRules.RULE_MOBGRIEFING))
         ) {
             var blockStateBelow = level().getBlockState(blockPosition().below());
             if (!blockStateBelow.is(ModTags.ACID_RESISTANT_BLOCKS)) {
@@ -116,11 +122,10 @@ public class AcidEntity extends Entity {
                     level(),
                     blockPosition().below()
                 );
-                var destroySpeedMultiplier = 3;
                 BlockBreakProgressManager.damage(
                     level(),
                     blockPosition().below(),
-                    blockHardness * destroySpeedMultiplier
+                    blockHardness * CommonMod.config.acidDestroySpeedMultiplier
                 );
             }
         }
@@ -140,7 +145,7 @@ public class AcidEntity extends Entity {
                     new MobEffectInstance(MobEffects.POISON, 60, random.nextIntBetweenInclusive(0, 4))
                 );
             } else if (
-                e instanceof ItemEntity item
+                e instanceof ItemEntity item && CommonMod.config.enableAcidItemBreaking
             ) {
                 var itemStack = item.getItem();
                 if (itemStack.getMaxDamage() < 2) {

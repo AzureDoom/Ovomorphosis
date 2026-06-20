@@ -1,0 +1,8 @@
+{
+  "values": [
+    "xenogenesis:resin",
+    "xenogenesis:resin_block",
+    "xenogenesis:resin_web",
+    "xenogenesis:resin_web_cross"
+  ]
+}

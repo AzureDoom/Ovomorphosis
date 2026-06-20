@@ -1,14 +1,21 @@
 package mod.azure.xenogenesis.infection;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.level.ChunkPos;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import mod.azure.xenogenesis.CommonMod;
+import mod.azure.xenogenesis.data.XenogenesisSavedData;
 import mod.azure.xenogenesis.entities.facehugger.FacehuggerEntity;
 import mod.azure.xenogenesis.registry.DamageTypeRegistry;
 import mod.azure.xenogenesis.registry.EntityRegistry;
@@ -20,12 +27,24 @@ public final class InfectionManager {
 
     private static final Map<UUID, InfectionState> INFECTIONS = new ConcurrentHashMap<>();
 
+    public static Map<UUID, InfectionState> snapshotForSave() {
+        return new HashMap<>(INFECTIONS);
+    }
+
+    public static void restore(UUID uuid, InfectionState state) {
+        INFECTIONS.put(uuid, state);
+    }
+
+    public static void clearAll() {
+        INFECTIONS.clear();
+    }
+
     public static void infect(LivingEntity host, int random) {
         if (isInfected(host))
             return;
 
-        int range = InfectionState.MAX_DURATION - InfectionState.MIN_DURATION;
-        int duration = InfectionState.MIN_DURATION + Math.abs(random % (range + 1));
+        int range = CommonMod.getConfig().infectionMaxTicks - CommonMod.getConfig().infectionMinTicks;
+        int duration = CommonMod.getConfig().infectionMinTicks + Math.abs(random % (range + 1));
         INFECTIONS.put(host.getUUID(), new InfectionState(duration));
         host.level()
             .playSound(
@@ -46,7 +65,12 @@ public final class InfectionManager {
         INFECTIONS.remove(entity.getUUID());
     }
 
+    private static boolean hasLoggedOnce = false;
+
     public static void tick(ServerLevel level) {
+        if (!hasLoggedOnce) {
+            hasLoggedOnce = true;
+        }
         var it = INFECTIONS.entrySet().iterator();
 
         while (it.hasNext()) {
@@ -56,6 +80,16 @@ public final class InfectionManager {
 
             var entity = level.getEntity(uuid);
             if (!(entity instanceof LivingEntity host)) {
+                if (state.lastKnownPos != null && !state.lastKnownPos.equals(BlockPos.ZERO)) {
+                    var chunkPos = new ChunkPos(state.lastKnownPos);
+                    level.getChunkSource()
+                        .addRegionTicket(
+                            TicketType.UNKNOWN,
+                            chunkPos,
+                            2,
+                            chunkPos
+                        );
+                }
                 continue;
             }
 
@@ -64,17 +98,21 @@ public final class InfectionManager {
                 continue;
             }
 
+            state.lastKnownPos = host.blockPosition();
             state.ticks++;
             state.ticksSinceLastDamage++;
+            if (entity instanceof Mob mob) {
+                mob.setPersistenceRequired();
+            }
 
             if (state.isInDamagePhase() && !state.hasBurst) {
-                if (state.ticksSinceLastDamage >= InfectionState.DAMAGE_INTERVAL) {
+                if (state.ticksSinceLastDamage >= 20) {
                     state.ticksSinceLastDamage = 0;
                     applyInfectionDamage(host, level);
                     // TODO: Spawn blood particles
                 }
 
-                if (host.getHealth() <= InfectionState.BURST_HEALTH_THRESHOLD) {
+                if (host.getHealth() <= 1F) {
                     triggerBurst(host, level);
                     state.hasBurst = true;
                     it.remove();
@@ -87,10 +125,13 @@ public final class InfectionManager {
                 it.remove();
             }
         }
+        if (!INFECTIONS.isEmpty()) {
+            XenogenesisSavedData.get(level).setDirty();
+        }
     }
 
     private static void applyInfectionDamage(LivingEntity host, ServerLevel level) {
-        host.hurt(DamageTypeRegistry.of(level), InfectionState.DAMAGE_PER_INTERVAL);
+        host.hurt(DamageTypeRegistry.of(level), 1F);
     }
 
     private static void triggerBurst(LivingEntity host, ServerLevel level) {
@@ -99,7 +140,6 @@ public final class InfectionManager {
 
         level.playSound(host, host.blockPosition(), SoundRegistry.CHEST_BURST.get(), SoundSource.HOSTILE, 1.0F, 1.0F);
 
-        // TODO: swap FacehuggerEntity for ChestbursterEntity once available
         var burster = new FacehuggerEntity(EntityRegistry.FACEHUGGER.get(), level);
 
         var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);

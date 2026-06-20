@@ -10,6 +10,11 @@ import mod.azure.xenogenesis.CommonMod;
 
 public class ModTags {
 
+    public static final TagKey<Block> RESIN = TagKey.create(
+        Registries.BLOCK,
+        CommonMod.modResource("resin")
+    );
+
     public static final TagKey<Block> WEAK_BLOCKS = TagKey.create(
         Registries.BLOCK,
         CommonMod.modResource("weak_blocks")

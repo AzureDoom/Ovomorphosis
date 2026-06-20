@@ -34,7 +34,6 @@ public final class HatchFacehuggerAction implements Action<OvomorphEntity> {
 
         if (ticks >= hatchAt) {
             if (!egg.level().isClientSide()) {
-                // TODO: Replace with FacehuggerEntity
                 var facehugger = new FacehuggerEntity(EntityRegistry.FACEHUGGER.get(), egg.level());
                 facehugger.setPos(egg.position().x, egg.position().y + 1.2, egg.position().z);
                 facehugger.setDeltaMovement(

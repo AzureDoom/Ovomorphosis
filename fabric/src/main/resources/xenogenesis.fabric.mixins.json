@@ -16,5 +16,8 @@
     "ServerLevelMixin",
     "VillagerHostilesSensorMixin",
     "WardenEntityMixin"
+  ],
+  "client": [
+    "client.LivingEntityRendererMixin"
   ]
 }

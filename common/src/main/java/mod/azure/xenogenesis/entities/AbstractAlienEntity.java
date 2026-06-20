@@ -66,6 +66,13 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
     }
 
     @Override
+    public void travel(@NotNull Vec3 vec3) {
+        if (this.tickCount % 10 == 0)
+            this.refreshDimensions();
+        super.travel(vec3);
+    }
+
+    @Override
     protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
         super.defineSynchedData(builder);
 

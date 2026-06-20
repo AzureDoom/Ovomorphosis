@@ -13,13 +13,10 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
-import mod.azure.xenogenesis.ai.util.NearestHostileTargetSelector;
-import mod.azure.xenogenesis.ai.util.TargetingSystem;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
 
@@ -43,10 +40,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         super(entityType, level);
         this.brainRuntime = new MobBrainRuntime<>(
             this,
-            new TargetingSystem<>(
-                new NearestHostileTargetSelector<>(16.0D),
-                10
-            ),
+            null,
             OvomorphTree.create()
         );
         this.animationDispatcher = new OvomorphAnimationDispatcher(this);
@@ -103,23 +97,6 @@ public class OvomorphEntity extends AbstractAlienEntity {
             )
             .add(Attributes.FOLLOW_RANGE, 0.0)
             .add(Attributes.MOVEMENT_SPEED, 0.0);
-    }
-
-    @Override
-    @NotNull
-    public EntityDimensions getDefaultDimensions(@NotNull Pose pose) {
-        if (this.getEggState() == EggStates.HATCHED.ordinal() && !this.isDeadOrDying())
-            return EntityDimensions.scalable(1.0f, 0.6f);
-        if (this.isDeadOrDying())
-            return EntityDimensions.scalable(1.0f, 0.6f);
-        return super.getDefaultDimensions(pose);
-    }
-
-    @Override
-    public void travel(@NotNull Vec3 vec3) {
-        if (this.tickCount % 10 == 0)
-            this.refreshDimensions();
-        super.travel(vec3);
     }
 
     @Override

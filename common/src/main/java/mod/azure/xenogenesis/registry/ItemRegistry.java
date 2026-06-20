@@ -50,19 +50,9 @@ public class ItemRegistry {
         )
     );
 
-    public static final Supplier<SpawnEggItem> QUEEN_SPAWN_EGG = registerItem(
-        "queen_spawn_egg",
-        XenoServices.COMMON_REGISTRY.makeSpawnEggFor(
-            EntityRegistry.QUEEN,
-            0x5a001e,
-            0x770016,
-            new Item.Properties()
-        )
-    );
-
     private ItemRegistry() {}
 
-    static <T extends Item> Supplier<T> registerItem(String itemName, Supplier<T> item) {
+    public static <T extends Item> Supplier<T> registerItem(String itemName, Supplier<T> item) {
         return XenoServices.COMMON_REGISTRY.register(BuiltInRegistries.ITEM, itemName, item);
     }
 

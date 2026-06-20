@@ -1,0 +1,24 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "xenogenesis:block/resin_web_cross_1"
+      },
+      {
+        "model": "xenogenesis:block/resin_web_cross_2"
+      },
+      {
+        "model": "xenogenesis:block/resin_web_cross_3"
+      },
+      {
+        "model": "xenogenesis:block/resin_web_cross_4"
+      },
+      {
+        "model": "xenogenesis:block/resin_web_cross_5"
+      },
+      {
+        "model": "xenogenesis:block/resin_web_cross_6"
+      }
+    ]
+  }
+}
