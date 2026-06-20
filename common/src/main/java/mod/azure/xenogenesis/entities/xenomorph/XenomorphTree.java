@@ -14,6 +14,7 @@ import mod.azure.xenogenesis.ai.core.BehaviorResult;
 import mod.azure.xenogenesis.ai.util.CrawlingManager;
 import mod.azure.xenogenesis.ai.util.HiveMemory;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
+import mod.azure.xenogenesis.util.ModTags;
 
 public class XenomorphTree {
 
@@ -122,6 +123,7 @@ public class XenomorphTree {
             if (currentTarget != null && currentTarget.isAlive()) {
                 var yGap = currentTarget.getY() - xenomorph.getY();
                 var canReachVertically = yGap <= 1.5D;
+                var dangerTarget = currentTarget.getType().is(ModTags.DANGER_ENTITIES);
 
                 if (
                     canReachVertically
@@ -137,7 +139,8 @@ public class XenomorphTree {
                 }
 
                 if (
-                    canReachVertically
+                    !dangerTarget &&
+                        canReachVertically
                         && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 1.5D)
                         && cooldowns.ready(AiKeys.GRAB_COOLDOWN)
                         && cooldowns.ready("normal_attack")
