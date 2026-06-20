@@ -82,6 +82,9 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         if (this.isAttachedToHost() && !this.isInfertile() && !this.isDeadOrDying()) {
             animationDispatcher.sendFaceHug();
         }
+        if (this.isAttachedToHost() && this.isDeadOrDying()) {
+            this.unRide();
+        }
         if (this.isInfertile() || this.isDeadOrDying()) {
             animationDispatcher.clientDeath();
         }
