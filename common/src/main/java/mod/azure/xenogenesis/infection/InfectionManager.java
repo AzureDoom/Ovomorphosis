@@ -1,7 +1,9 @@
 package mod.azure.xenogenesis.infection;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -44,8 +46,8 @@ public final class InfectionManager {
         if (isInfected(host))
             return;
 
-        int range = CommonMod.getConfig().infectionMaxTicks - CommonMod.getConfig().infectionMinTicks;
-        int duration = CommonMod.getConfig().infectionMinTicks + Math.abs(random % (range + 1));
+        var range = CommonMod.getConfig().infectionMaxTicks - CommonMod.getConfig().infectionMinTicks;
+        var duration = CommonMod.getConfig().infectionMinTicks + Math.abs(random % (range + 1));
         INFECTIONS.put(host.getUUID(), new InfectionState(duration));
         host.level()
             .playSound(
@@ -56,6 +58,18 @@ public final class InfectionManager {
                 1.0F,
                 1.0F
             );
+        if (host instanceof ServerPlayer serverPlayer) {
+            var advancement = serverPlayer.server.getAdvancements()
+                    .get(CommonMod.modResource("facehugged"));
+            if (advancement != null
+                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()) {
+                for (var s : serverPlayer.getAdvancements()
+                        .getOrStartProgress(advancement)
+                        .getRemainingCriteria()) {
+                    serverPlayer.getAdvancements().award(advancement, s);
+                }
+            }
+        }
     }
 
     public static boolean isInfected(LivingEntity entity) {
@@ -111,6 +125,9 @@ public final class InfectionManager {
             if (state.isInDamagePhase() && !state.hasBurst) {
                 if (state.ticksSinceLastDamage >= 20) {
                     state.ticksSinceLastDamage = 0;
+                    if (entity instanceof ServerPlayer serverPlayer) {
+                        serverPlayer.displayClientMessage(Component.translatable("msg.xenogenesis.chest_bursting"), true);
+                    }
                     applyInfectionDamage(host, level);
                     // TODO: Spawn blood particles
                 }
@@ -155,6 +172,19 @@ public final class InfectionManager {
             Mth.sin(angle) * 0.4f
         );
         level.addFreshEntity(burster);
+
+        if (host instanceof ServerPlayer serverPlayer) {
+            var advancement = serverPlayer.server.getAdvancements()
+                    .get(CommonMod.modResource("chestbursted"));
+            if (advancement != null
+                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()) {
+                for (var s : serverPlayer.getAdvancements()
+                        .getOrStartProgress(advancement)
+                        .getRemainingCriteria()) {
+                    serverPlayer.getAdvancements().award(advancement, s);
+                }
+            }
+        }
 
         host.hurt(DamageTypeRegistry.of(level), Float.MAX_VALUE);
     }

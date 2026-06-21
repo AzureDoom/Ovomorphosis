@@ -49,5 +49,12 @@
   "item.xenogenesis.facehugger_spawn_egg": "Facehugger Spawn Egg",
   "item.xenogenesis.chestburster_spawn_egg": "Chestburster Spawn Egg",
   "item.xenogenesis.xenomorph_spawn_egg": "Xenomorph Spawn Egg",
+  "msg.xenogenesis.chest_bursting": "Something is tearing through your chest...",
+  "advancements.xenogenesis.facehugged.title": "It's in the Throat",
+  "advancements.xenogenesis.facehugged.description": "A facehugger has taken a liking to you.",
+  "advancements.xenogenesis.chestbursted.title": "Unwilling Incubator",
+  "advancements.xenogenesis.chestbursted.description": "You didn't survive, but something else did.",
+  "advancements.xenogenesis.eggmorphed.title": "A Fate Worse Than Death",
+  "advancements.xenogenesis.eggmorphed.description": "You didn't just die. You were repurposed.",
   "death.attack.chest_burst": "%s's chest exploded!"
 }

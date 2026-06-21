@@ -1,8 +1,10 @@
 package mod.azure.xenogenesis.blocks;
 
 import mod.azure.azurelib.common.platform.Services;
+import mod.azure.xenogenesis.registry.DamageTypeRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
@@ -159,7 +161,7 @@ public final class EggmorphTracker {
                 case TRAPPED -> {
                     if (
                         !entry.entity.getInBlockState()
-                            .is(mod.azure.xenogenesis.registry.BlockRegistry.RESIN_WEB_CROSS.get())
+                            .is(BlockRegistry.RESIN_WEB_CROSS.get())
                     ) {
                         releasePhysics(entry);
                         sendClear(entry);
@@ -230,7 +232,20 @@ public final class EggmorphTracker {
         ovomorph.setPos(blockPos.getX() + 0.5, blockPos.getY(), blockPos.getZ() + 0.5);
         ovomorph.noPhysics = true;
         entry.entity.level().addFreshEntity(ovomorph);
-        entry.entity.kill();
+        if (entry.entity instanceof ServerPlayer serverPlayer) {
+            var advancement = serverPlayer.server.getAdvancements()
+                    .get(CommonMod.modResource("eggmorphed"));
+            if (advancement != null
+                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()) {
+                for (var s : serverPlayer.getAdvancements()
+                        .getOrStartProgress(advancement)
+                        .getRemainingCriteria()) {
+                    serverPlayer.getAdvancements().award(advancement, s);
+                }
+            }
+        }
+
+        entry.entity.hurt(DamageTypeRegistry.of(entry.entity.level()), Float.MAX_VALUE);
     }
 
     private boolean isInsideBlock(LivingEntity entity) {
