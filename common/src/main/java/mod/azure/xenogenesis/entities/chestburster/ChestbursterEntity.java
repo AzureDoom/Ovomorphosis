@@ -20,6 +20,8 @@ import org.jetbrains.annotations.NotNull;
 
 import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
+import mod.azure.xenogenesis.ai.util.NearestHostileTargetSelector;
+import mod.azure.xenogenesis.ai.util.TargetingSystem;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
 import mod.azure.xenogenesis.entities.xenomorph.XenomorphEntity;
 import mod.azure.xenogenesis.registry.EntityRegistry;
@@ -43,7 +45,12 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         this.moveAnalysis = new MoveAnalysis(this);
         this.brainRuntime = new MobBrainRuntime<>(
             this,
-            null,
+            new TargetingSystem<>(
+                new NearestHostileTargetSelector<>(
+                    32
+                ),
+                10
+            ),
             ChestbursterTree.create()
         );
     }

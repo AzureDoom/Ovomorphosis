@@ -60,12 +60,16 @@ public final class InfectionManager {
             );
         if (host instanceof ServerPlayer serverPlayer) {
             var advancement = serverPlayer.server.getAdvancements()
-                    .get(CommonMod.modResource("facehugged"));
-            if (advancement != null
-                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()) {
-                for (var s : serverPlayer.getAdvancements()
+                .get(CommonMod.modResource("facehugged"));
+            if (
+                advancement != null
+                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
+            ) {
+                for (
+                    var s : serverPlayer.getAdvancements()
                         .getOrStartProgress(advancement)
-                        .getRemainingCriteria()) {
+                        .getRemainingCriteria()
+                ) {
                     serverPlayer.getAdvancements().award(advancement, s);
                 }
             }
@@ -126,7 +130,10 @@ public final class InfectionManager {
                 if (state.ticksSinceLastDamage >= 20) {
                     state.ticksSinceLastDamage = 0;
                     if (entity instanceof ServerPlayer serverPlayer) {
-                        serverPlayer.displayClientMessage(Component.translatable("msg.xenogenesis.chest_bursting"), true);
+                        serverPlayer.displayClientMessage(
+                            Component.translatable("msg.xenogenesis.chest_bursting"),
+                            true
+                        );
                     }
                     applyInfectionDamage(host, level);
                     // TODO: Spawn blood particles
@@ -175,12 +182,16 @@ public final class InfectionManager {
 
         if (host instanceof ServerPlayer serverPlayer) {
             var advancement = serverPlayer.server.getAdvancements()
-                    .get(CommonMod.modResource("chestbursted"));
-            if (advancement != null
-                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()) {
-                for (var s : serverPlayer.getAdvancements()
+                .get(CommonMod.modResource("chestbursted"));
+            if (
+                advancement != null
+                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
+            ) {
+                for (
+                    var s : serverPlayer.getAdvancements()
                         .getOrStartProgress(advancement)
-                        .getRemainingCriteria()) {
+                        .getRemainingCriteria()
+                ) {
                     serverPlayer.getAdvancements().award(advancement, s);
                 }
             }

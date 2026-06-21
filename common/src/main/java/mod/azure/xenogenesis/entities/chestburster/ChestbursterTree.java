@@ -54,6 +54,7 @@ public class ChestbursterTree {
             if (fleeExplosive.hasNearbyExplosive(chestburster)) {
                 return BehaviorResult.run(fleeExplosive, 120);
             }
+
             if (hasThreat) {
                 return BehaviorResult.run(flee, 70);
             }

@@ -1,7 +1,6 @@
 package mod.azure.xenogenesis.blocks;
 
 import mod.azure.azurelib.common.platform.Services;
-import mod.azure.xenogenesis.registry.DamageTypeRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -19,6 +18,7 @@ import mod.azure.xenogenesis.data.XenogenesisSavedData;
 import mod.azure.xenogenesis.entities.ovomorph.OvomorphEntity;
 import mod.azure.xenogenesis.network.EggmorphProgressPacket;
 import mod.azure.xenogenesis.registry.BlockRegistry;
+import mod.azure.xenogenesis.registry.DamageTypeRegistry;
 import mod.azure.xenogenesis.registry.EntityRegistry;
 
 public final class EggmorphTracker {
@@ -234,12 +234,16 @@ public final class EggmorphTracker {
         entry.entity.level().addFreshEntity(ovomorph);
         if (entry.entity instanceof ServerPlayer serverPlayer) {
             var advancement = serverPlayer.server.getAdvancements()
-                    .get(CommonMod.modResource("eggmorphed"));
-            if (advancement != null
-                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()) {
-                for (var s : serverPlayer.getAdvancements()
+                .get(CommonMod.modResource("eggmorphed"));
+            if (
+                advancement != null
+                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
+            ) {
+                for (
+                    var s : serverPlayer.getAdvancements()
                         .getOrStartProgress(advancement)
-                        .getRemainingCriteria()) {
+                        .getRemainingCriteria()
+                ) {
                     serverPlayer.getAdvancements().award(advancement, s);
                 }
             }

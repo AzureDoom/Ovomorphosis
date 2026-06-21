@@ -8,15 +8,11 @@ import mod.azure.xenogenesis.ai.actions.facehugger.LeapAndAttachAction;
 import mod.azure.xenogenesis.ai.core.AiKeys;
 import mod.azure.xenogenesis.ai.core.BehaviorNode;
 import mod.azure.xenogenesis.ai.core.BehaviorResult;
-import mod.azure.xenogenesis.ai.util.CrawlingManager;
-import mod.azure.xenogenesis.ai.util.MovementUtils;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 
 public class FacehuggerTree {
 
     public static BehaviorNode<FacehuggerEntity> create() {
-        var targetSelector = new FacehuggerTargetSelector<>();
-
         var wander = new WanderAction<FacehuggerEntity>(
             0.14D,
             5,
@@ -34,29 +30,15 @@ public class FacehuggerTree {
             3.0D,
             0.5D,
             0.45D,
-            0.55D
-        );
-
-        var crawlToDestination = new CrawlToDestinationAction<FacehuggerEntity>(
-            1.5D,
-            0.22D,
-            10,
-            3.0D,
-            0.5D,
-            0.45D,
-            0.55D
+            0.55D,
+            true
         );
 
         var moveToTarget = new MoveToTargetAction<FacehuggerEntity>(
             0.6D,
             0.28D,
-            20
-        );
-
-        var crawlToTarget = new CrawlToTargetAction<FacehuggerEntity>(
-            0.6D,
-            0.28D,
-            20
+            20,
+            true
         );
 
         var leapAndAttach = new LeapAndAttachAction<>();
@@ -81,35 +63,16 @@ public class FacehuggerTree {
                 currentTarget = null;
             }
 
-            var newTarget = targetSelector.findTarget(facehugger, blackboard);
-            if (newTarget != null) {
-                blackboard.set(AiKeys.TARGET, newTarget);
-                facehugger.setTarget(newTarget);
-                currentTarget = newTarget;
-            }
-
             if (currentTarget != null && currentTarget.isAlive()) {
-
-                var useCrawl = CrawlingManager.shouldUseWallCrawlingToTarget(facehugger, currentTarget)
-                    && MovementUtils.needsWallCrawl(facehugger, currentTarget.position());
-
-                if (useCrawl) {
-                    return BehaviorResult.run(crawlToTarget, 20);
-                }
-
                 var distSqr = facehugger.distanceToSqr(currentTarget);
                 if (distSqr <= 4.0D * 4.0D) {
                     return BehaviorResult.run(leapAndAttach, 30);
                 }
-
                 return BehaviorResult.run(moveToTarget, 20);
             }
 
             var destination = blackboard.get(AiKeys.DESTINATION, BlockPos.class);
             if (destination != null) {
-                if (CrawlingManager.shouldUseWallCrawlingTo(facehugger, destination)) {
-                    return BehaviorResult.run(crawlToDestination, 10);
-                }
                 return BehaviorResult.run(moveToDestination, 10);
             }
 

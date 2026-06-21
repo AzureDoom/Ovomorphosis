@@ -6,6 +6,7 @@ import net.minecraft.world.phys.Vec3;
 
 import mod.azure.xenogenesis.ai.core.*;
 import mod.azure.xenogenesis.ai.util.AiDebugUtils;
+import mod.azure.xenogenesis.ai.util.CrawlingManager;
 import mod.azure.xenogenesis.ai.util.MovementUtils;
 
 public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
@@ -15,6 +16,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     private final double speed;
 
     private final int priority;
+
+    private final boolean canCrawl;
 
     private final double maxLeapHeight;
 
@@ -33,7 +36,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         double maxLeapHeight,
         double minLeapHeight,
         double leapVerticalPower,
-        double leapHorizontalPower
+        double leapHorizontalPower,
+        boolean canCrawl
     ) {
         this.stopDistanceSqr = stopDistance * stopDistance;
         this.speed = speed;
@@ -42,6 +46,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         this.minLeapHeight = minLeapHeight;
         this.leapVerticalPower = leapVerticalPower;
         this.leapHorizontalPower = leapHorizontalPower;
+        this.canCrawl = canCrawl;
     }
 
     @Override
@@ -65,6 +70,26 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var destVec = Vec3.atBottomCenterOf(destination);
         var direction = destVec.subtract(mob.position());
 
+        if (canCrawl && MovementUtils.needsWallCrawl(mob, destVec)) {
+            var crawlVelocity = MovementUtils.computeWallCrawlVelocity(mob, destVec, speed);
+
+            CrawlingManager.setWallCrawling(mob, true);
+            CrawlingManager.updateCrawlOrientation(mob, crawlVelocity);
+
+            if (crawlVelocity.lengthSqr() < 0.0001D) {
+                mob.setDeltaMovement(0.0D, 0.0D, 0.0D);
+                mob.hasImpulse = false;
+                return ActionStatus.RUNNING;
+            }
+
+            mob.setDeltaMovement(crawlVelocity);
+            mob.hasImpulse = true;
+            faceMovementDirection(mob, crawlVelocity);
+
+            AiDebugUtils.sendParticlePath(mob, mob.position(), destVec);
+            return ActionStatus.RUNNING;
+        }
+
         if (mob.distanceToSqr(destVec) <= stopDistanceSqr) {
             mob.setDeltaMovement(mob.getDeltaMovement().scale(0.4D));
             return ActionStatus.SUCCESS;
@@ -83,7 +108,6 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 && horizontal.lengthSqr() > 0.01D
                 && !cooldowns.isOnCooldown(AiKeys.LEAP_COOLDOWN)
         ) {
-
             var leap = horizontal.normalize().scale(leapHorizontalPower);
             mob.setDeltaMovement(leap.x, leapVerticalPower, leap.z);
             mob.hasImpulse = true;
@@ -113,16 +137,15 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         mob.yBodyRot = yaw;
         mob.yHeadRot = yaw;
 
-        AiDebugUtils.sendParticlePath(
-            mob,
-            mob.position(),
-            destVec
-        );
+        AiDebugUtils.sendParticlePath(mob, mob.position(), destVec);
         return ActionStatus.RUNNING;
     }
 
     @Override
     public void stop(E mob, Blackboard blackboard, ActionStatus reason) {
+        if (canCrawl) {
+            CrawlingManager.setWallCrawling(mob, false);
+        }
         mob.setDeltaMovement(
             mob.getDeltaMovement().x * 0.25D,
             mob.getDeltaMovement().y,
@@ -138,5 +161,21 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     @Override
     public int priority() {
         return priority;
+    }
+
+    private void faceMovementDirection(E mob, Vec3 movement) {
+        if (movement.horizontalDistanceSqr() < 0.0001D)
+            return;
+
+        var yaw = (float) (Math.atan2(movement.z, movement.x) * (180.0D / Math.PI)) - 90.0F;
+        mob.setYRot(yaw);
+        mob.yBodyRot = yaw;
+        mob.yHeadRot = yaw;
+        mob.getLookControl()
+            .setLookAt(
+                mob.getX() + movement.x,
+                mob.getEyeY() + movement.y,
+                mob.getZ() + movement.z
+            );
     }
 }

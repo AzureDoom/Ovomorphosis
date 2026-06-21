@@ -22,6 +22,8 @@ import org.jetbrains.annotations.Nullable;
 
 import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
+import mod.azure.xenogenesis.ai.util.OvomorphHostTargetSelector;
+import mod.azure.xenogenesis.ai.util.TargetingSystem;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
 import mod.azure.xenogenesis.util.OvomorphStructureChecks;
@@ -46,7 +48,10 @@ public class OvomorphEntity extends AbstractAlienEntity {
         super(entityType, level);
         this.brainRuntime = new MobBrainRuntime<>(
             this,
-            null,
+            new TargetingSystem<>(
+                new OvomorphHostTargetSelector<>(),
+                10
+            ),
             OvomorphTree.create()
         );
         this.animationDispatcher = new OvomorphAnimationDispatcher(this);
@@ -214,6 +219,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         }
     }
 
+    @SuppressWarnings("unused")
     public static boolean canOvomorphSpawn(
         EntityType<OvomorphEntity> type,
         ServerLevelAccessor level,

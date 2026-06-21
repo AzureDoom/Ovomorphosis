@@ -345,6 +345,23 @@ public final class CrawlingManager {
                 .distanceToSqr(target.position().multiply(1.0D, 0.0D, 1.0D));
 
             if (horizontalDistSqr <= 8.0D * 8.0D) {
+                if (yDiff < 0) {
+                    if (
+                        MovementUtils.isClimbable(mob.level(), mob.blockPosition(), true)
+                            || isWallCrawling(mob)
+                    ) {
+                        return true;
+                    }
+                    var level = mob.level();
+                    var origin = mob.blockPosition();
+                    for (var dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+                        var adj = origin.relative(dir);
+                        if (MovementUtils.isSafeClimbNode(level, mob, adj)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
                 return true;
             }
         }

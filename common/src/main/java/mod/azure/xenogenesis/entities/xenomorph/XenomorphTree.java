@@ -44,29 +44,15 @@ public class XenomorphTree {
             5.0D,
             1.0D,
             0.55D,
-            0.85D
-        );
-
-        var crawlDestinationMove = new CrawlToDestinationAction<XenomorphEntity>(
-            2.5D,
-            0.1D,
-            25,
-            5.0D,
-            1.0D,
-            0.55D,
-            0.85D
+            0.85D,
+            true
         );
 
         var moveToTargetCombat = new MoveToTargetAction<XenomorphEntity>(
             1.8D,
             0.53D,
-            20
-        );
-
-        var crawlToTargetCombat = new CrawlToTargetAction<XenomorphEntity>(
-            1.8D,
-            0.47D,
-            20
+            20,
+            true
         );
 
         var normalAttack = new TimedAttackAction<XenomorphEntity>(
@@ -115,9 +101,6 @@ public class XenomorphTree {
 
             var destination = blackboard.get(AiKeys.DESTINATION, BlockPos.class);
             if (destination != null && currentTarget == null) {
-                if (CrawlingManager.shouldUseWallCrawlingTo(xenomorph, destination)) {
-                    return BehaviorResult.run(crawlDestinationMove, 25);
-                }
                 return BehaviorResult.run(destinationMove, 25);
             }
 
@@ -125,14 +108,6 @@ public class XenomorphTree {
                 var yGap = currentTarget.getY() - xenomorph.getY();
                 var canReachVertically = Math.abs(yGap) <= 2.5D;
                 var dangerTarget = currentTarget.getType().is(ModTags.DANGER_ENTITIES);
-
-                // Only crawl to close distance — skip if already in attack range
-                if (
-                    CrawlingManager.shouldUseWallCrawlingToTarget(xenomorph, currentTarget)
-                        && !TargetingUtils.isInAttackRange(xenomorph, currentTarget, 1.8D)
-                ) {
-                    return BehaviorResult.run(crawlToTargetCombat, 20);
-                }
 
                 if (
                     canReachVertically
@@ -148,8 +123,8 @@ public class XenomorphTree {
                 }
 
                 if (
-                    !dangerTarget &&
-                        canReachVertically
+                    !dangerTarget
+                        && canReachVertically
                         && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 2.0D)
                         && cooldowns.ready(AiKeys.GRAB_COOLDOWN)
                         && cooldowns.ready("normal_attack")
@@ -194,7 +169,7 @@ public class XenomorphTree {
                         blackboard.set(AiKeys.DESTINATION, groundPos);
                     }
                 }
-                return BehaviorResult.run(crawlDestinationMove, 5);
+                return BehaviorResult.run(destinationMove, 5);
             }
 
             if (xenomorph.getRandom().nextFloat() < 0.3F) {

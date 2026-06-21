@@ -130,35 +130,6 @@ public class CrawlingCustomAStar extends CustomAStar {
         return filtered;
     }
 
-    private static void debugLogPath(Mob mob, List<BlockPos> path, String label) {
-        if (!CommonMod.getConfig().enablePathfindingDebug)
-            return;
-        if (!(mob.level() instanceof ServerLevel serverLevel))
-            return;
-
-        var level = mob.level();
-        var sb = new StringBuilder("[CrawlAStar:" + label + "] " + path.size() + " nodes: ");
-        for (var pos : path) {
-            var isClimb = MovementUtils.isSafeClimbNode(level, mob, pos);
-            var isWalk = canStandAt(level, mob, pos);
-            sb.append(pos.getX())
-                .append(",")
-                .append(pos.getY())
-                .append(",")
-                .append(pos.getZ())
-                .append("(")
-                .append(isClimb ? "C" : "")
-                .append(isWalk ? "W" : "")
-                .append(") ");
-        }
-        serverLevel.getPlayers(p -> true)
-            .forEach(
-                p -> p.sendSystemMessage(
-                    net.minecraft.network.chat.Component.literal(sb.toString())
-                )
-            );
-    }
-
     /**
      * Spawns debug particles along a computed path. Green flame = full path reached goal. Red flame =
      * partial/best-effort path. A white dust particle marks each waypoint node center.
@@ -173,8 +144,7 @@ public class CrawlingCustomAStar extends CustomAStar {
 
         var level = mob.level();
 
-        for (var i = 0; i < path.size(); i++) {
-            var pos = path.get(i);
+        for (var pos : path) {
             var cx = pos.getX() + 0.5D;
             var cy = pos.getY() + 0.5D;
             var cz = pos.getZ() + 0.5D;
