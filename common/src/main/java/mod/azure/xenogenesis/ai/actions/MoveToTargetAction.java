@@ -10,6 +10,7 @@ import java.util.List;
 
 import mod.azure.xenogenesis.ai.core.*;
 import mod.azure.xenogenesis.ai.util.AiDebugUtils;
+import mod.azure.xenogenesis.ai.util.CrawlingCustomAStar;
 import mod.azure.xenogenesis.ai.util.CustomAStar;
 import mod.azure.xenogenesis.ai.util.MovementUtils;
 
@@ -97,10 +98,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         var yDiff = target.getY() - mob.getY();
 
-        if (yDiff > maxLeapHeight) {
-            blackboard.set(AiKeys.TARGET, null);
-            mob.setTarget(null);
-            mob.setAggressive(false);
+        if (yDiff > 12.0D) {
             mob.getNavigation().stop();
             return ActionStatus.FAILURE;
         }
@@ -131,13 +129,9 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         if (repathCooldown <= 0 || path.isEmpty() || pathIndex >= path.size()) {
             var goalRadius = 1;
 
-            path = CustomAStar.findPath(
-                mob,
-                mob.blockPosition(),
-                target.blockPosition(),
-                64,
-                goalRadius
-            );
+            path = MovementUtils.canWallCrawl(mob)
+                ? CrawlingCustomAStar.findPath(mob, mob.blockPosition(), target.blockPosition(), 64, goalRadius)
+                : CustomAStar.findPath(mob, mob.blockPosition(), target.blockPosition(), 64, goalRadius);
 
             pathIndex = path.size() > 1 ? 1 : 0;
             repathCooldown = 10;
@@ -240,8 +234,9 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
             if (targetBelow && blockBreakCooldown <= 0) {
                 if (tryBreakBlockingPathBlock(mob, target, forward)) {
-                    blockBreakCooldown = BLOCK_BREAK_COOLDOWN_TICKS;
+                    blockBreakCooldown = 10;
                     stuckTicks = 0;
+                    repathCooldown = 0;
                     faceTarget(mob, target);
                     return;
                 }
@@ -250,17 +245,18 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             var left = new Vec3(-forward.z, 0.0D, forward.x);
             var right = new Vec3(forward.z, 0.0D, -forward.x);
 
-            if (!targetBelow && stuckTicks > BLOCK_BREAK_STUCK_TICKS && blockBreakCooldown <= 0) {
+            if (!targetBelow && stuckTicks > 20 && blockBreakCooldown <= 0) {
                 if (tryBreakBlockingPathBlock(mob, target, forward)) {
-                    blockBreakCooldown = BLOCK_BREAK_COOLDOWN_TICKS;
+                    blockBreakCooldown = 10;
                     stuckTicks = 0;
+                    repathCooldown = 0;
                     faceTarget(mob, target);
                     return;
                 }
             }
 
             if (
-                stuckTicks >= DANGER_LEAP_STUCK_TICKS
+                stuckTicks >= 8
                     && dangerLeapCooldown <= 0
                     && mob.onGround()
                     && MovementUtils.hasNearbyDangerEntity(mob)
@@ -271,37 +267,51 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     leapDirection = forward;
                 }
 
-                if (MovementUtils.hasSafeLandingAfterLeap(mob, leapDirection, DANGER_LEAP_DISTANCE)) {
-                    var leap = leapDirection.normalize().scale(DANGER_LEAP_HORIZONTAL_POWER);
+                if (MovementUtils.hasSafeLandingAfterLeap(mob, leapDirection, 3.0D)) {
+                    var leap = leapDirection.normalize().scale(0.75D);
 
                     mob.setDeltaMovement(
                         leap.x,
-                        DANGER_LEAP_VERTICAL_POWER,
+                        0.75D,
                         leap.z
                     );
 
                     mob.hasImpulse = true;
-                    dangerLeapCooldown = DANGER_LEAP_COOLDOWN_TICKS;
+                    dangerLeapCooldown = 30;
                     stuckTicks = 0;
                     detourTicks = 0;
+                    repathCooldown = 0;
 
                     faceTarget(mob, target);
                     return;
                 }
             }
 
+            if (!targetBelow && target.getY() > mob.getY() + 0.5D && mob.onGround()) {
+                var upLeap = forward.scale(0.4D);
+                mob.setDeltaMovement(upLeap.x, 0.55D, upLeap.z);
+                mob.hasImpulse = true;
+                stuckTicks = 0;
+                repathCooldown = 0;
+                faceTarget(mob, target);
+                return;
+            }
+
             if (!targetBelow && MovementUtils.isSafeAhead(mob, left, 1.25D)) {
                 detourDirection = left;
                 detourTicks = 20;
                 stuckTicks = 0;
+                repathCooldown = 0;
             } else if (!targetBelow && MovementUtils.isSafeAhead(mob, right, 1.25D)) {
                 detourDirection = right;
                 detourTicks = 20;
                 stuckTicks = 0;
+                repathCooldown = 0;
             } else if (mob.onGround() && target.getY() >= mob.getY() - 0.5D) {
                 mob.setDeltaMovement(movement.x * 0.8D, 0.42D, movement.z * 0.8D);
                 mob.hasImpulse = true;
                 stuckTicks = 0;
+                repathCooldown = 0;
                 faceTarget(mob, target);
                 return;
             }

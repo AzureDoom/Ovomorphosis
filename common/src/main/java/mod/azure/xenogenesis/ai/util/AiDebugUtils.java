@@ -43,17 +43,17 @@ public final class AiDebugUtils {
             var y = from.y + (to.y - from.y) * t;
             var z = from.z + (to.z - from.z) * t;
 
-            serverLevel.sendParticles(
-                particle,
-                x,
-                y + 0.35D,
-                z,
-                1,
-                0.0D,
-                0.0D,
-                0.0D,
-                0.0D
-            );
+            // serverLevel.sendParticles(
+            // particle,
+            // x,
+            // y + 0.35D,
+            // z,
+            // 1,
+            // 0.0D,
+            // 0.0D,
+            // 0.0D,
+            // 0.0D
+            // );
         }
     }
 }

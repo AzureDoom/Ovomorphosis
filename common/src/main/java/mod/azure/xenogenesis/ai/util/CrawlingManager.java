@@ -141,10 +141,9 @@ public final class CrawlingManager {
         }
 
         var isCrawling = wallCrawler.xenogenesis$isWallCrawling();
-        var graceTicks = wallCrawler.xenogenesis$getWallCrawlGraceTicks();
-
         var touchingSurface = isAdjacentToAnySurface(mob);
-        var active = (isCrawling || graceTicks > 0) && touchingSurface;
+
+        var active = isCrawling && touchingSurface;
 
         mob.setNoGravity(active);
 
@@ -169,10 +168,6 @@ public final class CrawlingManager {
         }
 
         var up = findSurfaceNormal(mob);
-
-        if (up == null) {
-            up = new Vec3(0.0D, 1.0D, 0.0D);
-        }
 
         var forward = new Vec3(movement.x, movement.y, movement.z);
 
@@ -275,11 +270,25 @@ public final class CrawlingManager {
 
         var probe = (mob.getBbWidth() / 2.0D) + 0.5D;
 
-        return !level.noBlockCollision(mob, box.move(probe, 0, 0))
-            || !level.noBlockCollision(mob, box.move(-probe, 0, 0))
-            || !level.noBlockCollision(mob, box.move(0, 0, probe))
-            || !level.noBlockCollision(mob, box.move(0, 0, -probe))
-            || !level.noBlockCollision(mob, box.move(0, probe, 0));
+        if (!level.noBlockCollision(mob, box.move(probe, 0, 0)))
+            return true;
+        if (!level.noBlockCollision(mob, box.move(-probe, 0, 0)))
+            return true;
+        if (!level.noBlockCollision(mob, box.move(0, 0, probe)))
+            return true;
+        if (!level.noBlockCollision(mob, box.move(0, 0, -probe)))
+            return true;
+        if (!level.noBlockCollision(mob, box.move(0, probe, 0)))
+            return true;
+
+        var standingBox = box.move(0.0D, 1.0D, 0.0D);
+        if (!level.noBlockCollision(mob, standingBox.move(probe, 0, 0)))
+            return true;
+        if (!level.noBlockCollision(mob, standingBox.move(-probe, 0, 0)))
+            return true;
+        if (!level.noBlockCollision(mob, standingBox.move(0, 0, probe)))
+            return true;
+        return !level.noBlockCollision(mob, standingBox.move(0, 0, -probe));
     }
 
     private static double distanceToSurface(Mob mob, Vec3 normal) {
@@ -313,21 +322,92 @@ public final class CrawlingManager {
             return false;
         }
 
-        var yDiff = target.blockPosition().getY() - mob.blockPosition().getY();
-        var absYDiff = Math.abs(yDiff);
-
-        if (absYDiff < 3) {
-            return false;
-        }
-
-        var horizontalDistSqr = mob.position()
-            .multiply(1.0D, 0.0D, 1.0D)
-            .distanceToSqr(target.position().multiply(1.0D, 0.0D, 1.0D));
-
-        if (horizontalDistSqr <= 8.0D * 8.0D) {
+        if (MovementUtils.needsWallCrawl(mob, target.position())) {
             return true;
         }
 
-        return MovementUtils.needsWallCrawl(mob, target.position());
+        var yDiff = target.blockPosition().getY() - mob.blockPosition().getY();
+        var absYDiff = Math.abs(yDiff);
+
+        if (absYDiff >= 1 && absYDiff <= 2) {
+            var horizontalDistSqr = mob.position()
+                .multiply(1.0D, 0.0D, 1.0D)
+                .distanceToSqr(target.position().multiply(1.0D, 0.0D, 1.0D));
+
+            if (horizontalDistSqr <= 8.0D * 8.0D) {
+                return isWallBlockedBetween(mob, target);
+            }
+        }
+
+        if (absYDiff > 2) {
+            var horizontalDistSqr = mob.position()
+                .multiply(1.0D, 0.0D, 1.0D)
+                .distanceToSqr(target.position().multiply(1.0D, 0.0D, 1.0D));
+
+            if (horizontalDistSqr <= 8.0D * 8.0D) {
+                return true;
+            }
+        }
+
+        if (absYDiff == 0 && MovementUtils.isClimbable(mob.level(), mob.blockPosition(), true)) {
+            return true;
+        }
+
+        return MovementUtils.isClimbable(mob.level(), target.blockPosition(), false);
+    }
+
+    /**
+     * Returns {@code true} if there is a solid block between {@code mob} and {@code target} in the horizontal direction
+     * — i.e. the mob cannot reach the target by walking and needs to climb over or around a wall.
+     */
+    private static boolean isWallBlockedBetween(Mob mob, LivingEntity target) {
+        var level = mob.level();
+        var from = mob.position();
+        var to = target.position();
+
+        var horizontal = new Vec3(to.x - from.x, 0.0D, to.z - from.z);
+        var dist = horizontal.length();
+
+        if (dist < 0.5D) {
+            return false;
+        }
+
+        var dir = horizontal.normalize();
+        var feetY = mob.getBoundingBox().minY;
+
+        for (var d = 0.5D; d <= Math.min(dist, 4.0D); d += 0.5D) {
+            var sample = from.add(dir.scale(d));
+            var feet = BlockPos.containing(sample.x, feetY, sample.z);
+            var head = feet.above();
+
+            var feetState = level.getBlockState(feet);
+            var headState = level.getBlockState(head);
+
+            var feetShape = feetState.getCollisionShape(level, feet);
+            var headShape = headState.getCollisionShape(level, head);
+
+            if (feetShape.isEmpty() || headShape.isEmpty()) {
+                continue;
+            }
+
+            var feetMaxY = feetShape.max(net.minecraft.core.Direction.Axis.Y);
+            var headMaxY = headShape.max(net.minecraft.core.Direction.Axis.Y);
+
+            if (feetMaxY <= 0.5D || headMaxY <= 0.5D) {
+                continue;
+            }
+
+            var feetMaxX = feetShape.max(net.minecraft.core.Direction.Axis.X);
+            var feetMinX = feetShape.min(net.minecraft.core.Direction.Axis.X);
+            var feetWidth = feetMaxX - feetMinX;
+
+            if (feetWidth < 0.9D) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 }

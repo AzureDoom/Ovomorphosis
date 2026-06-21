@@ -93,7 +93,9 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
 
         if (target == null || !target.isAlive()) {
-            mob.setDeltaMovement(mob.getDeltaMovement().scale(0.5D));
+            if (!CrawlingManager.isWallCrawling(mob)) {
+                mob.setDeltaMovement(mob.getDeltaMovement().scale(0.5D));
+            }
             return ActionStatus.FAILURE;
         }
 
@@ -121,7 +123,7 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
         }
 
         var isCrawlingNow = CrawlingManager.isWallCrawling(mob);
-        var shouldUseCrawlingNow = CrawlingManager.shouldUseWallCrawlingTo(mob, target)
+        var shouldUseCrawlingNow = CrawlingManager.shouldUseWallCrawlingToTarget(mob, target)
             || isCrawlingNow;
 
         var repathInterval = isCrawlingNow ? 20 : 10;
@@ -133,7 +135,7 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
                 mob,
                 mob.blockPosition(),
                 target.blockPosition(),
-                64,
+                96,
                 goalRadius
             );
 
@@ -158,21 +160,17 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
                 pathIndex++;
             }
 
-            if (
-                shouldUseCrawlingNow
-                    && target.getY() > mob.getY() + 1.0D
-                    && pathIndex < path.size()
-            ) {
-                while (
-                    pathIndex < path.size() - 1
-                        && path.get(pathIndex).getY() <= mob.blockPosition().getY()
-                ) {
-                    pathIndex++;
-                }
-            }
-
             if (pathIndex < path.size()) {
-                var waypoint = Vec3.atBottomCenterOf(path.get(pathIndex));
+                var waypointBlock = path.get(pathIndex);
+                var waypointCenter = Vec3.atBottomCenterOf(waypointBlock);
+
+                Vec3 waypoint;
+                if (shouldUseCrawlingNow) {
+                    waypoint = snapToNearestWallFace(mob, waypointBlock, waypointCenter);
+                } else {
+                    waypoint = waypointCenter;
+                }
+
                 var direction = waypoint.subtract(mob.position());
 
                 if (direction.lengthSqr() > 0.0001D) {
@@ -215,7 +213,9 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
 
     @Override
     public void stop(E mob, Blackboard blackboard, ActionStatus reason) {
-        CrawlingManager.setWallCrawling(mob, false);
+        if (!CrawlingManager.isWallCrawling(mob)) {
+            CrawlingManager.setWallCrawling(mob, false);
+        }
         mob.setDeltaMovement(
             mob.getDeltaMovement().x * 0.25D,
             mob.getDeltaMovement().y,
@@ -249,11 +249,7 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
             return false;
         }
 
-        if (yError > 0.45D) {
-            return false;
-        }
-
-        return true;
+        return !(yError > 0.45D);
     }
 
     private void applyPathMovement(E mob, LivingEntity target, Vec3 waypoint, Vec3 direction) {
@@ -274,43 +270,35 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
             stuckTicks = 0;
         }
 
-        var shouldPathUseCrawling = CrawlingManager.shouldUseWallCrawlingTo(mob, target)
+        var shouldPathUseCrawling = CrawlingManager.shouldUseWallCrawlingToTarget(mob, target)
             || CrawlingManager.isWallCrawling(mob);
         var canAttachToWall = shouldPathUseCrawling && canAttachToClimbSurface(mob, waypoint);
 
         if (canAttachToWall) {
-            var crawlVelocity = MovementUtils.computeWallCrawlVelocity(mob, waypoint, speed);
-
             var waypointY = waypoint.y;
             var targetAbove = target.getY() > mob.getY() + 0.75D;
+            var yError = waypointY - mob.getY();
+            var horizontal = new Vec3(direction.x, 0.0D, direction.z);
+
+            var wallNudge = findNearestWallDirection(mob);
+            var intoWall = wallNudge != null ? wallNudge.scale(speed * 0.35D) : Vec3.ZERO;
+
+            Vec3 crawlVelocity;
 
             if (targetAbove) {
-                var horizontal = new Vec3(direction.x, 0.0D, direction.z);
-                var intoWall = Vec3.ZERO;
-
-                if (horizontal.lengthSqr() > 0.01D) {
-                    intoWall = horizontal.normalize().scale(speed * 0.12D);
-                }
                 crawlVelocity = new Vec3(intoWall.x, speed * 0.85D, intoWall.z);
+            } else if (Math.abs(yError) > 0.10D) {
+                var verticalSpeed = Mth.clamp(yError * 0.45D, -speed * 0.45D, speed);
+                crawlVelocity = new Vec3(intoWall.x, verticalSpeed, intoWall.z);
+            } else if (horizontal.lengthSqr() > 0.01D) {
+                var moveDir = horizontal.normalize().scale(speed);
+                crawlVelocity = new Vec3(
+                    moveDir.x + intoWall.x,
+                    intoWall.y,
+                    moveDir.z + intoWall.z
+                );
             } else {
-                var yError = waypointY - mob.getY();
-
-                var horizontal = new Vec3(direction.x, 0.0D, direction.z);
-                var intoWall = Vec3.ZERO;
-
-                if (horizontal.lengthSqr() > 0.01D) {
-                    intoWall = horizontal.normalize().scale(speed * 0.12D);
-                }
-
-                if (Math.abs(yError) > 0.10D) {
-                    var verticalSpeed = Mth.clamp(
-                        yError * 0.45D,
-                        -speed * 0.45D,
-                        speed
-                    );
-
-                    crawlVelocity = new Vec3(intoWall.x, verticalSpeed, intoWall.z);
-                }
+                crawlVelocity = MovementUtils.computeWallCrawlVelocity(mob, waypoint, speed);
             }
 
             if (crawlVelocity.lengthSqr() < 0.0001D) {
@@ -379,6 +367,17 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
         var horizontal = new Vec3(direction.x, 0.0D, direction.z);
 
         if (horizontal.lengthSqr() < 0.01D) {
+            if (shouldPathUseCrawling && direction.y > 0.1D) {
+                var wallDir = findNearestWallDirection(mob);
+                if (wallDir != null) {
+                    CrawlingManager.setWallCrawling(mob, true);
+                    var pushVelocity = new Vec3(wallDir.x * speed * 0.3D, speed * 0.6D, wallDir.z * speed * 0.3D);
+                    CrawlingManager.updateCrawlOrientation(mob, pushVelocity);
+                    mob.setDeltaMovement(pushVelocity);
+                    mob.hasImpulse = true;
+                    return;
+                }
+            }
             halt(mob);
             return;
         }
@@ -404,6 +403,14 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
 
         if (stuckTicks > 10) {
             var targetBelow = target.getY() < mob.getY() - 1.0D;
+
+            if (!targetBelow && mob.onGround() && isStairBlockAhead(mob, forward)) {
+                mob.setDeltaMovement(forward.x * speed * 0.9D, 0.32D, forward.z * speed * 0.9D);
+                mob.hasImpulse = true;
+                stuckTicks = 0;
+                faceTarget(mob, target);
+                return;
+            }
 
             if (targetBelow && blockBreakCooldown <= 0) {
                 if (tryBreakBlockingPathBlock(mob, target, forward)) {
@@ -496,6 +503,96 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
     private void halt(E mob) {
         mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
         mob.hasImpulse = false;
+    }
+
+    /**
+     * Snaps a crawl waypoint from the block center to the nearest wall face, so the mob stays flush against the surface
+     * instead of floating 0.5 blocks out.
+     */
+    private Vec3 snapToNearestWallFace(E mob, BlockPos block, Vec3 center) {
+        var level = mob.level();
+        var halfMob = mob.getBbWidth() / 2.0D;
+        var faceOffset = 0.5D - halfMob;
+
+        var dirs = new int[][] { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+        var bestDist = Double.MAX_VALUE;
+        Vec3 bestSnap = center;
+
+        for (var dir : dirs) {
+            var neighbor = block.offset(dir[0], 0, dir[1]);
+            var neighborState = level.getBlockState(neighbor);
+            if (!neighborState.getCollisionShape(level, neighbor).isEmpty()) {
+                var snapX = center.x - dir[0] * faceOffset;
+                var snapZ = center.z - dir[1] * faceOffset;
+                var snap = new Vec3(snapX, center.y, snapZ);
+                var dist = mob.position().distanceToSqr(snap);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestSnap = snap;
+                }
+            }
+        }
+        return bestSnap;
+    }
+
+    /**
+     * Finds the horizontal direction toward the nearest solid wall face, used to push the mob into a climbable surface
+     * when the waypoint is directly above.
+     */
+    private Vec3 findNearestWallDirection(E mob) {
+        var level = mob.level();
+        var box = mob.getBoundingBox();
+        var probe = (mob.getBbWidth() / 2.0D) + 0.6D;
+        var standingBox = box.move(0.0D, 1.0D, 0.0D);
+
+        Vec3 best = null;
+        var bestDist = Double.MAX_VALUE;
+
+        var dirs = new Vec3[] {
+            new Vec3(1, 0, 0),
+            new Vec3(-1, 0, 0),
+            new Vec3(0, 0, 1),
+            new Vec3(0, 0, -1)
+        };
+        for (var dir : dirs) {
+            var hitCurrent = !level.noBlockCollision(mob, box.move(dir.scale(probe)));
+            var hitStanding = !level.noBlockCollision(mob, standingBox.move(dir.scale(probe)));
+            if (hitCurrent || hitStanding) {
+                var dist = probe;
+                for (var d = 0.1D; d <= probe; d += 0.1D) {
+                    if (!level.noBlockCollision(mob, box.move(dir.scale(d)))) {
+                        dist = d;
+                        break;
+                    }
+                }
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = dir;
+                }
+            }
+        }
+        return best;
+    }
+
+    private boolean isStairBlockAhead(E mob, Vec3 forward) {
+        var level = mob.level();
+        var checkPos = mob.position().add(forward.scale(0.6D));
+        var feetY = mob.getBoundingBox().minY;
+
+        var feet = BlockPos.containing(checkPos.x, feetY, checkPos.z);
+        var head = feet.above();
+
+        var feetState = level.getBlockState(feet);
+        var headState = level.getBlockState(head);
+
+        if (feetState.getCollisionShape(level, feet).isEmpty())
+            return false;
+        if (!headState.getCollisionShape(level, head).isEmpty())
+            return false;
+
+        var landing = head.above();
+        var landingState = level.getBlockState(landing);
+        return landingState.getCollisionShape(level, landing).isEmpty();
     }
 
     private void faceTarget(E mob, LivingEntity target) {
@@ -638,6 +735,34 @@ public final class CrawlToTargetAction<E extends Mob> implements Action<E> {
             return true;
         if (!level.noBlockCollision(mob, box.move(-checkDistance, 0.0D, 0.0D)))
             return true;
-        return !level.noBlockCollision(mob, box.move(checkDistance, 0.0D, 0.0D));
+        if (!level.noBlockCollision(mob, box.move(checkDistance, 0.0D, 0.0D)))
+            return true;
+
+        if (waypoint.y > mob.getY() + 0.5D) {
+            var toWaypoint = new Vec3(waypoint.x - mob.getX(), 0.0D, waypoint.z - mob.getZ());
+
+            if (toWaypoint.lengthSqr() < 0.25D) {
+                var standingBox = box.move(0.0D, 1.0D, 0.0D);
+                var sideProbe = (mob.getBbWidth() / 2.0D) + 0.6D;
+                if (!level.noBlockCollision(mob, standingBox.move(sideProbe, 0.0D, 0.0D)))
+                    return true;
+                if (!level.noBlockCollision(mob, standingBox.move(-sideProbe, 0.0D, 0.0D)))
+                    return true;
+                if (!level.noBlockCollision(mob, standingBox.move(0.0D, 0.0D, sideProbe)))
+                    return true;
+                return !level.noBlockCollision(mob, standingBox.move(0.0D, 0.0D, -sideProbe));
+            } else if (toWaypoint.lengthSqr() > 0.0001D) {
+                var probeDir = toWaypoint.normalize();
+                var probeDistance = (mob.getBbWidth() / 2.0D) + 1.0D;
+
+                if (!level.noBlockCollision(mob, box.move(probeDir.scale(probeDistance))))
+                    return true;
+
+                var standingBox = box.move(0.0D, 1.0D, 0.0D);
+                return !level.noBlockCollision(mob, standingBox.move(probeDir.scale(probeDistance)));
+            }
+        }
+
+        return false;
     }
 }

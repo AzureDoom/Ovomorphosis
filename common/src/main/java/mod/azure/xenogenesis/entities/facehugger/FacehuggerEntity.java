@@ -24,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 
 import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
+import mod.azure.xenogenesis.ai.util.CrawlingManager;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
 import mod.azure.xenogenesis.registry.SoundRegistry;
 
@@ -74,6 +75,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         moveAnalysis.update();
         if (!this.level().isClientSide()) {
             brainRuntime.tick();
+            CrawlingManager.updateWallCrawlingPhysics(this);
         }
         this.handleAttachmentToHost();
         if (isInfertile()) {

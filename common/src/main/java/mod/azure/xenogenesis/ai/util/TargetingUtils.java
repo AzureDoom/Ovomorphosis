@@ -107,8 +107,8 @@ public final class TargetingUtils {
 
     public static Predicate<LivingEntity> inRangeOrVisibleSmall(LivingEntity mob) {
         return e -> {
-            double dist = mob.distanceToSqr(e);
-            return dist <= 64 || mob.hasLineOfSight(e);
+            var dist = mob.distanceToSqr(e);
+            return dist <= 64;
         };
     }
 

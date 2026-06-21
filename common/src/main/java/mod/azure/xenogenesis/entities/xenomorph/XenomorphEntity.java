@@ -25,6 +25,7 @@ import java.util.SplittableRandom;
 
 import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
+import mod.azure.xenogenesis.ai.util.CrawlingManager;
 import mod.azure.xenogenesis.ai.util.NearestHostileTargetSelector;
 import mod.azure.xenogenesis.ai.util.TargetingSystem;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
@@ -86,6 +87,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         moveAnalysis.update();
         if (!this.level().isClientSide()) {
             brainRuntime.tick();
+            CrawlingManager.updateWallCrawlingPhysics(this);
             if (this.isAlive()) {
                 grow(this, 1);
             }
@@ -192,6 +194,14 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             mob.yBodyRot = this.yBodyRot;
             mob.setSpeed(0);
         }
+    }
+
+    @Override
+    @NotNull
+    public EntityDimensions getDefaultDimensions(@NotNull Pose pose) {
+        if (this.xenogenesis$isWallCrawling())
+            return EntityDimensions.scalable(0.9F, 0.9F);
+        return super.getDefaultDimensions(pose);
     }
 
     public boolean isExecuting() {

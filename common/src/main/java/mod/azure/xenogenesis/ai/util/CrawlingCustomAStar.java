@@ -2,16 +2,20 @@ package mod.azure.xenogenesis.ai.util;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 
 import java.util.*;
 
+import mod.azure.xenogenesis.CommonMod;
+
 /**
  * An A* pathfinder that extends {@link CustomAStar} with support for wall-crawling mobs.
  * <p>
- * In addition to ground-walking moves, the neighbour expansion includes climbable positions in all six directions (via
+ * In addition to ground-walking moves, the neighbor expansion includes climbable positions in all six directions (via
  * {@link MovementUtils#isSafeClimbNode}) when the mob implements {@link WallCrawlingMob} and
  * {@link MovementUtils#canWallCrawl} returns {@code true}.
  * <p>
@@ -21,7 +25,7 @@ import java.util.*;
 public class CrawlingCustomAStar extends CustomAStar {
 
     /**
-     * Runs A* with wall-crawl-aware neighbour expansion from {@code start} to {@code goal}.
+     * Runs A* with wall-crawl-aware neighbor expansion from {@code start} to {@code goal}.
      *
      * @param mob        the wall-crawling mob to path for
      * @param start      the starting block position
@@ -44,7 +48,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         bestCost.put(startFeet, 0.0D);
 
         var searched = 0;
-        var maxSearched = 2000;
+        var maxSearched = 5000;
         Node bestPartial = null;
         var bestPartialScore = Double.MAX_VALUE;
 
@@ -63,7 +67,9 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
 
             if (isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)) {
-                return reconstruct(current);
+                var fullPath = filterTransitionNodes(reconstruct(current), level, mob);
+                debugParticlePath(mob, fullPath, true);
+                return fullPath;
             }
 
             for (var next : neighbors(level, mob, current.pos())) {
@@ -93,21 +99,135 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
         if (bestPartial != null && bestPartial.parent() != null) {
-            return reconstruct(bestPartial);
+            var partialPath = filterTransitionNodes(reconstruct(bestPartial), level, mob);
+            debugParticlePath(mob, partialPath, false);
+            return partialPath;
         }
 
         return Collections.emptyList();
     }
 
     /**
-     * Returns reachable neighbour positions for a mob that may walk on the ground or crawl on walls. Includes
+     * Removes ambiguous transition nodes (stair tops that are neither cleanly walkable nor climbable) from the path.
+     * The stair-hop in CrawlToTargetAction handles crossing these physically, so keeping them as waypoints only causes
+     * the action to stall trying to attach to a wall that isn't there yet.
+     */
+    private static List<BlockPos> filterTransitionNodes(List<BlockPos> path, Level level, Mob mob) {
+        if (path.size() <= 2)
+            return path;
+        var filtered = new ArrayList<BlockPos>();
+        for (var i = 0; i < path.size(); i++) {
+            var pos = path.get(i);
+            var isWalk = canStandAt(level, mob, pos);
+            var isClimb = MovementUtils.isSafeClimbNode(level, mob, pos);
+            if (i == path.size() - 1 || isWalk || isClimb) {
+                filtered.add(pos);
+            }
+        }
+        if (filtered.isEmpty() && !path.isEmpty()) {
+            filtered.add(path.get(path.size() - 1));
+        }
+        return filtered;
+    }
+
+    private static void debugLogPath(Mob mob, List<BlockPos> path, String label) {
+        if (!CommonMod.getConfig().enablePathfindingDebug)
+            return;
+        if (!(mob.level() instanceof ServerLevel serverLevel))
+            return;
+
+        var level = mob.level();
+        var sb = new StringBuilder("[CrawlAStar:" + label + "] " + path.size() + " nodes: ");
+        for (var pos : path) {
+            var isClimb = MovementUtils.isSafeClimbNode(level, mob, pos);
+            var isWalk = canStandAt(level, mob, pos);
+            sb.append(pos.getX())
+                .append(",")
+                .append(pos.getY())
+                .append(",")
+                .append(pos.getZ())
+                .append("(")
+                .append(isClimb ? "C" : "")
+                .append(isWalk ? "W" : "")
+                .append(") ");
+        }
+        serverLevel.getPlayers(p -> true)
+            .forEach(
+                p -> p.sendSystemMessage(
+                    net.minecraft.network.chat.Component.literal(sb.toString())
+                )
+            );
+    }
+
+    /**
+     * Spawns debug particles along a computed path. Green flame = full path reached goal. Red flame =
+     * partial/best-effort path. A white dust particle marks each waypoint node center.
+     */
+    private static void debugParticlePath(Mob mob, List<BlockPos> path, boolean fullPath) {
+        if (!(mob.level() instanceof ServerLevel serverLevel))
+            return;
+        if (path.isEmpty())
+            return;
+        if (!CommonMod.getConfig().enablePathfindingDebug)
+            return;
+
+        var level = mob.level();
+
+        for (var i = 0; i < path.size(); i++) {
+            var pos = path.get(i);
+            var cx = pos.getX() + 0.5D;
+            var cy = pos.getY() + 0.5D;
+            var cz = pos.getZ() + 0.5D;
+
+            var isClimb = MovementUtils.isSafeClimbNode(level, mob, pos);
+            var isWalk = canStandAt(level, mob, pos);
+
+            // BLUE = climb node, YELLOW = walk node, WHITE = both/unknown
+            var markerParticle = isClimb && !isWalk
+                ? ParticleTypes.DRIPPING_WATER // blue tint = climb
+                : isWalk && !isClimb
+                    ? ParticleTypes.FLAME // orange = walk (should not appear in wall route)
+                    : ParticleTypes.END_ROD; // white = both or neither
+
+            serverLevel.sendParticles(markerParticle, cx, cy, cz, 3, 0.0D, 0.0D, 0.0D, 0.0D);
+        }
+
+        // Green line connecting nodes
+        for (var i = 0; i < path.size() - 1; i++) {
+            var a = path.get(i);
+            var b = path.get(i + 1);
+            var ax = a.getX() + 0.5D;
+            var ay = a.getY() + 0.5D;
+            var az = a.getZ() + 0.5D;
+            var bx = b.getX() + 0.5D;
+            var by = b.getY() + 0.5D;
+            var bz = b.getZ() + 0.5D;
+            for (var s = 0; s <= 4; s++) {
+                var t = s / 4.0D;
+                serverLevel.sendParticles(
+                    fullPath ? ParticleTypes.HAPPY_VILLAGER : ParticleTypes.SMOKE,
+                    ax + (bx - ax) * t,
+                    ay + (by - ay) * t,
+                    az + (bz - az) * t,
+                    1,
+                    0.0D,
+                    0.0D,
+                    0.0D,
+                    0.0D
+                );
+            }
+        }
+    }
+
+    /**
+     * Returns reachable neighbor positions for a mob that may walk on the ground or crawl on walls. Includes
      * ground-walking steps (up to one block up, up to three down) and, for wall-crawling mobs, all six face directions
      * plus high/low wall transitions.
      *
      * @param level the world
      * @param mob   the mob being pathed
      * @param pos   the current foot/cling position
-     * @return list of valid neighbour positions
+     * @return list of valid neighbor positions
      */
     public static List<BlockPos> neighbors(Level level, Mob mob, BlockPos pos) {
         List<BlockPos> result = new ArrayList<>();
@@ -142,7 +262,9 @@ public class CrawlingCustomAStar extends CustomAStar {
                 var side = pos.offset(dir[0], 0, dir[1]);
                 for (var rise = 1; rise <= 4; rise++) {
                     var candidate = side.above(rise);
-                    if (MovementUtils.isSafeClimbNode(level, mob, candidate)) {
+                    if (
+                        MovementUtils.isSafeClimbNode(level, mob, candidate) && hasClimbClearance(level, mob, candidate)
+                    ) {
                         result.add(candidate);
                         break;
                     }
@@ -153,7 +275,9 @@ public class CrawlingCustomAStar extends CustomAStar {
                 var side = pos.offset(dir[0], 0, dir[1]);
                 for (var drop = 1; drop <= 6; drop++) {
                     var candidate = side.below(drop);
-                    if (MovementUtils.isSafeClimbNode(level, mob, candidate)) {
+                    if (
+                        MovementUtils.isSafeClimbNode(level, mob, candidate) && hasClimbClearance(level, mob, candidate)
+                    ) {
                         result.add(candidate);
                         break;
                     }
@@ -165,7 +289,7 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     /**
-     * Computes the heuristic estimate for crawling mobs. Upward movement is penalised at 1.5× and downward movement at
+     * Computes the heuristic estimate for crawling mobs. Upward movement is penalized at 1.5× and downward movement at
      * 2.5× to prefer routes that hug surfaces over open drops.
      *
      * @param a the current position
@@ -188,9 +312,38 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     private static void tryAddClimb(Level level, Mob mob, List<BlockPos> result, BlockPos feet) {
-        if (MovementUtils.isSafeClimbNode(level, mob, feet)) {
+        if (MovementUtils.isSafeClimbNode(level, mob, feet) && hasClimbClearance(level, mob, feet)) {
             result.add(feet);
         }
+    }
+
+    /**
+     * Returns {@code true} if the mob's full bounding box fits at {@code feet} without clipping any adjacent geometry.
+     * This rejects corner nodes beside stair blocks that pass {@link MovementUtils#isSafeClimbNode} but trap the mob
+     * when physically occupied.
+     */
+    private static boolean hasClimbClearance(Level level, Mob mob, BlockPos feet) {
+        var halfW = mob.getBbWidth() / 2.0D;
+
+        // Check if the block directly below has a partial top surface (slab, stair top)
+        // that would push the mob upward into the climb node space.
+        var below = feet.below();
+        var belowShape = level.getBlockState(below).getCollisionShape(level, below);
+        var belowTopY = belowShape.isEmpty() ? 0.0D : belowShape.max(net.minecraft.core.Direction.Axis.Y);
+
+        // If the block below has a top surface above 0 (e.g. slab = 0.5), the mob's
+        // effective floor is higher — test clearance from that elevated Y.
+        var bottomY = feet.getY() + belowTopY;
+
+        var mobBox = new net.minecraft.world.phys.AABB(
+            feet.getX() + 0.5D - halfW,
+            bottomY,
+            feet.getZ() + 0.5D - halfW,
+            feet.getX() + 0.5D + halfW,
+            bottomY + mob.getBbHeight(),
+            feet.getZ() + 0.5D + halfW
+        );
+        return level.noBlockCollision(mob, mobBox);
     }
 
     /**
@@ -215,6 +368,25 @@ public class CrawlingCustomAStar extends CustomAStar {
 
         if (!toIsWalkable && !toIsClimbable) {
             return 9999.0D;
+        }
+
+        if (toIsClimbable && !toIsWalkable) {
+            var halfW = mob.getBbWidth() / 2.0D;
+            var belowTo = to.below();
+            var belowShape = level.getBlockState(belowTo).getCollisionShape(level, belowTo);
+            var belowTopY = belowShape.isEmpty() ? 0.0D : belowShape.max(net.minecraft.core.Direction.Axis.Y);
+            var bottomY = to.getY() + belowTopY;
+            var mobBox = new net.minecraft.world.phys.AABB(
+                to.getX() + 0.5D - halfW,
+                bottomY,
+                to.getZ() + 0.5D - halfW,
+                to.getX() + 0.5D + halfW,
+                bottomY + mob.getBbHeight(),
+                to.getZ() + 0.5D + halfW
+            );
+            if (!level.noBlockCollision(mob, mobBox)) {
+                return 9999.0D;
+            }
         }
 
         var cost = 1.0D;
@@ -248,6 +420,15 @@ public class CrawlingCustomAStar extends CustomAStar {
             ) {
                 if (!MovementUtils.isSafeBlock(level, near)) {
                     cost += 4.0D;
+                }
+            }
+
+            if (dy > 0 && MovementUtils.canWallCrawl(mob)) {
+                for (var dir : Direction.values()) {
+                    var adj = to.relative(dir);
+                    if (MovementUtils.isSafeClimbNode(level, mob, adj) && hasClimbClearance(level, mob, adj)) {
+                        return 9999.0D;
+                    }
                 }
             }
         }

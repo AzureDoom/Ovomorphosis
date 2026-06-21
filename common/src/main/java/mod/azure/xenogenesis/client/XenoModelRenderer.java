@@ -41,11 +41,6 @@ public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRend
         float nativeScale
     ) {
         if (animatable instanceof WallCrawlingMob wallCrawler) {
-            // Apply climbing rotations if actively crawling OR within the grace window.
-            // This prevents the model snapping back to default orientation during the
-            // brief ticks where isWallCrawling flickers false near the top of a surface.
-            // Hold climbing pose for 1 extra tick only (not the full grace window)
-            // to avoid the model lerping back to standing orientation visibly.
             var shouldApplyClimb = wallCrawler.xenogenesis$isWallCrawling()
                 || wallCrawler.xenogenesis$getWallCrawlGraceTicks() > 2;
 

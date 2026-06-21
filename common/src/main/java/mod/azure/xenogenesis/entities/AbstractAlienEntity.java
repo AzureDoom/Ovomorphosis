@@ -16,7 +16,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 
-import mod.azure.xenogenesis.ai.util.CrawlingManager;
 import mod.azure.xenogenesis.ai.util.WallCrawlingMob;
 import mod.azure.xenogenesis.registry.EntityRegistry;
 
@@ -186,8 +185,10 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
         syncOldCrawlRenderState();
 
         if (!this.level().isClientSide()) {
-            CrawlingManager.setWallCrawling(this, false);
-            CrawlingManager.updateWallCrawlingPhysics(this);
+            // NOTE: updateWallCrawlingPhysics is intentionally NOT called here.
+            // It must run AFTER brainRuntime.tick() so the crawl flag set by the
+            // action is visible to the physics update in the same tick.
+            // Subclasses that use wall-crawling must call it after their AI tick.
 
             if (this.isOnFire() && this.tickCount % 2 == 0) {
                 this.spawnFireParticles(this, (ServerLevel) this.level());
@@ -203,6 +204,9 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
             this.yRotO = yaw;
             this.yBodyRot = yaw;
             this.yBodyRotO = yaw;
+        }
+        if (this.tickCount % 10 == 0) {
+            this.refreshDimensions();
         }
     }
 

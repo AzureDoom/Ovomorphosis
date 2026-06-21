@@ -12,20 +12,6 @@ import mod.azure.xenogenesis.ai.util.MovementUtils;
 
 public final class TimedAttackAction<E extends Mob> implements Action<E> {
 
-    private static final double HIT_INFLATE = 2.5D;
-
-    private static final int LUNGE_FORWARD_START_TICK = 4;
-
-    private static final int LUNGE_FORWARD_END_TICK = 8;
-
-    private static final int LUNGE_BACK_START_TICK = 9;
-
-    private static final int LUNGE_BACK_END_TICK = 13;
-
-    private static final double LUNGE_FORWARD_SPEED = 0.22D;
-
-    private static final double LUNGE_BACK_SPEED = 0.16D;
-
     private final String cooldownKey;
 
     private final int cooldownTicks;
@@ -40,8 +26,6 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
 
     private int age;
 
-    // Captured at start() before the previous action's stop() clears the crawl flag.
-    // Used to maintain wall-crawling physics for the full duration of the attack.
     private boolean wasCrawlingOnStart;
 
     public TimedAttackAction(
@@ -63,8 +47,6 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
     @Override
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         this.age = 0;
-        // Capture BEFORE the previous action's stop() fires and clears isWallCrawling.
-        // wasRecentlyWallCrawling checks both the flag and remaining grace ticks.
         this.wasCrawlingOnStart = CrawlingManager.wasRecentlyWallCrawling(mob);
         mob.hasImpulse = true;
         animationTrigger.accept(mob);
@@ -91,9 +73,6 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
 
         mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
 
-        // Keep crawling active for the full attack if we were crawling at start.
-        // Don't re-check isWallCrawling here — it will be false because we're the
-        // only action running and nothing is calling setWallCrawling(true) this tick.
         if (wasCrawlingOnStart) {
             CrawlingManager.setWallCrawling(mob, true);
             CrawlingManager.updateWallCrawlingPhysics(mob);
@@ -116,7 +95,7 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
         mob.hasImpulse = true;
 
         if (age == damageTick) {
-            if (mob.getBoundingBox().inflate(HIT_INFLATE).intersects(target.getBoundingBox())) {
+            if (mob.getBoundingBox().inflate(2.5D).intersects(target.getBoundingBox())) {
                 mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
                 mob.doHurtTarget(target);
 
@@ -149,12 +128,8 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
 
         direction = direction.normalize();
 
-        if (age >= LUNGE_FORWARD_START_TICK && age <= LUNGE_FORWARD_END_TICK) {
-            return direction.scale(LUNGE_FORWARD_SPEED);
-        }
-
-        if (age >= LUNGE_BACK_START_TICK && age <= LUNGE_BACK_END_TICK) {
-            return direction.scale(-LUNGE_BACK_SPEED);
+        if (age >= 2 && age <= 6) {
+            return direction.scale(0.22D);
         }
 
         return Vec3.ZERO;
@@ -163,9 +138,6 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
     @Override
     public void stop(E mob, Blackboard blackboard, ActionStatus reason) {
         wasCrawlingOnStart = false;
-        // Only clear crawling if still set — the next action's start() may need
-        // wasRecentlyWallCrawling to still return true from grace ticks.
-        // CrawlToTargetAction will re-establish or clear it on its next tick.
     }
 
     @Override

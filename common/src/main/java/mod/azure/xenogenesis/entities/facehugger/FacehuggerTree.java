@@ -9,6 +9,7 @@ import mod.azure.xenogenesis.ai.core.AiKeys;
 import mod.azure.xenogenesis.ai.core.BehaviorNode;
 import mod.azure.xenogenesis.ai.core.BehaviorResult;
 import mod.azure.xenogenesis.ai.util.CrawlingManager;
+import mod.azure.xenogenesis.ai.util.MovementUtils;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 
 public class FacehuggerTree {
@@ -17,23 +18,23 @@ public class FacehuggerTree {
         var targetSelector = new FacehuggerTargetSelector<>();
 
         var wander = new WanderAction<FacehuggerEntity>(
-            0.14D, // slower, skittery speed
-            5, // priority
-            6.0D, // wander radius
-            60, // min duration ticks
-            160 // max duration ticks
+            0.14D,
+            5,
+            6.0D,
+            60,
+            160
         );
 
         var idle = new IdleAction<FacehuggerEntity>(40, 100, 1);
 
         var moveToDestination = new MoveToDestinationAction<FacehuggerEntity>(
-            1.5D, // stop distance
-            0.22D, // speed
-            10, // priority
-            3.0D, // max leap height
-            0.5D, // min leap height
-            0.45D, // leap vertical power
-            0.55D // leap horizontal power
+            1.5D,
+            0.22D,
+            10,
+            3.0D,
+            0.5D,
+            0.45D,
+            0.55D
         );
 
         var crawlToDestination = new CrawlToDestinationAction<FacehuggerEntity>(
@@ -89,7 +90,10 @@ public class FacehuggerTree {
 
             if (currentTarget != null && currentTarget.isAlive()) {
 
-                if (CrawlingManager.shouldUseWallCrawlingToTarget(facehugger, currentTarget)) {
+                var useCrawl = CrawlingManager.shouldUseWallCrawlingToTarget(facehugger, currentTarget)
+                    && MovementUtils.needsWallCrawl(facehugger, currentTarget.position());
+
+                if (useCrawl) {
                     return BehaviorResult.run(crawlToTarget, 20);
                 }
 
