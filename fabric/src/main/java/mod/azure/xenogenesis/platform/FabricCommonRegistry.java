@@ -1,5 +1,6 @@
 package mod.azure.xenogenesis.platform;
 
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.Registry;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
@@ -41,5 +42,10 @@ public class FabricCommonRegistry implements CommonRegistry {
         Item.Properties itemProperties
     ) {
         return () -> new SpawnEggItem(entityType.get(), primaryEggColour, secondaryEggColour, itemProperties);
+    }
+
+    @Override
+    public boolean isDevelopmentEnvironment() {
+        return FabricLoader.getInstance().isDevelopmentEnvironment();
     }
 }

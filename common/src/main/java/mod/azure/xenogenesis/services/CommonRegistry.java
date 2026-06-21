@@ -22,4 +22,6 @@ public interface CommonRegistry {
         int secondaryEggColour,
         Item.Properties itemProperties
     );
+
+    boolean isDevelopmentEnvironment();
 }

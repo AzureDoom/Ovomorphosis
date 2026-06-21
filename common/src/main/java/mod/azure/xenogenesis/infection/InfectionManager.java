@@ -16,10 +16,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.data.XenogenesisSavedData;
-import mod.azure.xenogenesis.entities.facehugger.FacehuggerEntity;
+import mod.azure.xenogenesis.entities.chestburster.ChestbursterEntity;
 import mod.azure.xenogenesis.registry.DamageTypeRegistry;
 import mod.azure.xenogenesis.registry.EntityRegistry;
 import mod.azure.xenogenesis.registry.SoundRegistry;
+import mod.azure.xenogenesis.services.XenoServices;
 
 public final class InfectionManager {
 
@@ -100,6 +101,8 @@ public final class InfectionManager {
 
             state.lastKnownPos = host.blockPosition();
             state.ticks++;
+            if (XenoServices.COMMON_REGISTRY.isDevelopmentEnvironment())
+                CommonMod.LOGGER.info("Ticks : {}, Duration {}", state.ticks, state.duration);
             state.ticksSinceLastDamage++;
             if (entity instanceof Mob mob) {
                 mob.setPersistenceRequired();
@@ -140,7 +143,7 @@ public final class InfectionManager {
 
         level.playSound(host, host.blockPosition(), SoundRegistry.CHEST_BURST.get(), SoundSource.HOSTILE, 1.0F, 1.0F);
 
-        var burster = new FacehuggerEntity(EntityRegistry.FACEHUGGER.get(), level);
+        var burster = new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level);
 
         var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);
         burster.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
@@ -151,9 +154,8 @@ public final class InfectionManager {
             0.6f,
             Mth.sin(angle) * 0.4f
         );
-        burster.setIsInfertile(false);
         level.addFreshEntity(burster);
 
-        host.kill();
+        host.hurt(DamageTypeRegistry.of(level), Float.MAX_VALUE);
     }
 }
