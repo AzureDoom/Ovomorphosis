@@ -1,0 +1,12 @@
+{
+  "type": "neoforge:add_spawns",
+  "structures": "#xenogenesis:infestable_structures",
+  "spawners": [
+    {
+      "type": "xenogenesis:ovomorph",
+      "weight": 2,
+      "minCount": 1,
+      "maxCount": 1
+    }
+  ]
+}

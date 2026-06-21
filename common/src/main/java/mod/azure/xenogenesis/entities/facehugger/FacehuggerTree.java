@@ -89,14 +89,15 @@ public class FacehuggerTree {
 
             if (currentTarget != null && currentTarget.isAlive()) {
 
+                if (CrawlingManager.shouldUseWallCrawlingToTarget(facehugger, currentTarget)) {
+                    return BehaviorResult.run(crawlToTarget, 20);
+                }
+
                 var distSqr = facehugger.distanceToSqr(currentTarget);
                 if (distSqr <= 4.0D * 4.0D) {
                     return BehaviorResult.run(leapAndAttach, 30);
                 }
 
-                if (CrawlingManager.shouldUseWallCrawlingToTarget(facehugger, currentTarget)) {
-                    return BehaviorResult.run(crawlToTarget, 20);
-                }
                 return BehaviorResult.run(moveToTarget, 20);
             }
 

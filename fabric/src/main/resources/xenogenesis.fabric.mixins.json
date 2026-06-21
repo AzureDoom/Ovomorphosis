@@ -14,6 +14,7 @@
     "MobEntityMixin",
     "PlayerEntityMixin",
     "ServerLevelMixin",
+    "StructureAccessor",
     "VillagerHostilesSensorMixin",
     "WardenEntityMixin"
   ],

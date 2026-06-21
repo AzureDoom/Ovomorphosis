@@ -1,11 +1,15 @@
 package mod.azure.xenogenesis.entities.ovomorph;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
@@ -20,6 +24,7 @@ import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.core.MobBrainRuntime;
 import mod.azure.xenogenesis.ai.util.TargetingUtils;
 import mod.azure.xenogenesis.entities.AbstractAlienEntity;
+import mod.azure.xenogenesis.util.OvomorphStructureChecks;
 
 public class OvomorphEntity extends AbstractAlienEntity {
 
@@ -182,6 +187,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         this.yRotO = yaw;
         this.yBodyRot = yaw;
         this.yBodyRotO = yaw;
+        this.setGlowingTag(this.isAlive());
     }
 
     @Override
@@ -206,5 +212,26 @@ public class OvomorphEntity extends AbstractAlienEntity {
         if (!this.isAggressive()) {
             animationDispatcher.clientIdle();
         }
+    }
+
+    public static boolean canOvomorphSpawn(
+        EntityType<OvomorphEntity> type,
+        ServerLevelAccessor level,
+        MobSpawnType reason,
+        BlockPos pos,
+        RandomSource random
+    ) {
+        if (level.getDifficulty() == Difficulty.PEACEFUL) {
+            return false;
+        }
+
+        if (level.getMaxLocalRawBrightness(pos) > 7) {
+            return false;
+        }
+
+        if (!level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP)) {
+            return false;
+        }
+        return OvomorphStructureChecks.isInTargetStructure(level, pos);
     }
 }

@@ -1,6 +1,7 @@
 package mod.azure.xenogenesis;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.registry.FlammableBlockRegistry;
@@ -28,6 +29,13 @@ public final class FabricLibMod implements ModInitializer {
         CommonMod.initRegistries();
         ResourceManagerHelper.get(PackType.SERVER_DATA)
             .registerReloadListener(new FabricHeadOffsetReloadListener());
+        ServerLifecycleEvents.SERVER_STARTED.register(FabricStructureSpawnPatcher::patch);
+
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resourceManager, success) -> {
+            if (success) {
+                FabricStructureSpawnPatcher.patch(server);
+            }
+        });
         FlammableBlockRegistry.getDefaultInstance().add(ModTags.RESIN, 5, 5);
         FabricDefaultAttributeRegistry.register(
             EntityRegistry.OVOMORPH.get(),
@@ -67,7 +75,7 @@ public final class FabricLibMod implements ModInitializer {
             EntityRegistry.OVOMORPH.get(),
             SpawnPlacementTypes.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-            (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
+            OvomorphEntity::canOvomorphSpawn
         );
         SpawnPlacements.register(
             EntityRegistry.CHESTBURSTER.get(),
@@ -81,13 +89,5 @@ public final class FabricLibMod implements ModInitializer {
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
         );
-        // BiomeModifications.addSpawn(
-        // BiomeSelectors.tag(ModTags.SPAWN_ARACHNIDS),
-        // MobCategory.MONSTER,
-        // EntityRegistry.WORKERBUG.get(),
-        // 20,
-        // 1,
-        // 4
-        // );
     }
 }

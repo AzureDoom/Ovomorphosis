@@ -105,7 +105,7 @@ public final class NeoForgeMod {
             EntityRegistry.OVOMORPH.get(),
             SpawnPlacementTypes.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-            ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
+            OvomorphEntity::canOvomorphSpawn,
             RegisterSpawnPlacementsEvent.Operation.AND
         );
         event.register(

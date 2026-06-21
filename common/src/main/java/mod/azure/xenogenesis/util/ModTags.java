@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.material.Fluid;
 
 import mod.azure.xenogenesis.CommonMod;
@@ -48,5 +49,10 @@ public class ModTags {
     public static final TagKey<EntityType<?>> FACEHUGGER_BLACKLIST = TagKey.create(
         Registries.ENTITY_TYPE,
         CommonMod.modResource("facehugger_blacklist")
+    );
+
+    public static final TagKey<Structure> INFESTABLE_STRUCTURES = TagKey.create(
+        Registries.STRUCTURE,
+        CommonMod.modResource("infestable_structures")
     );
 }
