@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
@@ -81,6 +82,12 @@ public class CustomAStar {
             }
 
             if (isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)) {
+                var path = reconstruct(current);
+                for (var i = 0; i < path.size() - 1; i++) {
+                    var segFrom = Vec3.atCenterOf(path.get(i));
+                    var segTo = Vec3.atCenterOf(path.get(i + 1));
+                    AiDebugUtils.sendParticlePath(mob, segFrom, segTo);
+                }
                 return reconstruct(current);
             }
 
@@ -111,7 +118,11 @@ public class CustomAStar {
             }
         }
         if (bestPartial != null && bestPartial.parent() != null) {
-            return reconstruct(bestPartial);
+            var path = reconstruct(bestPartial);
+            for (var i = 0; i < path.size() - 1; i++) {
+                AiDebugUtils.sendParticlePath(mob, Vec3.atCenterOf(path.get(i)), Vec3.atCenterOf(path.get(i + 1)));
+            }
+            return path;
         }
 
         return Collections.emptyList();
