@@ -146,9 +146,6 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
         if (mobOnSolidGround && !mobIsInOrAtTunnel && !nextWaypointIsTunnel) {
             CrawlingManager.setWallCrawling(mob, false);
-            if (mob instanceof WallCrawlingMob wc) {
-                wc.ovomorphosis$setWallCrawlGraceTicks(0);
-            }
         }
 
         var isCrawlingNow = canCrawl && CrawlingManager.isWallCrawling(mob);
@@ -380,6 +377,68 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
                 || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
 
+        var mobFeet = BlockPos.containing(
+            mob.getX(),
+            mob.getBoundingBox().minY,
+            mob.getZ()
+        );
+
+        var verticalStepUp =
+            canCrawl
+                && shouldUseCrawlingNow
+                && needsCrawlStepUp(mob, waypointBlock, mobFeet);
+
+        if (verticalStepUp) {
+            var climbTarget = findUpcomingHigherPathNode(mobFeet);
+            if (climbTarget == null) {
+                climbTarget = waypointBlock;
+            }
+
+            var climbCenter = Vec3.atBottomCenterOf(climbTarget);
+            var horizontalToClimb = new Vec3(
+                climbCenter.x - mob.getX(),
+                0.0D,
+                climbCenter.z - mob.getZ()
+            );
+
+            Vec3 move;
+
+            if (horizontalToClimb.lengthSqr() > 0.01D) {
+                var horiz = horizontalToClimb.normalize().scale(speed * 0.75D);
+
+                var corrected = removeBlockedHorizontalComponents(
+                    mob,
+                    new Vec3(
+                        horiz.x,
+                        Math.max(mob.getDeltaMovement().y, speed * 0.85D),
+                        horiz.z
+                    )
+                );
+
+                if (corrected.horizontalDistanceSqr() < 0.0001D) {
+                    corrected = findCornerEscapeStepUpVelocity(mob, horizontalToClimb);
+                }
+
+                move = corrected;
+            } else {
+                var wallDir = findNearestWallDirection(mob);
+                var intoWall = wallDir != null ? wallDir.scale(speed * 0.3D) : Vec3.ZERO;
+                move = new Vec3(
+                    intoWall.x,
+                    Math.max(mob.getDeltaMovement().y, speed * 0.85D),
+                    intoWall.z
+                );
+            }
+
+            CrawlingManager.setWallCrawling(mob, true);
+            CrawlingManager.updateCrawlOrientation(mob, move);
+            mob.setDeltaMovement(move);
+            mob.hasImpulse = true;
+            faceMovementDirection(mob, move);
+
+            return;
+        }
+
         if (waypointLeadsIntoVerticalShaft && target.getY() < mob.getY() - 0.75D) {
             var shaftBlock = waypointIsVerticalShaft
                 ? waypointBlock
@@ -425,12 +484,6 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             faceMovementDirection(mob, shaftVelocity);
             return;
         }
-
-        var mobFeet = BlockPos.containing(
-            mob.getX(),
-            mob.getBoundingBox().minY,
-            mob.getZ()
-        );
 
         var waypointIsTunnel =
             CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock);
@@ -840,7 +893,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             return Math.abs(yError) < 0.55D;
         }
 
-        var reachRadius = isTunnel ? 0.6D : 1.15D;
+        var waypointAbove = waypoint.getY() > BlockPos.containing(
+            mob.getX(),
+            mob.getBoundingBox().minY,
+            mob.getZ()
+        ).getY();
+
+        var reachRadius = isTunnel ? 0.6D : waypointAbove ? 0.45D : 1.15D;
 
         if (horizontalDistSqr > reachRadius * reachRadius)
             return false;
@@ -854,25 +913,35 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var halfMob = mob.getBbWidth() / 2.0D;
         var faceOffset = 0.5D - halfMob;
 
-        var dirs = new int[][] { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-        var bestDist = Double.MAX_VALUE;
-        Vec3 bestSnap = center;
+        var pushX = 0.0D;
+        var pushZ = 0.0D;
+        var solidFaces = 0;
 
-        for (var dir : dirs) {
-            var neighbor = block.offset(dir[0], 0, dir[1]);
-            var neighborState = level.getBlockState(neighbor);
-            if (!neighborState.getCollisionShape(level, neighbor).isEmpty()) {
-                var snapX = center.x - dir[0] * faceOffset;
-                var snapZ = center.z - dir[1] * faceOffset;
-                var snap = new Vec3(snapX, center.y, snapZ);
-                var dist = mob.position().distanceToSqr(snap);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestSnap = snap;
-                }
-            }
+        if (!level.getBlockState(block.east()).getCollisionShape(level, block.east()).isEmpty()) {
+            pushX -= faceOffset;
+            solidFaces++;
         }
-        return bestSnap;
+
+        if (!level.getBlockState(block.west()).getCollisionShape(level, block.west()).isEmpty()) {
+            pushX += faceOffset;
+            solidFaces++;
+        }
+
+        if (!level.getBlockState(block.south()).getCollisionShape(level, block.south()).isEmpty()) {
+            pushZ -= faceOffset;
+            solidFaces++;
+        }
+
+        if (!level.getBlockState(block.north()).getCollisionShape(level, block.north()).isEmpty()) {
+            pushZ += faceOffset;
+            solidFaces++;
+        }
+
+        if (solidFaces == 0) {
+            return center;
+        }
+
+        return new Vec3(center.x + pushX, center.y, center.z + pushZ);
     }
 
     private Vec3 findNearestWallDirection(E mob) {
@@ -1187,5 +1256,132 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         );
 
         return hit.getType() == HitResult.Type.MISS;
+    }
+
+    private boolean needsCrawlStepUp(E mob, BlockPos waypointBlock, BlockPos mobFeet) {
+        var currentY = mobFeet.getY();
+
+        if (waypointBlock.getY() > currentY) {
+            return true;
+        }
+
+        if (path == null || path.isEmpty()) {
+            return false;
+        }
+
+        var maxLookahead = Math.min(path.size(), pathIndex + 4);
+
+        for (var i = pathIndex; i < maxLookahead; i++) {
+            var candidate = path.get(i);
+
+            if (candidate.getY() > currentY) {
+                var dx = candidate.getX() + 0.5D - mob.getX();
+                var dz = candidate.getZ() + 0.5D - mob.getZ();
+                var horizontalDistSqr = dx * dx + dz * dz;
+
+                return horizontalDistSqr < 4.0D;
+            }
+        }
+
+        return false;
+    }
+
+    private BlockPos findUpcomingHigherPathNode(BlockPos mobFeet) {
+        if (path == null || path.isEmpty()) {
+            return null;
+        }
+
+        var currentY = mobFeet.getY();
+        var maxLookahead = Math.min(path.size(), pathIndex + 4);
+
+        for (var i = pathIndex; i < maxLookahead; i++) {
+            var candidate = path.get(i);
+
+            if (candidate.getY() > currentY) {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private Vec3 removeBlockedHorizontalComponents(E mob, Vec3 desired) {
+        var level = mob.level();
+        var box = mob.getBoundingBox();
+
+        var x = desired.x;
+        var z = desired.z;
+
+        var probe = Math.max(0.08D, mob.getBbWidth() * 0.25D);
+
+        if (Math.abs(x) > 0.0001D) {
+            var xProbe = box.move(Math.copySign(probe, x), 0.0D, 0.0D);
+            if (!level.noBlockCollision(mob, xProbe)) {
+                x = 0.0D;
+            }
+        }
+
+        if (Math.abs(z) > 0.0001D) {
+            var zProbe = box.move(0.0D, 0.0D, Math.copySign(probe, z));
+            if (!level.noBlockCollision(mob, zProbe)) {
+                z = 0.0D;
+            }
+        }
+
+        return new Vec3(x, desired.y, z);
+    }
+
+    private Vec3 findCornerEscapeStepUpVelocity(E mob, Vec3 desiredHorizontal) {
+        var level = mob.level();
+        var box = mob.getBoundingBox();
+
+        var desired = new Vec3(desiredHorizontal.x, 0.0D, desiredHorizontal.z);
+        if (desired.lengthSqr() < 0.0001D) {
+            desired = new Vec3(mob.getLookAngle().x, 0.0D, mob.getLookAngle().z);
+        }
+
+        if (desired.lengthSqr() < 0.0001D) {
+            return new Vec3(0.0D, speed * 0.85D, 0.0D);
+        }
+
+        desired = desired.normalize();
+
+        var candidates = new Vec3[] {
+            new Vec3(desired.x, 0.0D, desired.z),
+            new Vec3(-desired.z, 0.0D, desired.x),
+            new Vec3(desired.z, 0.0D, -desired.x),
+            new Vec3(desired.x - desired.z, 0.0D, desired.z + desired.x),
+            new Vec3(desired.x + desired.z, 0.0D, desired.z - desired.x)
+        };
+
+        Vec3 best = Vec3.ZERO;
+        double bestScore = -Double.MAX_VALUE;
+
+        for (var candidate : candidates) {
+            if (candidate.lengthSqr() < 0.0001D) {
+                continue;
+            }
+
+            var dir = candidate.normalize();
+            var testMove = dir.scale(speed * 0.55D);
+            var probeBox = box.move(testMove.x, 0.05D, testMove.z);
+
+            if (!level.noBlockCollision(mob, probeBox)) {
+                continue;
+            }
+
+            var score = dir.dot(desired);
+
+            if (score > bestScore) {
+                bestScore = score;
+                best = testMove;
+            }
+        }
+
+        return new Vec3(
+            best.x,
+            Math.max(mob.getDeltaMovement().y, speed * 0.9D),
+            best.z
+        );
     }
 }

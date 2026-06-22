@@ -1,7 +1,7 @@
 package mod.azure.ovomorphosis.ai.core;
 
-import mod.azure.ovomorphosis.ai.actions.xenomorph.GrabAndExecuteAction;
-import mod.azure.ovomorphosis.ai.actions.xenomorph.PlaceResinAction;
+import mod.azure.ovomorphosis.ai.actions.MoveToTargetAction;
+import mod.azure.ovomorphosis.ai.actions.xenomorph.*;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 
 /**
@@ -18,26 +18,11 @@ public final class AiKeys {
     /** Tick-based cooldown preventing consecutive leap attacks. */
     public static final String LEAP_COOLDOWN = "leap_cooldown";
 
-    /** The {@link mod.azure.ovomorphosis.ai.hive.TacticalOrder} currently assigned to this mob. */
-    public static final String TACTICAL_ORDER = "tactical_order";
-
-    /** Reference to the wall-surface navigator used during crawl pathing. */
-    public static final String SURFACE_NAVIGATOR = "surface_navigator";
-
     /** The last known {@code BlockPos} of the mob's target, retained when line of sight is lost. */
     public static final String LAST_KNOWN_TARGET_POS = "last_known_target_pos";
 
-    /** Cooldown applied after a worker performs a cornered-state attack. */
-    public static final String CORNERED_ATTACK_COOLDOWN = "worker:cornered_attack_cooldown";
-
-    /** Boolean flag set when a worker mob has been cornered by the player. */
-    public static final String IS_CORNERED = "worker:is_cornered";
-
     /** The {@code BlockPos} the mob is currently navigating toward. */
     public static final String DESTINATION = "destination";
-
-    /** Boolean flag indicating the mob is currently using wall-crawl movement. */
-    public static final String WALL_CRAWLING = "wall_crawling";
 
     /**
      * Cooldown applied after a {@link GrabAndExecuteAction} completes, preventing the xenomorph from immediately
@@ -64,6 +49,28 @@ public final class AiKeys {
     public static final String CARRY_COOLDOWN = "carry_cooldown";
 
     public static final String PASSIVE_DECISION = "passive_decision";
+
+    /**
+     * Scan-interval cooldown used internally by {@link BreakToTargetAction}.
+     */
+    public static final String BREAK_TO_TARGET_SCAN = "break_to_target_scan";
+
+    /**
+     * Flag written to the blackboard by {@link MoveToTargetAction} when the mob is stuck and a breakable block is
+     * suspected to be the cause. {@link BreakToTargetAction} reads and clears this flag. Using a flag rather than a
+     * permanent tree branch prevents the break action from blocking normal movement.
+     */
+    public static final String BREAK_TO_TARGET_TRIGGER = "break_to_target_trigger";
+
+    /**
+     * Scan-interval cooldown used internally by {@link DestroyLightSourceAction}.
+     */
+    public static final String LIGHT_SCAN_COOLDOWN = "destroy_light_scan";
+
+    /**
+     * Replanning cooldown used internally by {@link SeekDarkPlaceAction}.
+     */
+    public static final String SEEK_COOLDOWN = "seek_dark_replan";
 
     private AiKeys() {}
 }

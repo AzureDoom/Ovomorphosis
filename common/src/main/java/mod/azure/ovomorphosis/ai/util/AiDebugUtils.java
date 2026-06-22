@@ -52,7 +52,7 @@ public final class AiDebugUtils {
         var marker = isClimb && !isWalk
             ? ParticleTypes.DRIPPING_WATER
             : isWalk && !isClimb
-                ? ParticleTypes.FLAME
+                ? ParticleTypes.SMALL_FLAME
                 : ParticleTypes.END_ROD;
 
         serverLevel.sendParticles(marker, pos.x, pos.y + 0.35D, pos.z, 3, 0.0D, 0.0D, 0.0D, 0.0D);

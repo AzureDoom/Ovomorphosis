@@ -13,7 +13,6 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.hive.*;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
@@ -57,13 +56,6 @@ public class XenomorphTree {
             true
         );
 
-        var squadMove = new SquadMoveAction<XenomorphEntity>(
-            0.55D,
-            2.5D,
-            50,
-            22
-        );
-
         var swipeCombo = new XenomorphCombatAction<XenomorphEntity>(
             "swipe_combo",
             35,
@@ -95,7 +87,11 @@ public class XenomorphTree {
 
         var swim = new SwimAction<XenomorphEntity>(200);
 
-        var coordinator = new SimpleTacticalCoordinator<XenomorphEntity>();
+        var breakToTarget = new BreakToTargetAction<>();
+
+        var destroyLight = new DestroyLightSourceAction<>(300);
+
+        var seekDark = new SeekDarkPlaceAction<>(400);
 
         return (xenomorph, blackboard, cooldowns) -> {
 
@@ -103,43 +99,10 @@ public class XenomorphTree {
             if (currentTarget != null && !currentTarget.isAlive()) {
                 blackboard.set(AiKeys.TARGET, null);
                 xenomorph.setTarget(null);
-                currentTarget = null;
             }
 
             if (fleeExplosive.hasNearbyExplosive(xenomorph)) {
                 return BehaviorResult.run(fleeExplosive, 120);
-            }
-
-            var squad = SquadRegistry.get().getOrJoinSquad(xenomorph);
-
-            if (squad != null) {
-                var squadTarget = squad.primaryTarget();
-                if (squadTarget != null && squadTarget.isAlive()) {
-                    if (
-                        currentTarget == null || !currentTarget.isAlive()
-                            || !currentTarget.getUUID().equals(squadTarget.getUUID())
-                    ) {
-                        blackboard.set(AiKeys.TARGET, squadTarget);
-                        xenomorph.setTarget(squadTarget);
-                        currentTarget = squadTarget;
-                    }
-                }
-
-                var order = coordinator.getOrder(xenomorph, squad);
-                blackboard.set(AiKeys.TACTICAL_ORDER, order);
-
-                if (order.hasTarget()) {
-                    var orderedTarget = order.target();
-                    if (
-                        currentTarget == null || !currentTarget.isAlive()
-                            || !currentTarget.getUUID().equals(orderedTarget.getUUID())
-                    ) {
-                        blackboard.set(AiKeys.TARGET, orderedTarget);
-                        xenomorph.setTarget(orderedTarget);
-                    }
-                }
-            } else {
-                blackboard.set(AiKeys.TACTICAL_ORDER, null);
             }
 
             currentTarget = blackboard.get(AiKeys.TARGET, LivingEntity.class);
@@ -201,22 +164,11 @@ public class XenomorphTree {
                     return BehaviorResult.run(swipeCombo, 100);
                 }
 
-                var order = blackboard.get(AiKeys.TACTICAL_ORDER, mod.azure.ovomorphosis.ai.hive.TacticalOrder.class);
-                if (order != null && order.hasDestination()) {
-                    if (!inMeleeRange) {
-                        return BehaviorResult.run(squadMove, 22);
-                    }
+                if (blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)) {
+                    return BehaviorResult.run(breakToTarget, 15);
                 }
 
                 return BehaviorResult.run(moveToTargetCombat, 20);
-            }
-
-            if (
-                cooldowns.ready(AiKeys.RESIN_PLACE_COOLDOWN)
-                    && xenomorph.getRandom().nextFloat() < 0.4F
-                    && !CrawlingManager.wasRecentlyWallCrawling(xenomorph)
-            ) {
-                return BehaviorResult.run(placeResin, 3);
             }
 
             if (xenomorph.isInWater() || xenomorph.isInLava()) {
@@ -233,15 +185,35 @@ public class XenomorphTree {
                 return BehaviorResult.run(destinationMove, 5);
             }
 
-            if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
-                cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
-                if (xenomorph.getRandom().nextFloat() < 0.1F) {
-                    return BehaviorResult.run(wander, 5);
-                }
-                return BehaviorResult.run(idle, 5);
+            if (cooldowns.ready(AiKeys.LIGHT_SCAN_COOLDOWN)) {
+                return BehaviorResult.run(destroyLight, 10);
             }
 
-            return BehaviorResult.run(idle, 5);
+            if (
+                cooldowns.ready(AiKeys.RESIN_PLACE_COOLDOWN)
+                    && xenomorph.getRandom().nextFloat() < 0.4F
+                    && !CrawlingManager.wasRecentlyWallCrawling(xenomorph)
+            ) {
+                return BehaviorResult.run(placeResin, 9);
+            }
+
+            if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
+                cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
+
+                if (
+                    xenomorph.getRandom().nextFloat() < 0.4F
+                        && !cooldowns.isOnCooldown(AiKeys.SEEK_COOLDOWN)
+                ) {
+                    return BehaviorResult.run(seekDark, 9);
+                }
+
+                if (xenomorph.getRandom().nextFloat() < 0.5F) {
+                    return BehaviorResult.run(wander, 9);
+                }
+                return BehaviorResult.run(idle, 8);
+            }
+
+            return BehaviorResult.run(idle, 8);
         };
     }
 

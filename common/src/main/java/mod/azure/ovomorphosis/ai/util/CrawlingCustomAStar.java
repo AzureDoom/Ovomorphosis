@@ -9,6 +9,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
@@ -83,16 +84,6 @@ public class CrawlingCustomAStar extends CustomAStar {
         if (bestPartial != null && bestPartial.parent() != null) {
             var partialPath = filterTransitionNodes(reconstruct(bestPartial), level, mob);
             debugParticlePath(mob, partialPath, false);
-            if (CommonMod.getConfig().enablePathfindingDebug && mob.level() instanceof ServerLevel sl) {
-                var closest = bestPartial.pos();
-                CommonMod.LOGGER.info(
-                    "[AStar] exhausted={}, closest={}, distToGoal={}, partialLen={}",
-                    bestPartial,
-                    closest,
-                    closest.distManhattan(goalFeet),
-                    partialPath.size()
-                );
-            }
             return partialPath;
         }
 
@@ -475,6 +466,10 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
 
+        if (!hasTransitionClearance(level, mob, from, to)) {
+            return 9999.0D;
+        }
+
         return cost;
     }
 
@@ -556,6 +551,37 @@ public class CrawlingCustomAStar extends CustomAStar {
                 }
             }
         }
+        return true;
+    }
+
+    private static boolean hasTransitionClearance(Level level, Mob mob, BlockPos from, BlockPos to) {
+        var fromCenter = Vec3.atBottomCenterOf(from);
+        var toCenter = Vec3.atBottomCenterOf(to);
+
+        var delta = toCenter.subtract(fromCenter);
+        var steps = Math.max(2, Mth.ceil(delta.length() * 4.0D));
+
+        var halfW = Math.min(mob.getBbWidth() / 2.0D, 0.35D);
+        var height = getEffectiveCrawlHeight(mob);
+
+        for (var i = 1; i <= steps; i++) {
+            var t = i / (double) steps;
+            var p = fromCenter.add(delta.scale(t));
+
+            var box = new AABB(
+                p.x - halfW,
+                p.y,
+                p.z - halfW,
+                p.x + halfW,
+                p.y + height,
+                p.z + halfW
+            );
+
+            if (!level.noBlockCollision(mob, box)) {
+                return false;
+            }
+        }
+
         return true;
     }
 }

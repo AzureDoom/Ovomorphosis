@@ -73,7 +73,7 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
     @Override
     public float maxUpStep() {
         if (ovomorphosis$isWallCrawling()) {
-            return 0.6F;
+            return 1.25F;
         }
         return 1.25F;
     }
