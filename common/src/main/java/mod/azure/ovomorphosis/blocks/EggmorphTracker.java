@@ -2,11 +2,13 @@ package mod.azure.ovomorphosis.blocks;
 
 import mod.azure.azurelib.common.platform.Services;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -17,13 +19,10 @@ import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
-import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.DamageTypeRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 
 public final class EggmorphTracker {
-
-    public static final float SLOW_FACTOR = 0.15F;
 
     private static final Map<BlockPos, EggmorphTracker> ACTIVE = new ConcurrentHashMap<>();
 
@@ -95,7 +94,7 @@ public final class EggmorphTracker {
         while (it.hasNext()) {
             var mapEntry = it.next();
             var tracker = mapEntry.getValue();
-            tracker.tick(level);
+            tracker.tick();
             if (tracker.entries.isEmpty()) {
                 it.remove();
             }
@@ -109,7 +108,7 @@ public final class EggmorphTracker {
         entries.computeIfAbsent(entity.getId(), id -> new Entry(entity));
     }
 
-    private void tick(ServerLevel level) {
+    private void tick() {
         Iterator<Entry> it = entries.values().iterator();
         while (it.hasNext()) {
             var entry = it.next();
@@ -141,11 +140,7 @@ public final class EggmorphTracker {
                 case SLOWING -> {
                     applySlow(entry.entity);
 
-                    if (
-                        !isInsideBlock(entry.entity)
-                            || !entry.entity.getInBlockState()
-                                .is(BlockRegistry.RESIN_WEB_CROSS.get())
-                    ) {
+                    if (!isInsideBlock(entry.entity)) {
                         releasePhysics(entry);
                         sendClear(entry);
                         it.remove();
@@ -155,14 +150,16 @@ public final class EggmorphTracker {
                     if (entry.ticks >= 100) {
                         entry.phase = Phase.TRAPPED;
                         entry.ticks = 0;
+                        entry.entity.setPos(
+                            blockPos.getX() + 0.5,
+                            blockPos.getY(),
+                            blockPos.getZ() + 0.5
+                        );
                         trapEntity(entry.entity);
                     }
                 }
                 case TRAPPED -> {
-                    if (
-                        !entry.entity.getInBlockState()
-                            .is(BlockRegistry.RESIN_WEB_CROSS.get())
-                    ) {
+                    if (!isInsideBlock(entry.entity)) {
                         releasePhysics(entry);
                         sendClear(entry);
                         it.remove();
@@ -181,11 +178,51 @@ public final class EggmorphTracker {
         }
     }
 
+    private static final double MOB_PULL_STRENGTH = 0.18D;
+
+    private static final double PLAYER_PULL_STRENGTH = 0.01D;
+
     private void applySlow(LivingEntity entity) {
-        var vel = entity.getDeltaMovement();
-        entity.setDeltaMovement(vel.x * SLOW_FACTOR, vel.y * SLOW_FACTOR, vel.z * SLOW_FACTOR);
         if (entity instanceof Mob mob) {
             mob.getNavigation().stop();
+            mob.setTarget(null);
+        }
+
+        var cx = blockPos.getX() + 0.5;
+        var cy = blockPos.getY() + 0.5;
+        var cz = blockPos.getZ() + 0.5;
+        var toCenter = new Vec3(
+            cx - entity.getX(),
+            cy - entity.getY(),
+            cz - entity.getZ()
+        );
+
+        if (entity instanceof ServerPlayer serverPlayer) {
+            boolean hasInput = Math.abs(serverPlayer.xxa) > 0.01F
+                || Math.abs(serverPlayer.zza) > 0.01F;
+
+            if (toCenter.lengthSqr() > 0.01D) {
+                var pull = toCenter.normalize().scale(PLAYER_PULL_STRENGTH);
+                if (hasInput) {
+                    var current = serverPlayer.getDeltaMovement();
+                    serverPlayer.setDeltaMovement(
+                        current.x + pull.x,
+                        current.y + pull.y,
+                        current.z + pull.z
+                    );
+                } else {
+                    serverPlayer.setDeltaMovement(pull);
+                }
+            }
+
+            serverPlayer.hasImpulse = true;
+            serverPlayer.connection.send(new ClientboundSetEntityMotionPacket(serverPlayer));
+        } else {
+            Vec3 movement = toCenter.lengthSqr() > 0.01D
+                ? toCenter.normalize().scale(MOB_PULL_STRENGTH)
+                : Vec3.ZERO;
+            entity.setDeltaMovement(movement);
+            entity.hasImpulse = true;
         }
     }
 
@@ -232,6 +269,7 @@ public final class EggmorphTracker {
         ovomorph.setPos(blockPos.getX() + 0.5, blockPos.getY(), blockPos.getZ() + 0.5);
         ovomorph.noPhysics = true;
         entry.entity.level().addFreshEntity(ovomorph);
+        ovomorph.noPhysics = false;
         if (entry.entity instanceof ServerPlayer serverPlayer) {
             var advancement = serverPlayer.server.getAdvancements()
                 .get(CommonMod.modResource("eggmorphed"));
@@ -253,10 +291,11 @@ public final class EggmorphTracker {
     }
 
     private boolean isInsideBlock(LivingEntity entity) {
-        var entityPos = entity.blockPosition();
-        return entityPos.getX() == blockPos.getX()
-            && entityPos.getZ() == blockPos.getZ()
-            && Math.abs(entityPos.getY() - blockPos.getY()) <= 1;
+        var centeredX = blockPos.getX() + 0.5;
+        var CenteredZ = blockPos.getZ() + 0.5;
+        return Math.abs(entity.getX() - centeredX) <= 0.5
+            && Math.abs(entity.getZ() - CenteredZ) <= 0.5
+            && Math.abs(entity.blockPosition().getY() - blockPos.getY()) <= 1;
     }
 
     public static void restoreEntry(BlockPos pos, LivingEntity entity, String phaseName, int ticks) {

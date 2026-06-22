@@ -64,7 +64,8 @@ public class BlockRegistry {
                 )
                 .noOcclusion()
                 .requiresCorrectToolForDrops()
-                .strength(5.0f, 8.0f)
+                .strength(2.0f, 0.0f)
+                .randomTicks()
                 .noCollission()
         )
     );

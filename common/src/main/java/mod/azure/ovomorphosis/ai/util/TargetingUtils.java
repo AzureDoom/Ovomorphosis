@@ -75,6 +75,17 @@ public final class TargetingUtils {
      *
      * @return the "not annoying" filter predicate
      */
+    public static Predicate<LivingEntity> eggmorphValid() {
+        return e -> e != null &&
+            e.isAlive() &&
+            !e.isSpectator() &&
+            !(e instanceof Player p && (p.isCreative() || p.isSpectator())) &&
+            !(e instanceof AbstractAlienEntity) &&
+            e.getPassengers().stream().noneMatch(AbstractAlienEntity.class::isInstance) &&
+            !e.hasControllingPassenger() &&
+            !InfectionManager.isInfected(e);
+    }
+
     public static Predicate<LivingEntity> notAnnoyingMobs() {
         return e -> !(e instanceof Bat || e instanceof Phantom) &&
             !(e instanceof WaterAnimal) &&

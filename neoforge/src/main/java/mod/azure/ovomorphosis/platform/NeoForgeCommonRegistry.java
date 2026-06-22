@@ -8,6 +8,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 
@@ -29,6 +30,11 @@ public class NeoForgeCommonRegistry implements CommonRegistry {
             return (Supplier<T>) NeoForgeMod.entityTypeDeferredRegister.register(
                 registryName,
                 (Supplier<EntityType<?>>) supplier
+            );
+        } else if (registry == BuiltInRegistries.BLOCK_ENTITY_TYPE) {
+            return (Supplier<T>) NeoForgeMod.blockEntityDeferredRegister.register(
+                registryName,
+                (Supplier<BlockEntityType<?>>) supplier
             );
         } else if (registry == BuiltInRegistries.SOUND_EVENT) {
             return (Supplier<T>) NeoForgeMod.soundEventDeferredRegister.register(

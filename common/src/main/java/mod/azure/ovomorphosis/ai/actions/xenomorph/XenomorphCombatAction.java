@@ -15,11 +15,11 @@ import mod.azure.ovomorphosis.ai.util.MovementUtils;
 public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
     private enum Phase {
-        APPROACH,
-        SWIPE_1,
-        STRAFE,
-        SWIPE_2,
-        RETREAT
+        STALK,
+        LUNGE_APPROACH,
+        STRIKE,
+        CIRCLE_OUT,
+        THREAT_RESPONSE
     }
 
     private final String cooldownKey;
@@ -28,40 +28,42 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
     private final int priority;
 
-    private final Consumer<E> swipeAnimation;
+    private final Consumer<E> strikeAnimation;
 
-    private Phase phase = Phase.APPROACH;
+    private Phase phase = Phase.STALK;
 
     private int phaseAge = 0;
 
-    private int strafeDir = 1;
+    private int losConfirmTicks = 0;
 
-    private boolean didDamageSwipe1 = false;
-
-    private boolean didDamageSwipe2 = false;
+    private boolean didStrike = false;
 
     private boolean wasCrawlingOnStart = false;
+
+    private int stalkLateralBias = 1;
+
+    private int circleDir = 1;
 
     public XenomorphCombatAction(
         String cooldownKey,
         int cooldownTicks,
         int priority,
-        Consumer<E> swipeAnimation
+        Consumer<E> strikeAnimation
     ) {
         this.cooldownKey = cooldownKey;
         this.cooldownTicks = cooldownTicks;
         this.priority = priority;
-        this.swipeAnimation = swipeAnimation;
+        this.strikeAnimation = strikeAnimation;
     }
 
     @Override
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
-        phase = Phase.APPROACH;
+        phase = Phase.STALK;
         phaseAge = 0;
-        didDamageSwipe1 = false;
-        didDamageSwipe2 = false;
-        strafeDir = mob.getRandom().nextBoolean() ? 1 : -1;
+        losConfirmTicks = 0;
+        didStrike = false;
+        stalkLateralBias = mob.getRandom().nextBoolean() ? 1 : -1;
         wasCrawlingOnStart = CrawlingManager.wasRecentlyWallCrawling(mob);
         mob.hasImpulse = true;
 
@@ -73,25 +75,23 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
     @Override
     public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        if (mob.getHealth() <= 0) {
+        if (mob.getHealth() <= 0)
             return ActionStatus.INTERRUPTED;
-        }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
-        if (target == null || !target.isAlive()) {
+        if (target == null || !target.isAlive())
             return ActionStatus.FAILURE;
-        }
 
         maintainCrawl(mob);
         mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
         phaseAge++;
 
         return switch (phase) {
-            case APPROACH -> tickApproach(mob, target);
-            case SWIPE_1 -> tickSwipe(mob, target, blackboard, cooldowns, true);
-            case STRAFE -> tickStrafe(mob, target);
-            case SWIPE_2 -> tickSwipe(mob, target, blackboard, cooldowns, false);
-            case RETREAT -> tickRetreat(mob, cooldowns);
+            case STALK -> tickStalk(mob, target);
+            case LUNGE_APPROACH -> tickLungeApproach(mob, target, cooldowns);
+            case STRIKE -> tickStrike(mob, target, blackboard, cooldowns);
+            case CIRCLE_OUT -> tickCircleOut(mob, target, cooldowns, false);
+            case THREAT_RESPONSE -> tickThreatResponse(mob, target, cooldowns);
         };
     }
 
@@ -111,108 +111,159 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         return priority;
     }
 
-    private ActionStatus tickApproach(E mob, LivingEntity target) {
+    private ActionStatus tickStalk(E mob, LivingEntity target) {
         var distSq = mob.distanceToSqr(target);
 
-        if (distSq <= 2.2D * 2.2D || phaseAge > 60) {
-            enterPhase(mob, Phase.SWIPE_1);
+        if (distSq <= 7D * 7D && isTargetFacingMob(target, mob)) {
+            enterPhase(mob, Phase.THREAT_RESPONSE);
             return ActionStatus.RUNNING;
         }
 
-        var toTarget = target.position().subtract(mob.position()).normalize().scale(0.52D);
-        applyDangerSteering(mob, toTarget);
+        if (distSq <= 5D * 5D) {
+            enterPhase(mob, Phase.LUNGE_APPROACH);
+            return ActionStatus.RUNNING;
+        }
+
+        if (phaseAge > 140) {
+            enterPhase(mob, Phase.LUNGE_APPROACH);
+            return ActionStatus.RUNNING;
+        }
+
+        if (phaseAge % 14 == 0 && mob.getRandom().nextFloat() < 0.3F) {
+            stalkLateralBias = -stalkLateralBias;
+        }
+
+        var toTarget = target.position().subtract(mob.position()).normalize();
+        var lateral = new Vec3(-toTarget.z, 0, toTarget.x).scale(0.22D * stalkLateralBias);
+        var desired = toTarget.scale(0.38D).add(lateral);
+        applyDangerSteering(mob, desired);
+
         return ActionStatus.RUNNING;
     }
 
-    private ActionStatus tickSwipe(
+    private ActionStatus tickLungeApproach(E mob, LivingEntity target, Cooldowns cooldowns) {
+        mob.setAggressive(true);
+
+        var distSq = mob.distanceToSqr(target);
+
+        if (hasMeleeLineOfSight(mob, target)) {
+            losConfirmTicks++;
+        } else {
+            losConfirmTicks = 0;
+            if (phaseAge > 8) {
+                mob.setAggressive(false);
+                enterPhase(mob, Phase.STALK);
+                return ActionStatus.RUNNING;
+            }
+        }
+
+        if (distSq <= 2.8D * 2.8D && losConfirmTicks >= 6) {
+            enterPhase(mob, Phase.STRIKE);
+            return ActionStatus.RUNNING;
+        }
+
+        if (phaseAge > 40) {
+            mob.setAggressive(false);
+            cooldowns.set(cooldownKey, cooldownTicks / 2);
+            return ActionStatus.FAILURE;
+        }
+
+        var desired = target.position().subtract(mob.position()).normalize().scale(0.72D);
+        applyDangerSteering(mob, desired);
+        return ActionStatus.RUNNING;
+    }
+
+    private ActionStatus tickStrike(
         E mob,
         LivingEntity target,
         Blackboard blackboard,
-        Cooldowns cooldowns,
-        boolean isFirst
+        Cooldowns cooldowns
     ) {
         if (phaseAge == 1) {
             mob.setAggressive(true);
-            swipeAnimation.accept(mob);
+            strikeAnimation.accept(mob);
         }
 
-        var alreadyDamaged = isFirst ? didDamageSwipe1 : didDamageSwipe2;
-        if (!alreadyDamaged && phaseAge == 5) {
+        if (!didStrike && phaseAge == 5) {
             if (
-                mob.getBoundingBox().inflate(2.5D).intersects(target.getBoundingBox())
+                mob.getBoundingBox().inflate(2.8D).intersects(target.getBoundingBox())
                     && hasMeleeLineOfSight(mob, target)
             ) {
                 mob.doHurtTarget(target);
-                if (isFirst)
-                    didDamageSwipe1 = true;
-                else
-                    didDamageSwipe2 = true;
+                didStrike = true;
 
                 if (!target.isAlive()) {
                     blackboard.set(AiKeys.TARGET, null);
                     mob.setTarget(null);
                     cooldowns.set(cooldownKey, cooldownTicks);
+                    mob.setAggressive(false);
                     return ActionStatus.SUCCESS;
                 }
             }
         }
 
-        if (phaseAge >= 8) {
-            if (isFirst) {
-                enterPhase(mob, Phase.STRAFE);
-            } else {
-                enterPhase(mob, Phase.RETREAT);
-            }
+        if (phaseAge >= 10) {
+            circleDir = mob.getRandom().nextBoolean() ? 1 : -1;
+            enterPhase(mob, Phase.CIRCLE_OUT);
         }
 
         return ActionStatus.RUNNING;
     }
 
-    private ActionStatus tickStrafe(E mob, LivingEntity target) {
+    private ActionStatus tickCircleOut(E mob, LivingEntity target, Cooldowns cooldowns, boolean isThreatResponse) {
+        mob.setAggressive(false);
+
         var toTarget = target.position().subtract(mob.position());
-        var lateral = new Vec3(-toTarget.z, 0, toTarget.x).normalize();
-        var strafe = lateral.scale(0.9D * strafeDir);
+        var dist = toTarget.length();
 
-        applyDangerSteering(mob, strafe);
-        mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
+        var lateral = new Vec3(-toTarget.z, 0, toTarget.x).normalize().scale(0.48D * circleDir);
 
-        if (mob.getRandom().nextFloat() < 0.05F) {
-            strafeDir = -strafeDir;
+        var radialError = dist - 5D;
+        Vec3 movement;
+        if (Math.abs(radialError) > 1.2D) {
+            var radialDir = radialError < 0
+                ? toTarget.normalize().scale(-1)
+                : toTarget.normalize();
+            var correction = radialDir.scale(Math.min(Math.abs(radialError) * 0.08D, 0.48D * 0.5D));
+            movement = lateral.add(correction).normalize().scale(0.48D);
+        } else {
+            movement = lateral;
         }
 
-        if (phaseAge >= 18) {
-            if (mob.distanceToSqr(target) <= (10.2D + 1.5D) * (10.2D + 1.5D)) {
-                enterPhase(mob, Phase.SWIPE_2);
-            } else {
-                enterPhase(mob, Phase.RETREAT);
-            }
+        if (phaseAge % 20 == 0 && mob.getRandom().nextFloat() < 0.2F) {
+            circleDir = -circleDir;
         }
 
-        return ActionStatus.RUNNING;
-    }
-
-    private ActionStatus tickRetreat(E mob, Cooldowns cooldowns) {
-        var backward = MovementUtils.steerAwayFromDangerEntities(
-            mob,
-            mob.getLookAngle().scale(-0.48D)
-        );
-        final int[] steerBias = { 0 };
-        var safe = MovementUtils.findSafeMovement(mob, backward, steerBias);
+        var safe = MovementUtils.findSafeMovement(mob, movement, new int[] { 0 });
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
         mob.hasImpulse = true;
 
-        if (phaseAge >= 10) {
+        int duration = isThreatResponse ? 24 : 14;
+        if (phaseAge >= duration) {
+            if (isThreatResponse && mob.getRandom().nextFloat() < 0.30F) {
+                cooldowns.set(cooldownKey, cooldownTicks + 40);
+                return ActionStatus.FAILURE;
+            }
+            stalkLateralBias = circleDir;
             cooldowns.set(cooldownKey, cooldownTicks);
-            mob.setAggressive(false);
             return ActionStatus.SUCCESS;
         }
 
         return ActionStatus.RUNNING;
     }
 
+    private ActionStatus tickThreatResponse(E mob, LivingEntity target, Cooldowns cooldowns) {
+        if (phaseAge == 1) {
+            mob.setAggressive(false);
+            circleDir = mob.getRandom().nextBoolean() ? 1 : -1;
+        }
+        return tickCircleOut(mob, target, cooldowns, true);
+    }
+
     private void enterPhase(E mob, Phase next) {
         phase = next;
         phaseAge = 0;
+        losConfirmTicks = 0;
         mob.hasImpulse = true;
     }
 
@@ -223,30 +274,35 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         }
     }
 
+    private static boolean isTargetFacingMob(LivingEntity target, Mob mob) {
+        var toMob = mob.position().subtract(target.position()).normalize();
+        return target.getLookAngle().dot(toMob) > 0.5D;
+    }
+
     private void applyDangerSteering(E mob, Vec3 desired) {
         var danger = MovementUtils.steerAwayFromDangerEntities(mob, Vec3.ZERO);
-        Vec3 final_;
+        Vec3 result;
         if (danger.lengthSqr() > 0.0001D) {
             var safe = MovementUtils.findSafeMovement(mob, danger, new int[] { 0 });
-            final_ = safe.equals(Vec3.ZERO) ? danger : safe;
+            result = safe.equals(Vec3.ZERO) ? danger : safe;
         } else {
-            final_ = desired;
+            result = desired;
         }
-        mob.setDeltaMovement(final_.x, mob.getDeltaMovement().y, final_.z);
+        mob.setDeltaMovement(result.x, mob.getDeltaMovement().y, result.z);
         mob.hasImpulse = true;
     }
 
     private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
-        var level = mob.level();
-        var hit = level.clip(
-            new ClipContext(
-                mob.getEyePosition(),
-                target.getEyePosition(),
-                ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE,
-                mob
-            )
-        );
+        var hit = mob.level()
+            .clip(
+                new ClipContext(
+                    mob.getEyePosition(),
+                    target.getEyePosition(),
+                    ClipContext.Block.COLLIDER,
+                    ClipContext.Fluid.NONE,
+                    mob
+                )
+            );
         return hit.getType() == HitResult.Type.MISS;
     }
 }

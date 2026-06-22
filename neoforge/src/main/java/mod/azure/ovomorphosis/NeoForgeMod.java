@@ -8,6 +8,7 @@ import net.minecraft.world.entity.SpawnPlacementTypes;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -43,6 +44,11 @@ public final class NeoForgeMod {
         CommonMod.MOD_ID
     );
 
+    public static DeferredRegister<BlockEntityType<?>> blockEntityDeferredRegister = DeferredRegister.create(
+        BuiltInRegistries.BLOCK_ENTITY_TYPE,
+        CommonMod.MOD_ID
+    );
+
     public static DeferredRegister<Item> itemDeferredRegister = DeferredRegister.create(
         BuiltInRegistries.ITEM,
         CommonMod.MOD_ID
@@ -57,6 +63,7 @@ public final class NeoForgeMod {
         CommonMod.initRegistries();
         blockDeferredRegister.register(modEventBus);
         entityTypeDeferredRegister.register(modEventBus);
+        blockEntityDeferredRegister.register(modEventBus);
         itemDeferredRegister.register(modEventBus);
         soundEventDeferredRegister.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(

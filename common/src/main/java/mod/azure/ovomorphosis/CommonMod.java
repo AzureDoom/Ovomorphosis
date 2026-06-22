@@ -7,10 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import mod.azure.ovomorphosis.config.OvomorphosisConfig;
-import mod.azure.ovomorphosis.registry.BlockRegistry;
-import mod.azure.ovomorphosis.registry.EntityRegistry;
-import mod.azure.ovomorphosis.registry.ItemRegistry;
-import mod.azure.ovomorphosis.registry.SoundRegistry;
+import mod.azure.ovomorphosis.registry.*;
 
 public class CommonMod {
 
@@ -27,6 +24,7 @@ public class CommonMod {
     public static void initRegistries() {
         config = AzureLibMod.registerConfig(OvomorphosisConfig.class, ConfigFormats.json()).getConfigInstance();
         EntityRegistry.initialize();
+        BlockEntityRegistry.initialize();
         SoundRegistry.initialize();
         BlockRegistry.initialize();
         ItemRegistry.initialize();
