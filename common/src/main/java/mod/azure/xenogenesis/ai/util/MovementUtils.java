@@ -37,7 +37,9 @@ public final class MovementUtils {
         var state = level.getBlockState(pos);
         if (state.is(ModTags.DANGER_BLOCKS))
             return false;
-        return !state.getFluidState().is(ModTags.DANGER_FLUIDS);
+        if (state.getFluidState().is(ModTags.DANGER_FLUIDS))
+            return false;
+        return state.getShape(level, pos).isEmpty() || !state.getCollisionShape(level, pos).isEmpty() || state.isAir();
     }
 
     private static boolean hasGroundWithinDrop(Level level, BlockPos feetPos, int maxDrop) {
