@@ -61,7 +61,10 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
 
     @Override
     public float maxUpStep() {
-        return 3F;
+        if (xenogenesis$isWallCrawling()) {
+            return 0.6F;
+        }
+        return 1.25F;
     }
 
     @Override
