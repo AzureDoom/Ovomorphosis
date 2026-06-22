@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "ovomorphosis:block/resin_web_1"
+  }
+}

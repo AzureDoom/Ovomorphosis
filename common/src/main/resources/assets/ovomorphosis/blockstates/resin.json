@@ -1,0 +1,28 @@
+{
+  "variants": {
+    "layers=1": {
+      "model": "ovomorphosis:block/resin_height2"
+    },
+    "layers=2": {
+      "model": "ovomorphosis:block/resin_height4"
+    },
+    "layers=3": {
+      "model": "ovomorphosis:block/resin_height6"
+    },
+    "layers=4": {
+      "model": "ovomorphosis:block/resin_height8"
+    },
+    "layers=5": {
+      "model": "ovomorphosis:block/resin_height10"
+    },
+    "layers=6": {
+      "model": "ovomorphosis:block/resin_height12"
+    },
+    "layers=7": {
+      "model": "ovomorphosis:block/resin_height14"
+    },
+    "layers=8": {
+      "model": "ovomorphosis:block/resin_block"
+    }
+  }
+}

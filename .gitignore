@@ -33,4 +33,4 @@ runs
 # Files from Forge MDK
 forge*changelog.txt
 build.bat
-/common/src/main/resources/assets/xenogenesis/textures/block
+/common/src/main/resources/assets/ovomorphosis/textures/block

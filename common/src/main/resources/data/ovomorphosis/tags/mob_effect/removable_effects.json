@@ -1,0 +1,10 @@
+{
+  "values": [
+    "minecraft:poison",
+    "minecraft:wither",
+    {
+      "id": "#gigeresque:gigstatuseffects",
+      "required": false
+    }
+  ]
+}

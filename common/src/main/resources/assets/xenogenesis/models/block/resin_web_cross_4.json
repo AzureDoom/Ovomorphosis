@@ -1,6 +1,0 @@
-{
-  "parent": "minecraft:block/cross",
-  "textures": {
-    "cross": "xenogenesis:block/resin_web_4"
-  }
-}

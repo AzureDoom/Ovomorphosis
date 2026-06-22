@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "xenogenesis",
+  "id": "ovomorphosis",
   "version": "${version}",
   "name": "${mod_name}",
   "description": "${mod_description}",
@@ -17,10 +17,10 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "mod.azure.xenogenesis.FabricLibMod"
+      "mod.azure.ovomorphosis.FabricLibMod"
     ],
     "client": [
-      "mod.azure.xenogenesis.FabricLibClientMod"
+      "mod.azure.ovomorphosis.FabricLibClientMod"
     ]
   },
   "mixins": [

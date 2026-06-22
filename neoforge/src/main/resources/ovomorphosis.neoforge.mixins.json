@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "mod.azure.ovomorphosis.mixins",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "ovomorphosis.refmap.json",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "AbstractHorseMixin",
+    "EntityMixin",
+    "FlameBlockMixin",
+    "FoxMixin",
+    "LivingEntityMixin",
+    "MixinEntityTypeBuilder_SilenceDataFixerError",
+    "MobEntityMixin",
+    "PlayerEntityMixin",
+    "ServerLevelMixin",
+    "VillagerHostilesSensorMixin",
+    "WardenEntityMixin"
+  ],
+  "client": [
+    "client.LivingEntityRendererMixin"
+  ]
+}

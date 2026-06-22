@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cross",
+  "textures": {
+    "cross": "ovomorphosis:block/resin_web_3"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "values": [
+    "minecraft:water",
+    "minecraft:flowing_lava",
+    "minecraft:lava",
+    "minecraft:flowing_water",
+    {
+      "id": "#gigeresque:black_fluid",
+      "required": false
+    }
+  ]
+}

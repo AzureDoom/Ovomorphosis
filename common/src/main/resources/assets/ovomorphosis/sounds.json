@@ -1,0 +1,72 @@
+{
+  "acid": {
+    "sounds": [
+      "ovomorphosis:acid"
+    ]
+  },
+  "chest_burst": {
+    "sounds": [
+      "ovomorphosis:chest_burst"
+    ]
+  },
+  "chestburster_footstep": {
+    "sounds": [
+      "ovomorphosis:chestburster_footstep"
+    ]
+  },
+  "chestbuster_idle": {
+    "sounds": [
+      "ovomorphosis:chestbuster_idle"
+    ]
+  },
+  "chestbuster_pain": {
+    "sounds": [
+      "ovomorphosis:chestbuster_pain"
+    ]
+  },
+  "facehugger_death": {
+    "sounds": [
+      "ovomorphosis:facehugger_death"
+    ]
+  },
+  "facehugger_hurt": {
+    "sounds": [
+      "ovomorphosis:facehugger_hurt"
+    ]
+  },
+  "facehugger_implant": {
+    "sounds": [
+      "ovomorphosis:facehugger_implant"
+    ]
+  },
+  "facehugger_run": {
+    "sounds": [
+      "ovomorphosis:facehugger_run"
+    ]
+  },
+  "ovomorph_open": {
+    "sounds": [
+      "ovomorphosis:ovomorph_open"
+    ]
+  },
+  "xenomorph_death": {
+    "sounds": [
+      "ovomorphosis:xenomorph_death"
+    ]
+  },
+  "xenomorph_footstep": {
+    "sounds": [
+      "ovomorphosis:xenomorph_footstep"
+    ]
+  },
+  "xenomorph_hurt": {
+    "sounds": [
+      "ovomorphosis:xenomorph_hurt"
+    ]
+  },
+  "xenomorph_idle": {
+    "sounds": [
+      "ovomorphosis:xenomorph_idle"
+    ]
+  }
+}
