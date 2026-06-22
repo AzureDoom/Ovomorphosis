@@ -2,6 +2,9 @@ package mod.azure.xenogenesis.entities.xenomorph;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 
 import mod.azure.xenogenesis.CommonMod;
 import mod.azure.xenogenesis.ai.actions.*;
@@ -108,6 +111,7 @@ public class XenomorphTree {
                 var yGap = currentTarget.getY() - xenomorph.getY();
                 var canReachVertically = Math.abs(yGap) <= 2.5D;
                 var dangerTarget = currentTarget.getType().is(ModTags.DANGER_ENTITIES);
+                var hasMeleeLOS = hasMeleeLineOfSight(xenomorph, currentTarget);
 
                 if (
                     canReachVertically
@@ -137,6 +141,7 @@ public class XenomorphTree {
 
                 if (
                     canReachVertically
+                        && hasMeleeLOS
                         && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 1.8D)
                         && cooldowns.ready("tail_attack")
                 ) {
@@ -145,6 +150,7 @@ public class XenomorphTree {
 
                 if (
                     canReachVertically
+                        && hasMeleeLOS
                         && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 1.8D)
                         && cooldowns.ready("normal_attack")
                 ) {
@@ -233,5 +239,24 @@ public class XenomorphTree {
         }
 
         return null;
+    }
+
+    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
+        var level = mob.level();
+
+        var from = mob.getEyePosition();
+        var to = target.getEyePosition();
+
+        var hit = level.clip(
+            new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                mob
+            )
+        );
+
+        return hit.getType() == HitResult.Type.MISS;
     }
 }

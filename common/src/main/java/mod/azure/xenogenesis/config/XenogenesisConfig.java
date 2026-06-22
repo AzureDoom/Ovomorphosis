@@ -187,7 +187,7 @@ public class XenogenesisConfig {
             @Configurable
             @Configurable.Synchronized
             @Configurable.DecimalRange(min = 0.0D)
-            public double xenoHostileRange = 16.0D;
+            public double xenoHostileRange = 32.0D;
 
             @Configurable
             @Configurable.Synchronized

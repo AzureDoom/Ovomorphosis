@@ -2,6 +2,8 @@ package mod.azure.xenogenesis.ai.actions;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
@@ -88,14 +90,17 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
             } else {
                 mob.setDeltaMovement(dangerMove.x, mob.getDeltaMovement().y, dangerMove.z);
             }
+
         } else {
-            var lungeMove = getLungeMovement(mob, target);
-            mob.setDeltaMovement(lungeMove.x, mob.getDeltaMovement().y, lungeMove.z);
+            mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
         }
         mob.hasImpulse = true;
 
         if (age == damageTick) {
-            if (mob.getBoundingBox().inflate(2.5D).intersects(target.getBoundingBox())) {
+            if (
+                mob.getBoundingBox().inflate(2.5D).intersects(target.getBoundingBox())
+                    && hasMeleeLineOfSight(mob, target)
+            ) {
                 mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
                 mob.doHurtTarget(target);
 
@@ -118,23 +123,6 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
         return ActionStatus.RUNNING;
     }
 
-    private Vec3 getLungeMovement(E mob, LivingEntity target) {
-        var direction = target.position().subtract(mob.position());
-        direction = new Vec3(direction.x, 0.0D, direction.z);
-
-        if (direction.lengthSqr() < 0.0001D) {
-            return Vec3.ZERO;
-        }
-
-        direction = direction.normalize();
-
-        if (age >= 2 && age <= 6) {
-            return direction.scale(0.22D);
-        }
-
-        return Vec3.ZERO;
-    }
-
     @Override
     public void stop(E mob, Blackboard blackboard, ActionStatus reason) {
         wasCrawlingOnStart = false;
@@ -148,5 +136,24 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
     @Override
     public int priority() {
         return priority;
+    }
+
+    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
+        var level = mob.level();
+
+        var from = mob.getEyePosition();
+        var to = target.getEyePosition();
+
+        var hit = level.clip(
+            new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                mob
+            )
+        );
+
+        return hit.getType() == HitResult.Type.MISS;
     }
 }
