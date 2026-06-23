@@ -1,9 +1,8 @@
 package mod.azure.ovomorphosis.ai.actions.chestburster;
 
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
@@ -13,6 +12,7 @@ import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
+import mod.azure.ovomorphosis.util.ModTags;
 
 public class EatFoodAction implements Action<ChestbursterEntity> {
 
@@ -89,8 +89,11 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
         if (!this.consumed && this.eatTicks >= 20) {
             if (this.food != null && this.food.isAlive() && !this.food.getItem().isEmpty()) {
                 consumeOneFoodItem(mob, this.food);
-                mob.playSound(SoundEvents.GENERIC_EAT);
-                mob.grow(mob, CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterFoodGrowthValue);
+                if (this.food.getItem().is(ModTags.POTIONS)) {
+                    mob.playSound(SoundEvents.GLASS_BREAK);
+                } else {
+                    mob.playSound(SoundEvents.GENERIC_EAT);
+                }
             }
             this.consumed = true;
         }
@@ -174,7 +177,7 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
             .getEntitiesOfClass(
                 ItemEntity.class,
                 mob.getBoundingBox().inflate(this.searchRange),
-                item -> item.isAlive() && !item.getItem().isEmpty() && isCookedFood(item.getItem())
+                item -> item.isAlive() && !item.getItem().isEmpty() && item.getItem().is(ModTags.BURSTER_FOOD)
             );
 
         ItemEntity nearest = null;
@@ -194,21 +197,21 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
             return;
         var stack = itemEntity.getItem();
         stack.shrink(1);
-        if (stack.isEmpty())
-            itemEntity.discard();
-        else
-            itemEntity.setItem(stack);
-    }
-
-    // TODO: Move to tag
-    private boolean isCookedFood(ItemStack stack) {
-        return stack.is(Items.COOKED_BEEF)
-            || stack.is(Items.COOKED_CHICKEN)
-            || stack.is(Items.COOKED_COD)
-            || stack.is(Items.COOKED_MUTTON)
-            || stack.is(Items.COOKED_PORKCHOP)
-            || stack.is(Items.COOKED_RABBIT)
-            || stack.is(Items.COOKED_SALMON)
-            || stack.is(Items.BAKED_POTATO);
+        if (itemEntity.getItem().has(DataComponents.FOOD)) {
+            var foodComponent = itemEntity.getItem().get(DataComponents.FOOD);
+            var growthValue = foodComponent != null ? foodComponent.nutrition() : 1;
+            mob.grow(
+                mob,
+                growthValue + CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterFoodGrowthValue
+            );
+            itemEntity.getItem().finishUsingItem(mob.level(), mob);
+        } else {
+            if (stack.is(ModTags.POTIONS)) {
+                stack.finishUsingItem(mob.level(), mob);
+                stack.consume(1, mob);
+            } else {
+                stack.consume(1, mob);
+            }
+        }
     }
 }

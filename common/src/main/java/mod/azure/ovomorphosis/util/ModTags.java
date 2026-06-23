@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.material.Fluid;
@@ -66,4 +67,11 @@ public class ModTags {
         Registries.MOB_EFFECT,
         CommonMod.modResource("removable_effects")
     );
+
+    public static final TagKey<Item> BURSTER_FOOD = TagKey.create(
+        Registries.ITEM,
+        CommonMod.modResource("burster_foods")
+    );
+
+    public static final TagKey<Item> POTIONS = TagKey.create(Registries.ITEM, CommonMod.modResource("potions"));
 }
