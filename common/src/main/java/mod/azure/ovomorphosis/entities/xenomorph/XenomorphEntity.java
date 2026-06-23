@@ -2,10 +2,12 @@ package mod.azure.ovomorphosis.entities.xenomorph;
 
 import mod.azure.azurelib.common.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
@@ -22,16 +24,19 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gameevent.*;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.SplittableRandom;
+import java.util.function.BiConsumer;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
-import mod.azure.ovomorphosis.ai.util.NearestHostileTargetSelector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
+import mod.azure.ovomorphosis.ai.util.XenomorphHostileTargetSelector;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
 import mod.azure.ovomorphosis.util.ClientAnimState;
@@ -49,6 +54,10 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         EntityDataSerializers.BOOLEAN
     );
 
+    private final XenomorphHostileTargetSelector<XenomorphEntity> targetSelector;
+
+    private final DynamicGameEventListener<GameEventListener> dynamicGameEventListener;
+
     private final MobBrainRuntime<XenomorphEntity> brainRuntime;
 
     public final XenomorphAnimationDispatcher animationDispatcher;
@@ -57,14 +66,37 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         super(entityType, level);
         this.animationDispatcher = new XenomorphAnimationDispatcher(this);
         this.moveAnalysis = new MoveAnalysis(this);
+        this.targetSelector = new XenomorphHostileTargetSelector<>(
+            CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoHostileRange
+        );
+
+        var positionSource = new EntityPositionSource(this, this.getEyeHeight());
+        this.dynamicGameEventListener = new DynamicGameEventListener<>(new GameEventListener() {
+
+            @Override
+            public @NotNull PositionSource getListenerSource() {
+                return positionSource;
+            }
+
+            @Override
+            public int getListenerRadius() {
+                return 32;
+            }
+
+            @Override
+            public boolean handleGameEvent(
+                @NotNull ServerLevel serverLevel,
+                @NotNull Holder<GameEvent> eventHolder,
+                GameEvent.@NotNull Context context,
+                @NotNull Vec3 pos
+            ) {
+                return XenomorphEntity.this.onGameEvent(eventHolder, context, pos);
+            }
+        });
+
         this.brainRuntime = new MobBrainRuntime<>(
             this,
-            new TargetingSystem<>(
-                new NearestHostileTargetSelector<>(
-                    CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoHostileRange
-                ),
-                10
-            ),
+            new TargetingSystem<>(targetSelector, 10),
             XenomorphTree.create()
         );
     }
@@ -84,6 +116,64 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             .add(Attributes.FOLLOW_RANGE, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoHostileRange)
             .add(Attributes.MOVEMENT_SPEED, 0.25)
             .add(Attributes.ATTACK_DAMAGE, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoAttackDamage);
+    }
+
+    private boolean onGameEvent(Holder<GameEvent> eventHolder, GameEvent.Context context, Vec3 pos) {
+        if (this.isDeadOrDying()) {
+            return false;
+        }
+
+        if (!isSignificantEvent(eventHolder)) {
+            return false;
+        }
+
+        var source = context.sourceEntity();
+
+        if (source instanceof AbstractAlienEntity) {
+            return false;
+        }
+
+        if (source instanceof Player player && (player.isCreative() || player.isSpectator())) {
+            return false;
+        }
+
+        var investigatePos = source != null ? source.position() : pos;
+        targetSelector.hearSound(source instanceof LivingEntity living ? living : null, investigatePos);
+        return true;
+    }
+
+    private static boolean isSignificantEvent(Holder<GameEvent> event) {
+        return event.unwrapKey()
+            .map(
+                key -> key == GameEvent.STEP.key()
+                    || key == GameEvent.HIT_GROUND.key()
+                    || key == GameEvent.SWIM.key()
+                    || key == GameEvent.SPLASH.key()
+                    || key == GameEvent.ELYTRA_GLIDE.key()
+                    || key == GameEvent.FLAP.key()
+                    || key == GameEvent.ENTITY_INTERACT.key()
+                    || key == GameEvent.ENTITY_DAMAGE.key()
+                    || key == GameEvent.ENTITY_DIE.key()
+                    || key == GameEvent.ENTITY_ACTION.key()
+                    || key == GameEvent.BLOCK_CHANGE.key()
+                    || key == GameEvent.BLOCK_DESTROY.key()
+                    || key == GameEvent.BLOCK_PLACE.key()
+                    || key == GameEvent.PROJECTILE_SHOOT.key()
+                    || key == GameEvent.PROJECTILE_LAND.key()
+                    || key == GameEvent.EXPLODE.key()
+                    || key == GameEvent.EAT.key()
+                    || key == GameEvent.DRINK.key()
+            )
+            .orElse(false);
+    }
+
+    @Override
+    public void updateDynamicGameEventListener(
+        @NotNull BiConsumer<DynamicGameEventListener<?>, ServerLevel> listenerConsumer
+    ) {
+        if (this.level() instanceof ServerLevel serverLevel) {
+            listenerConsumer.accept(this.dynamicGameEventListener, serverLevel);
+        }
     }
 
     @Override
