@@ -184,7 +184,6 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     @Override
     public void tick() {
         super.tick();
-        moveAnalysis.update();
         if (!this.level().isClientSide()) {
             brainRuntime.tick();
             CrawlingManager.updateWallCrawlingPhysics(this);
