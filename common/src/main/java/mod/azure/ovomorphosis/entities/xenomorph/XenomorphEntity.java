@@ -29,7 +29,6 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.SplittableRandom;
 import java.util.function.BiConsumer;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -290,13 +289,13 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         var xzOffset = executing ? -1.4F : -1.85F;
 
         var yOffset = executing
-                ? smallMob ? 1.145F : 0.745F
-                : smallMob ? 0.445F : 0.145F;
+            ? smallMob ? 1.145F : 0.745F
+            : smallMob ? 0.445F : 0.145F;
 
         mob.setPos(
-                this.getX() + (xzOffset * sin),
-                this.getY() + yOffset,
-                this.getZ() - (xzOffset * cos)
+            this.getX() + (xzOffset * sin),
+            this.getY() + yOffset,
+            this.getZ() - (xzOffset * cos)
         );
 
         mob.yBodyRot = this.yBodyRot;
