@@ -273,26 +273,34 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
     @Override
     public void positionRider(@NotNull Entity entity, @NotNull MoveFunction moveFunction) {
-        if (entity instanceof LivingEntity mob) {
-            var random = new SplittableRandom();
-            mob.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 100, true, true));
-            mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 40, 1, true, true));
-            var f = Mth.sin(this.yBodyRot * ((float) Math.PI / 180));
-            var g = Mth.cos(this.yBodyRot * ((float) Math.PI / 180));
-            var y1 = random.nextFloat(0.14F, 0.15F);
-            var y3 = random.nextFloat(0.44F, 0.45F);
-            var y = random.nextFloat(0.74F, 0.75f);
-            var y2 = random.nextFloat(1.14F, 1.15f);
-            mob.setPos(
-                this.getX() + ((this.isExecuting() ? -1.4f : -1.85f) * f),
-                this.getY() + (this.isExecuting()
-                    ? (mob.getBbHeight() < 1.4 ? y2 : y)
-                    : (mob.getBbHeight() < 1.4 ? y3 : y1)),
-                this.getZ() - ((this.isExecuting() ? -1.4f : -1.85f) * g)
-            );
-            mob.yBodyRot = this.yBodyRot;
-            mob.setSpeed(0);
+        if (!(entity instanceof LivingEntity mob)) {
+            return;
         }
+
+        mob.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 100, true, true));
+        mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 40, 1, true, true));
+
+        var radians = this.yBodyRot * ((float) Math.PI / 180.0F);
+        var sin = Mth.sin(radians);
+        var cos = Mth.cos(radians);
+
+        var executing = this.isExecuting();
+        var smallMob = mob.getBbHeight() < 1.4F;
+
+        var xzOffset = executing ? -1.4F : -1.85F;
+
+        var yOffset = executing
+                ? smallMob ? 1.145F : 0.745F
+                : smallMob ? 0.445F : 0.145F;
+
+        mob.setPos(
+                this.getX() + (xzOffset * sin),
+                this.getY() + yOffset,
+                this.getZ() - (xzOffset * cos)
+        );
+
+        mob.yBodyRot = this.yBodyRot;
+        mob.setSpeed(0);
     }
 
     @Override
@@ -421,7 +429,9 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
                 lookTicks = 0;
             }
 
-            if (this.isAggressive() && !this.swinging) {
+            if (this.ovomorphosis$isWallCrawling()) {
+                playAnimation(ClientAnimState.CRAWLING);
+            } else if (this.isAggressive() && !this.swinging) {
                 playAnimation(ClientAnimState.RUN);
             } else {
                 playAnimation(ClientAnimState.WALK);
@@ -436,22 +446,6 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             }
 
             playAnimation(ClientAnimState.LOOK);
-            return;
-        }
-
-        if (moveAnalysis.isMoving()) {
-            if (newEntityTick) {
-                lookTicks = 0;
-            }
-
-            if (this.ovomorphosis$isWallCrawling()) {
-                playAnimation(ClientAnimState.CRAWLING);
-            } else if (this.isAggressive() && !this.swinging) {
-                playAnimation(ClientAnimState.RUN);
-            } else {
-                playAnimation(ClientAnimState.WALK);
-            }
-
             return;
         }
 
