@@ -15,7 +15,6 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.EntityCollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.NotNull;
@@ -25,8 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
+import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
 public class ResinBlock extends AbstractResinBlock {
@@ -169,56 +169,117 @@ public class ResinBlock extends AbstractResinBlock {
         @NotNull BlockPos pos,
         @NotNull RandomSource random
     ) {
-        int layers = state.getValue(LAYERS);
-
-        if (layers < 8) {
-            level.setBlockAndUpdate(pos, state.setValue(LAYERS, layers + 1));
-            return;
-        }
-
         var directions = Direction.values();
         var start = random.nextInt(directions.length);
         for (var i = 0; i < directions.length; i++) {
             var dir = directions[(start + i) % directions.length];
+
+            if (dir == Direction.DOWN)
+                continue;
+
             var neighbor = pos.relative(dir);
             var neighborState = level.getBlockState(neighbor);
 
-            if (neighborState.is(ModTags.RESIN))
+            if (neighborState.is(ModTags.RESIN) || neighborState.is(ModTags.ACID_RESISTANT_BLOCKS))
                 continue;
 
-            var spreadPos = findSupportedPos(level, neighbor, dir);
-            if (spreadPos == null)
+            if (!neighborState.getFluidState().isEmpty())
                 continue;
 
-            var spreadState = level.getBlockState(spreadPos);
-            if (!spreadState.canBeReplaced())
-                continue;
+            if (
+                !neighborState.isAir() && !neighborState.isFaceSturdy(level, neighbor, Direction.UP)
+                    && neighborState.canBeReplaced()
+            ) {
+                level.setBlockAndUpdate(neighbor, defaultBlockState().setValue(LAYERS, 8));
+                return;
+            }
 
-            var newState = random.nextFloat() < 0.1F
-                ? BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState()
-                : defaultBlockState().setValue(LAYERS, 1 + random.nextInt(3));
+            if (!neighborState.isAir() && neighborState.isFaceSturdy(level, neighbor, Direction.UP)) {
+                var aboveNeighbor = level.getBlockState(neighbor.above());
+                var aboveIsPassable = aboveNeighbor.isAir()
+                    || (aboveNeighbor.getFluidState().isEmpty()
+                        && !aboveNeighbor.isFaceSturdy(level, neighbor.above(), Direction.UP)
+                        && aboveNeighbor.canBeReplaced());
 
-            level.setBlockAndUpdate(spreadPos, newState);
-            return;
+                if (dir == Direction.UP) {
+                    var beyondState = level.getBlockState(neighbor.relative(dir));
+                    if (!beyondState.isAir())
+                        continue;
+                    level.setBlockAndUpdate(neighbor, defaultBlockState().setValue(LAYERS, 8));
+                    return;
+                }
+
+                if (aboveIsPassable) {
+                    level.setBlockAndUpdate(neighbor, defaultBlockState().setValue(LAYERS, 8));
+                    if (random.nextFloat() < 0.3F && aboveNeighbor.isAir())
+                        placeOvomorphOrCross(level, neighbor.above(), random);
+                    return;
+                }
+
+            }
+
+            if (
+                dir != Direction.UP && (neighborState.isAir()
+                    || (!neighborState.isAir() && neighborState.isFaceSturdy(level, neighbor, Direction.UP)
+                        && level.getBlockState(neighbor.above()).isFaceSturdy(level, neighbor.above(), Direction.UP)))
+            ) {
+                var stepDown = neighbor.below();
+                var stepDownState = level.getBlockState(stepDown);
+                if (
+                    !stepDownState.is(ModTags.RESIN) && !stepDownState.is(ModTags.ACID_RESISTANT_BLOCKS)
+                        && !stepDownState.isAir() && stepDownState.getFluidState().isEmpty()
+                        && stepDownState.isFaceSturdy(level, stepDown, Direction.UP)
+                ) {
+                    var aboveNeighborForDrop = level.getBlockState(neighbor.above());
+                    if (
+                        aboveNeighborForDrop.isAir() || (!aboveNeighborForDrop.isFaceSturdy(
+                            level,
+                            neighbor.above(),
+                            Direction.UP
+                        ) && aboveNeighborForDrop.canBeReplaced())
+                    ) {
+                        level.setBlockAndUpdate(stepDown, defaultBlockState().setValue(LAYERS, 8));
+                        if (random.nextFloat() < 0.3F)
+                            placeOvomorphOrCross(level, neighbor, random);
+                        return;
+                    }
+                }
+
+                for (var rise = 0; rise <= 8; rise++) {
+                    var stepUp = neighbor.above(rise);
+                    var stepUpState = level.getBlockState(stepUp);
+                    if (stepUpState.is(ModTags.RESIN) || stepUpState.is(ModTags.ACID_RESISTANT_BLOCKS))
+                        break;
+                    if (stepUpState.isAir() && rise > 0)
+                        break;
+                    if (!stepUpState.isAir() && !stepUpState.getFluidState().isEmpty())
+                        break;
+                    if (!stepUpState.isAir() && stepUpState.isFaceSturdy(level, stepUp, Direction.UP)) {
+                        var aboveStepUp = level.getBlockState(stepUp.above());
+                        var abovePassable = aboveStepUp.isAir()
+                            || (aboveStepUp.getFluidState().isEmpty()
+                                && !aboveStepUp.isFaceSturdy(level, stepUp.above(), Direction.UP)
+                                && aboveStepUp.canBeReplaced());
+                        if (abovePassable) {
+                            level.setBlockAndUpdate(stepUp, defaultBlockState().setValue(LAYERS, 8));
+                            if (random.nextFloat() < 0.3F && aboveStepUp.isAir())
+                                placeOvomorphOrCross(level, stepUp.above(), random);
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 
-    @Nullable
-    private BlockPos findSupportedPos(ServerLevel level, BlockPos from, Direction spreadDir) {
-        if (spreadDir == Direction.UP || spreadDir == Direction.DOWN) {
-            return from;
+    private void placeOvomorphOrCross(ServerLevel level, BlockPos pos, RandomSource random) {
+        if (random.nextFloat() < 0.1F) {
+            var ovomorph = new OvomorphEntity(EntityRegistry.OVOMORPH.get(), level);
+            ovomorph.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+            level.addFreshEntity(ovomorph);
+        } else {
+            level.setBlockAndUpdate(pos, BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState());
         }
-        var floor = from.below();
-        var floorState = level.getBlockState(floor);
-        if (floorState.isFaceSturdy(level, floor, Direction.UP) || floorState.is(ModTags.RESIN)) {
-            return from;
-        }
-
-        var neighborState = level.getBlockState(from);
-        if (neighborState.isFaceSturdy(level, from, spreadDir.getOpposite())) {
-            return from;
-        }
-        return null;
     }
 
     @Override

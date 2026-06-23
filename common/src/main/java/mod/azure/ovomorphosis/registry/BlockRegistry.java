@@ -22,7 +22,7 @@ public class BlockRegistry {
     public static final Supplier<Block> RESIN = registerBlock(
         "resin",
         () -> new ResinBlock(
-            BlockBehaviour.Properties.of().sound(SoundType.MOSS).strength(5.0f, 8.0f)
+            BlockBehaviour.Properties.of().sound(SoundType.MOSS).strength(5.0f, 8.0f).randomTicks()
         )
     );
 
