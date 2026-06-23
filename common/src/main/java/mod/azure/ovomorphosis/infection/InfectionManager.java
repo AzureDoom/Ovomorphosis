@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.infection;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -144,7 +145,7 @@ public final class InfectionManager {
                         );
                     }
                     applyInfectionDamage(host, level);
-                    // TODO: Spawn blood particles
+                    spawnBloodParticles(host, level, false);
                 }
 
                 if (host.getHealth() <= 1F) {
@@ -174,7 +175,7 @@ public final class InfectionManager {
             return;
 
         level.playSound(host, host.blockPosition(), SoundRegistry.CHEST_BURST.get(), SoundSource.HOSTILE, 1.0F, 1.0F);
-
+        spawnBloodParticles(host, level, true);
         var burster = new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level);
 
         var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);
@@ -206,5 +207,29 @@ public final class InfectionManager {
         }
 
         host.hurt(DamageTypeRegistry.of(level), Float.MAX_VALUE);
+    }
+
+    private static void spawnBloodParticles(LivingEntity host, ServerLevel level, boolean isBurst) {
+        var pos = host.position();
+        var rng = host.getRandom();
+        var particleType = isBurst ? ParticleTypes.DAMAGE_INDICATOR : ParticleTypes.FALLING_LAVA;
+
+        var count = isBurst ? 20 : 4;
+        var spread = isBurst ? 0.6 : 0.2;
+        var heightOffset = host.getBbHeight() * 0.5;
+
+        for (var i = 0; i < count; i++) {
+            level.sendParticles(
+                particleType,
+                pos.x + (rng.nextDouble() - 0.5) * spread,
+                pos.y + heightOffset + (rng.nextDouble() - 0.5) * spread,
+                pos.z + (rng.nextDouble() - 0.5) * spread,
+                1,
+                0,
+                0,
+                0,
+                isBurst ? 0.15 : 0.05
+            );
+        }
     }
 }
