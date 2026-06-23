@@ -24,10 +24,11 @@ public class ChestbursterTree {
 
         var wander = new WanderAction<ChestbursterEntity>(
             0.1D,
-            5,
+            9,
             6.0D,
             60,
-            160
+            160,
+            true
         );
 
         var flee = new FleeAction<ChestbursterEntity>(
@@ -59,7 +60,7 @@ public class ChestbursterTree {
             }
 
             if (eatAction.canStart(chestburster)) {
-                return BehaviorResult.run(eatAction, 5);
+                return BehaviorResult.run(eatAction, 10);
             }
 
             if (chestburster.isInWater() || chestburster.isInLava()) {
@@ -69,12 +70,12 @@ public class ChestbursterTree {
             if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
                 cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
                 if (chestburster.getRandom().nextFloat() < 0.1F) {
-                    return BehaviorResult.run(wander, 5);
+                    return BehaviorResult.run(wander, 9);
                 }
-                return BehaviorResult.run(idle, 5);
+                return BehaviorResult.run(idle, 8);
             }
 
-            return BehaviorResult.run(idle, 5);
+            return BehaviorResult.run(idle, 8);
         };
     }
 }

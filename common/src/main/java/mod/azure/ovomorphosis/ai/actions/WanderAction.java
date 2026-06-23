@@ -4,15 +4,18 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.phys.Vec3;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
+import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 
 public final class WanderAction<E extends Mob> implements Action<E> {
-
-    private static final int DESTINATION_ATTEMPTS = 16;
 
     private final double speed;
 
@@ -24,6 +27,8 @@ public final class WanderAction<E extends Mob> implements Action<E> {
 
     private final double radius;
 
+    private final boolean preferDark;
+
     private final int[] steerBias = { 0 };
 
     private Vec3 destination;
@@ -33,18 +38,30 @@ public final class WanderAction<E extends Mob> implements Action<E> {
     private int duration;
 
     public WanderAction(double speed, int priority, double radius, int minDuration, int maxDuration) {
+        this(speed, priority, radius, minDuration, maxDuration, false);
+    }
+
+    public WanderAction(
+        double speed,
+        int priority,
+        double radius,
+        int minDuration,
+        int maxDuration,
+        boolean preferDark
+    ) {
         this.speed = speed;
         this.priority = priority;
         this.radius = radius;
         this.minDuration = minDuration;
         this.maxDuration = maxDuration;
+        this.preferDark = preferDark;
     }
 
     @Override
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         this.age = 0;
         this.duration = minDuration + mob.getRandom().nextInt(maxDuration - minDuration + 1);
-        this.destination = findWanderDestination(mob);
+        this.destination = pickDestination(mob, blackboard);
         mob.setAggressive(false);
         cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
     }
@@ -63,7 +80,7 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         age++;
 
         if (destination == null) {
-            destination = findWanderDestination(mob);
+            destination = pickDestination(mob, blackboard);
             if (destination == null) {
                 return ActionStatus.RUNNING;
             }
@@ -85,11 +102,7 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         mob.hasImpulse = true;
         faceMovementDirection(mob, safeMovement);
 
-        AiDebugUtils.sendParticlePath(
-            mob,
-            mob.position(),
-            destination
-        );
+        AiDebugUtils.sendParticlePath(mob, mob.position(), destination);
         return ActionStatus.RUNNING;
     }
 
@@ -113,26 +126,92 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         return priority;
     }
 
-    private void faceMovementDirection(E mob, Vec3 movement) {
-        if (movement.horizontalDistanceSqr() < 0.0001D)
-            return;
+    private Vec3 pickDestination(E mob, Blackboard blackboard) {
+        if (preferDark) {
+            var dark = findDarkDestination(mob, blackboard);
+            if (dark != null) {
+                return Vec3.atCenterOf(dark);
+            }
+        }
+        return findWanderDestination(mob);
+    }
 
-        var yaw = (float) (Math.atan2(movement.z, movement.x) * (180.0D / Math.PI)) - 90.0F;
-        mob.setYRot(yaw);
-        mob.yBodyRot = yaw;
-        mob.yHeadRot = yaw;
-        mob.getLookControl()
-            .setLookAt(
-                mob.getX() + movement.x,
-                mob.getEyeY(),
-                mob.getZ() + movement.z
-            );
+    private BlockPos findDarkDestination(E mob, Blackboard blackboard) {
+        var level = mob.level();
+        var origin = mob.blockPosition();
+        var random = mob.getRandom();
+
+        BlockPos resinCentre = null;
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        if (memory != null) {
+            var nearest = memory.findNearestWebCross(level, origin, 80.0);
+            if (nearest.isPresent()) {
+                resinCentre = nearest.get();
+            }
+        }
+
+        List<ScoredPos> candidates = new ArrayList<>(64);
+
+        for (var attempt = 0; attempt < 64 * 3 && candidates.size() < 64; attempt++) {
+            var ox = random.nextInt(24 * 2 + 1) - 24;
+            var oy = random.nextInt(12 * 2 + 1) - 12;
+            var oz = random.nextInt(24 * 2 + 1) - 24;
+
+            var pos = origin.offset(ox, oy, oz);
+
+            if (origin.distSqr(pos) < 8.0 * 8.0)
+                continue;
+
+            if (!level.getBlockState(pos).isAir())
+                continue;
+
+            var floor = pos.below();
+            if (level.getBlockState(floor).getCollisionShape(level, floor).isEmpty())
+                continue;
+
+            var clearAbove = true;
+            for (var cy = 1; cy < 2; cy++) {
+                if (!level.getBlockState(pos.above(cy)).isAir()) {
+                    clearAbove = false;
+                    break;
+                }
+            }
+            if (!clearAbove)
+                continue;
+
+            var skyLight = level.getBrightness(LightLayer.SKY, pos);
+            var blockLight = level.getMaxLocalRawBrightness(pos);
+            var totalLight = Math.max(skyLight, blockLight);
+            if (totalLight > 4)
+                continue;
+
+            var score = scoreDarkPosition(pos, resinCentre, totalLight);
+            candidates.add(new ScoredPos(pos.immutable(), score));
+        }
+
+        if (candidates.isEmpty())
+            return null;
+
+        candidates.sort((a, b) -> Double.compare(b.score, a.score));
+        return candidates.getFirst().pos;
+    }
+
+    private static double scoreDarkPosition(BlockPos pos, BlockPos resinCentre, int totalLight) {
+        var score = (4 - totalLight) * 10.0;
+        if (totalLight == 0)
+            score += 20.0;
+
+        if (resinCentre != null && resinCentre.distSqr(pos) >= 16D * 16D) {
+            score += 15.0;
+        }
+
+        return score;
     }
 
     private Vec3 findWanderDestination(E mob) {
         var origin = mob.blockPosition();
 
-        for (var i = 0; i < DESTINATION_ATTEMPTS; i++) {
+        for (var i = 0; i < 16; i++) {
             var xOffset = (mob.getRandom().nextDouble() * 2.0D - 1.0D) * radius;
             var zOffset = (mob.getRandom().nextDouble() * 2.0D - 1.0D) * radius;
 
@@ -149,6 +228,22 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         }
 
         return null;
+    }
+
+    private void faceMovementDirection(E mob, Vec3 movement) {
+        if (movement.horizontalDistanceSqr() < 0.0001D)
+            return;
+
+        var yaw = (float) (Math.atan2(movement.z, movement.x) * (180.0D / Math.PI)) - 90.0F;
+        mob.setYRot(yaw);
+        mob.yBodyRot = yaw;
+        mob.yHeadRot = yaw;
+        mob.getLookControl()
+            .setLookAt(
+                mob.getX() + movement.x,
+                mob.getEyeY(),
+                mob.getZ() + movement.z
+            );
     }
 
     private BlockPos findSafeGround(E mob, BlockPos candidate) {
@@ -180,4 +275,9 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         return MovementUtils.isSafeBlock(level, feet)
             && MovementUtils.isSafeBlock(level, head);
     }
+
+    private record ScoredPos(
+        BlockPos pos,
+        double score
+    ) {}
 }

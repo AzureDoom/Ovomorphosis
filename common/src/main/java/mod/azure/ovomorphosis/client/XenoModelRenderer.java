@@ -40,15 +40,15 @@ public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRend
         float partialTick,
         float nativeScale
     ) {
-        if (animatable instanceof WallCrawlingMob wallCrawler) {
-            var shouldApplyClimb = wallCrawler.ovomorphosis$isWallCrawling()
-                || wallCrawler.ovomorphosis$getWallCrawlGraceTicks() > 2;
-
-            if (shouldApplyClimb) {
-                applyClimbingRotations(animatable, wallCrawler, poseStack, partialTick);
-                return;
-            }
-        }
+        // if (animatable instanceof WallCrawlingMob wallCrawler) {
+        // var shouldApplyClimb = wallCrawler.ovomorphosis$isWallCrawling()
+        // || wallCrawler.ovomorphosis$getWallCrawlGraceTicks() > 2;
+        //
+        // if (shouldApplyClimb) {
+        // applyClimbingRotations(animatable, wallCrawler, poseStack, partialTick);
+        // return;
+        // }
+        // }
 
         super.applyRotations(animatable, poseStack, ageInTicks, rotationYaw, partialTick, nativeScale);
     }

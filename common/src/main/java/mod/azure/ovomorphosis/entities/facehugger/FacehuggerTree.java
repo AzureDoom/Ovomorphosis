@@ -15,7 +15,7 @@ public class FacehuggerTree {
     public static BehaviorNode<FacehuggerEntity> create() {
         var wander = new WanderAction<FacehuggerEntity>(
             0.14D,
-            5,
+            9,
             6.0D,
             60,
             160
@@ -31,13 +31,6 @@ public class FacehuggerTree {
             0.5D,
             0.45D,
             0.55D,
-            true
-        );
-
-        var moveToTarget = new MoveToTargetAction<FacehuggerEntity>(
-            0.6D,
-            0.28D,
-            20,
             true
         );
 
@@ -84,12 +77,12 @@ public class FacehuggerTree {
             if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
                 cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
                 if (facehugger.getRandom().nextFloat() < 0.1F) {
-                    return BehaviorResult.run(wander, 5);
+                    return BehaviorResult.run(wander, 9);
                 }
-                return BehaviorResult.run(idle, 5);
+                return BehaviorResult.run(idle, 8);
             }
 
-            return BehaviorResult.run(idle, 5);
+            return BehaviorResult.run(idle, 8);
         };
     }
 }

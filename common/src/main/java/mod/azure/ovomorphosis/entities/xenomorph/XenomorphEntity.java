@@ -177,6 +177,12 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
+    public boolean killedEntity(@NotNull ServerLevel level, @NotNull LivingEntity entity) {
+        targetSelector.onTargetKilled();
+        return super.killedEntity(level, entity);
+    }
+
+    @Override
     public void tick() {
         super.tick();
         moveAnalysis.update();

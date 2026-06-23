@@ -106,4 +106,8 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
             && mob.distanceToSqr(candidate) <= range * range;
     }
 
+    public void onTargetKilled() {
+        heardQueue.clear();
+    }
+
 }

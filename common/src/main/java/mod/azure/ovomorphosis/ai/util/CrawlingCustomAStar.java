@@ -305,7 +305,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         }
 
         var groundBlock = feet.below();
-        if (isPassableForCrawl(level, groundBlock))
+        if (!isPhysicallySolid(level, groundBlock))
             return false;
 
         var testHalfW = 0.3D;
@@ -362,17 +362,25 @@ public class CrawlingCustomAStar extends CustomAStar {
         return level.noBlockCollision(mob, mobBox);
     }
 
+    /**
+     * Returns true if the block is physically solid for pathfinding purposes — has a non-empty collision shape. Blocks
+     * like grass, flowers, and carpet return false here even though they are not air.
+     */
+    private static boolean isPhysicallySolid(Level level, BlockPos pos) {
+        return !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
+    }
+
     public static boolean isTightTunnel(Level level, BlockPos pos) {
         var head = pos.above();
 
-        var eastFeet = !level.getBlockState(pos.east()).getCollisionShape(level, pos.east()).isEmpty();
-        var westFeet = !level.getBlockState(pos.west()).getCollisionShape(level, pos.west()).isEmpty();
-        var eastHead = !level.getBlockState(head.east()).getCollisionShape(level, head.east()).isEmpty();
-        var westHead = !level.getBlockState(head.west()).getCollisionShape(level, head.west()).isEmpty();
-        var northFeet = !level.getBlockState(pos.north()).getCollisionShape(level, pos.north()).isEmpty();
-        var southFeet = !level.getBlockState(pos.south()).getCollisionShape(level, pos.south()).isEmpty();
-        var northHead = !level.getBlockState(head.north()).getCollisionShape(level, head.north()).isEmpty();
-        var southHead = !level.getBlockState(head.south()).getCollisionShape(level, head.south()).isEmpty();
+        var eastFeet = isPhysicallySolid(level, pos.east());
+        var westFeet = isPhysicallySolid(level, pos.west());
+        var eastHead = isPhysicallySolid(level, head.east());
+        var westHead = isPhysicallySolid(level, head.west());
+        var northFeet = isPhysicallySolid(level, pos.north());
+        var southFeet = isPhysicallySolid(level, pos.south());
+        var northHead = isPhysicallySolid(level, head.north());
+        var southHead = isPhysicallySolid(level, head.south());
 
         var confinedX = (eastFeet || eastHead) && (westFeet || westHead);
         var confinedZ = (northFeet || northHead) && (southFeet || southHead);
@@ -490,14 +498,10 @@ public class CrawlingCustomAStar extends CustomAStar {
         var head = feet.above();
 
         var hasSideWall =
-            !level.getBlockState(feet.east()).getCollisionShape(level, feet.east()).isEmpty()
-                || !level.getBlockState(feet.west()).getCollisionShape(level, feet.west()).isEmpty()
-                || !level.getBlockState(feet.north()).getCollisionShape(level, feet.north()).isEmpty()
-                || !level.getBlockState(feet.south()).getCollisionShape(level, feet.south()).isEmpty()
-                || !level.getBlockState(head.east()).getCollisionShape(level, head.east()).isEmpty()
-                || !level.getBlockState(head.west()).getCollisionShape(level, head.west()).isEmpty()
-                || !level.getBlockState(head.north()).getCollisionShape(level, head.north()).isEmpty()
-                || !level.getBlockState(head.south()).getCollisionShape(level, head.south()).isEmpty();
+            isPhysicallySolid(level, feet.east()) || isPhysicallySolid(level, feet.west())
+                || isPhysicallySolid(level, feet.north()) || isPhysicallySolid(level, feet.south())
+                || isPhysicallySolid(level, head.east()) || isPhysicallySolid(level, head.west())
+                || isPhysicallySolid(level, head.north()) || isPhysicallySolid(level, head.south());
 
         if (!hasSideWall)
             return false;

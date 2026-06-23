@@ -153,6 +153,12 @@ public class FacehuggerEntity extends AbstractAlienEntity {
     }
 
     @Override
+    public boolean killedEntity(@NotNull ServerLevel level, @NotNull LivingEntity entity) {
+        targetSelector.onTargetKilled();
+        return super.killedEntity(level, entity);
+    }
+
+    @Override
     public void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
         super.defineSynchedData(builder);
         builder.define(IS_INFERTILE, false);

@@ -89,4 +89,8 @@ public final class XenomorphHostileTargetSelector<E extends XenomorphEntity> imp
         var distSq = mob.distanceToSqr(candidate);
         return distSq <= 32 * 32 || mob.hasLineOfSight(candidate);
     }
+
+    public void onTargetKilled() {
+        heardQueue.clear();
+    }
 }

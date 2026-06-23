@@ -5,7 +5,6 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 
@@ -87,7 +86,6 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             mob.hasImpulse = true;
             faceMovementDirection(mob, crawlVelocity);
 
-            AiDebugUtils.sendParticlePath(mob, mob.position(), destVec);
             return ActionStatus.RUNNING;
         }
 
@@ -138,7 +136,6 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         mob.yBodyRot = yaw;
         mob.yHeadRot = yaw;
 
-        AiDebugUtils.sendParticlePath(mob, mob.position(), destVec);
         return ActionStatus.RUNNING;
     }
 

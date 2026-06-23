@@ -93,7 +93,7 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
             var horizontal = new Vec3(direction.x, 0.0D, direction.z);
 
             if (horizontal.lengthSqr() > 0.0001D) {
-                var move = horizontal.normalize().scale(0.12D);
+                var move = horizontal.normalize().scale(0.32D);
 
                 var yErr = target.y - mob.getY();
                 var yVel = mob.onGround()

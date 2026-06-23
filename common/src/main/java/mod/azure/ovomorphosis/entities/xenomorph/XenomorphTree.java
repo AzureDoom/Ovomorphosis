@@ -30,17 +30,18 @@ public class XenomorphTree {
 
         var wander = new WanderAction<XenomorphEntity>(
             0.06D,
-            5,
+            10,
             6.0D,
             60,
-            160
+            160,
+            true
         );
 
         var idle = new IdleAction<XenomorphEntity>(40, 100, 2);
 
         var destinationMove = new MoveToDestinationAction<XenomorphEntity>(
             2.5D,
-            0.1D,
+            0.3D,
             25,
             5.0D,
             1.0D,
@@ -89,9 +90,7 @@ public class XenomorphTree {
 
         var breakToTarget = new BreakToTargetAction<>();
 
-        var destroyLight = new DestroyLightSourceAction<>(300);
-
-        var seekDark = new SeekDarkPlaceAction<>(400);
+        var destroyLight = new DestroyLightSourceAction<>(5);
 
         return (xenomorph, blackboard, cooldowns) -> {
 
@@ -185,10 +184,6 @@ public class XenomorphTree {
                 return BehaviorResult.run(destinationMove, 5);
             }
 
-            if (cooldowns.ready(AiKeys.LIGHT_SCAN_COOLDOWN)) {
-                return BehaviorResult.run(destroyLight, 10);
-            }
-
             if (
                 cooldowns.ready(AiKeys.RESIN_PLACE_COOLDOWN)
                     && xenomorph.getRandom().nextFloat() < 0.4F
@@ -200,15 +195,12 @@ public class XenomorphTree {
             if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
                 cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
 
-                if (
-                    xenomorph.getRandom().nextFloat() < 0.4F
-                        && !cooldowns.isOnCooldown(AiKeys.SEEK_COOLDOWN)
-                ) {
-                    return BehaviorResult.run(seekDark, 9);
+                var roll = xenomorph.getRandom().nextFloat();
+                if (roll < 0.9F && cooldowns.ready(AiKeys.LIGHT_SCAN_COOLDOWN)) {
+                    return BehaviorResult.run(destroyLight, 10);
                 }
-
-                if (xenomorph.getRandom().nextFloat() < 0.5F) {
-                    return BehaviorResult.run(wander, 9);
+                if (roll < 0.65F) {
+                    return BehaviorResult.run(wander, 10);
                 }
                 return BehaviorResult.run(idle, 8);
             }
