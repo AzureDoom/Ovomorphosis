@@ -62,7 +62,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
         }
 
         if (
-            mob.distanceToSqr(target) <= 0.5D * 0.5D
+            mob.distanceToSqr(target) <= 0.15D * 0.15D
                 || mob.getBoundingBox().inflate(mob.isInWater() ? 0.3D : 0.05D).intersects(target.getBoundingBox())
         ) {
             if (target.isBlocking()) {
@@ -77,7 +77,6 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
             }
             if (!TargetingUtils.faceHuggerTest(mob, target)) {
                 blackboard.set(AiKeys.TARGET, null);
-                mob.setTarget(null);
                 return ActionStatus.FAILURE;
             }
             mob.grabTarget(target);
@@ -95,7 +94,12 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
             inAir = false;
             windUpTicks = -1;
             leapCooldown = 10;
-            return ActionStatus.FAILURE;
+            blackboard.set(AiKeys.TARGET, target);
+            // If target is still within leap range, stay in the action and try again after cooldown.
+            // If they moved away, exit so the tree re-dispatches moveToDestination to close in.
+            return mob.distanceToSqr(target) <= 1.5D * 1.5D
+                ? ActionStatus.RUNNING
+                : ActionStatus.INTERRUPTED;
         }
 
         if (leapCooldown > 0) {
@@ -106,7 +110,8 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
 
         if (windUpTicks >= 0 && distSqr > 4.0D * 4.0D) {
             windUpTicks = -1;
-            return ActionStatus.FAILURE;
+            blackboard.set(AiKeys.TARGET, target);
+            return ActionStatus.INTERRUPTED;
         }
 
         if (mob.isInWater() && distSqr <= 4.0D * 4.0D) {
@@ -137,7 +142,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
                 if (windUpTicks >= WIND_UP_TICKS) {
                     windUpTicks = -1;
                     inAir = true;
-                    var leap = horizontal.normalize().scale(0.65D);
+                    var leap = horizontal.normalize().scale(0.95D);
                     mob.setDeltaMovement(leap.x, 0.55D, leap.z);
                     mob.hasImpulse = true;
                     leapCooldown = 15;
@@ -156,6 +161,10 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
         leapCooldown = 0;
         windUpTicks = -1;
         inAir = false;
+
+        if (!mob.isAttachedToHost()) {
+            mob.resetAnimationState();
+        }
     }
 
     @Override

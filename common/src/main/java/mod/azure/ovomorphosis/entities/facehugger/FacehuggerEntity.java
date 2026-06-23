@@ -2,7 +2,6 @@ package mod.azure.ovomorphosis.entities.facehugger;
 
 import mod.azure.azurelib.common.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.game.ClientboundSetPassengersPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -22,18 +21,14 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.gameevent.DynamicGameEventListener;
-import net.minecraft.world.level.gameevent.EntityPositionSource;
-import net.minecraft.world.level.gameevent.GameEvent;
-import net.minecraft.world.level.gameevent.GameEventListener;
-import net.minecraft.world.level.gameevent.PositionSource;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.function.BiConsumer;
-
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.FacehuggerHostileTargetSelector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
@@ -54,37 +49,15 @@ public class FacehuggerEntity extends AbstractAlienEntity {
 
     private final FacehuggerHostileTargetSelector<FacehuggerEntity> targetSelector;
 
-    private final DynamicGameEventListener<GameEventListener> dynamicGameEventListener;
+    private final FacehuggerGoalPlanner goalPlanner = new FacehuggerGoalPlanner();
+
+    private boolean leapJustFailed = false;
 
     public FacehuggerEntity(EntityType<? extends AbstractAlienEntity> entityType, Level level) {
         super(entityType, level);
         this.animationDispatcher = new FacehuggerAnimationDispatcher(this);
         this.moveAnalysis = new MoveAnalysis(this);
         this.targetSelector = new FacehuggerHostileTargetSelector<>(32);
-
-        var positionSource = new EntityPositionSource(this, this.getEyeHeight());
-        this.dynamicGameEventListener = new DynamicGameEventListener<>(new GameEventListener() {
-
-            @Override
-            public @NotNull PositionSource getListenerSource() {
-                return positionSource;
-            }
-
-            @Override
-            public int getListenerRadius() {
-                return 32;
-            }
-
-            @Override
-            public boolean handleGameEvent(
-                @NotNull ServerLevel serverLevel,
-                @NotNull Holder<GameEvent> eventHolder,
-                GameEvent.@NotNull Context context,
-                @NotNull Vec3 pos
-            ) {
-                return FacehuggerEntity.this.onGameEvent(eventHolder, context, pos);
-            }
-        });
 
         this.brainRuntime = new MobBrainRuntime<>(
             this,
@@ -93,62 +66,98 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         );
     }
 
-    private boolean onGameEvent(Holder<GameEvent> eventHolder, GameEvent.Context context, Vec3 pos) {
-        if (this.isDeadOrDying() || this.isInfertile()) {
-            return false;
-        }
-
-        if (!isSignificantEvent(eventHolder)) {
-            return false;
-        }
-
-        var source = context.sourceEntity();
-
-        if (source instanceof AbstractAlienEntity) {
-            return false;
-        }
-
-        if (source instanceof Player player && (player.isCreative() || player.isSpectator())) {
-            return false;
-        }
-
-        var investigatePos = source != null ? source.position() : pos;
-
-        targetSelector.hearSound(investigatePos);
-        return true;
-    }
-
-    private static boolean isSignificantEvent(Holder<GameEvent> event) {
-        return event.unwrapKey()
-            .map(
-                key -> key == GameEvent.STEP.key()
-                    || key == GameEvent.HIT_GROUND.key()
-                    || key == GameEvent.SWIM.key()
-                    || key == GameEvent.SPLASH.key()
-                    || key == GameEvent.ELYTRA_GLIDE.key()
-                    || key == GameEvent.FLAP.key()
-                    || key == GameEvent.ENTITY_INTERACT.key()
-                    || key == GameEvent.ENTITY_DAMAGE.key()
-                    || key == GameEvent.ENTITY_DIE.key()
-                    || key == GameEvent.ENTITY_ACTION.key()
-                    || key == GameEvent.BLOCK_CHANGE.key()
-                    || key == GameEvent.BLOCK_DESTROY.key()
-                    || key == GameEvent.BLOCK_PLACE.key()
-                    || key == GameEvent.PROJECTILE_SHOOT.key()
-                    || key == GameEvent.PROJECTILE_LAND.key()
-                    || key == GameEvent.EXPLODE.key()
-                    || key == GameEvent.EAT.key()
-                    || key == GameEvent.DRINK.key()
-            )
-            .orElse(false);
-    }
-
     @Override
-    public void updateDynamicGameEventListener(
-        @NotNull BiConsumer<DynamicGameEventListener<?>, ServerLevel> listenerConsumer
-    ) {
-        if (this.level() instanceof ServerLevel serverLevel) {
-            listenerConsumer.accept(this.dynamicGameEventListener, serverLevel);
+    public void tick() {
+        super.tick();
+        moveAnalysis.update();
+
+        if (!this.level().isClientSide()) {
+            tickGoalPlanner();
+            brainRuntime.tick();
+            tickLeapRecovery();
+            CrawlingManager.updateWallCrawlingPhysics(this);
+        }
+
+        this.handleAttachmentToHost();
+
+        if (isInfertile()) {
+            this.kill();
+        }
+        if (this.isAttachedToHost() && !this.isInfertile() && !this.isDeadOrDying()) {
+            animationDispatcher.sendFaceHug();
+        }
+        if (this.isAttachedToHost() && this.isDeadOrDying()) {
+            this.unRide();
+        }
+        if (this.isInfertile() || this.isDeadOrDying()) {
+            animationDispatcher.clientDeath();
+        }
+    }
+
+    /**
+     * Runs the GOAP planner and applies any new goal to the blackboard.
+     * <p>
+     * Respects the active goal's {@link PlannedGoal#canReplan} commitment window, the planner is only asked to choose
+     * again once the minimum commit ticks have elapsed or the goal has expired. Emergency replans (e.g. health drop
+     * mid-tick) are handled by the score dominating on the next eligible replan window.
+     */
+    private void tickGoalPlanner() {
+        var blackboard = brainRuntime.getBlackboard();
+        var cooldowns = brainRuntime.getCooldowns();
+
+        @SuppressWarnings("unchecked")
+        var activeGoal = (PlannedGoal<FacehuggerEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+
+        int currentTick = (int) this.level().getGameTime();
+
+        var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
+        var isPassive = goalType == AiGoalType.WANDER || goalType == AiGoalType.NONE;
+
+        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET);
+
+        var shouldReplan = activeGoal == null
+            || activeGoal.isNone()
+            || activeGoal.isExpired(currentTick)
+            || reactiveReplan
+            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown("goal_replan"));
+
+        if (!shouldReplan)
+            return;
+
+        cooldowns.set("goal_replan", 20);
+
+        var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
+        GoalApplicator.apply(this, blackboard, newGoal);
+    }
+
+    private void tickLeapRecovery() {
+        var blackboard = brainRuntime.getBlackboard();
+        var cooldowns = brainRuntime.getCooldowns();
+
+        @SuppressWarnings("unchecked")
+        var activeGoal = (PlannedGoal<FacehuggerEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+        if (activeGoal == null) {
+            leapJustFailed = false;
+            return;
+        }
+
+        var goalType = activeGoal.type();
+        if (goalType != AiGoalType.INFECT_HOST && goalType != AiGoalType.STALK_HOST) {
+            leapJustFailed = false;
+            return;
+        }
+
+        if (brainRuntime.getCurrentAction() == null && blackboard.has(AiKeys.TARGET)) {
+            if (leapJustFailed) {
+                leapJustFailed = false;
+                cooldowns.set("goal_replan", 0);
+                var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
+                GoalApplicator.apply(this, blackboard, newGoal);
+            } else {
+                leapJustFailed = true;
+            }
+        } else {
+            leapJustFailed = false;
         }
     }
 
@@ -175,29 +184,6 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         super.readAdditionalSaveData(nbt);
         if (nbt.contains("isInfertile"))
             setIsInfertile(nbt.getBoolean("isInfertile"));
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        moveAnalysis.update();
-        if (!this.level().isClientSide()) {
-            brainRuntime.tick();
-            CrawlingManager.updateWallCrawlingPhysics(this);
-        }
-        this.handleAttachmentToHost();
-        if (isInfertile()) {
-            this.kill();
-        }
-        if (this.isAttachedToHost() && !this.isInfertile() && !this.isDeadOrDying()) {
-            animationDispatcher.sendFaceHug();
-        }
-        if (this.isAttachedToHost() && this.isDeadOrDying()) {
-            this.unRide();
-        }
-        if (this.isInfertile() || this.isDeadOrDying()) {
-            animationDispatcher.clientDeath();
-        }
     }
 
     @Override
@@ -275,7 +261,11 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             .add(Attributes.MOVEMENT_SPEED, 0.25);
     }
 
-    private void playAnimation(ClientAnimState next) {
+    public void resetAnimationState() {
+        currentClientAnim = null;
+    }
+
+    public void playAnimation(ClientAnimState next) {
         if (currentClientAnim == next) {
             return;
         }
@@ -293,8 +283,6 @@ public class FacehuggerEntity extends AbstractAlienEntity {
     }
 
     public void updateAnimations() {
-        var isMovingOnGround = moveAnalysis.isMovingHorizontally() && onGround();
-
         if (this.isDeadOrDying() || this.isInfertile()) {
             playAnimation(ClientAnimState.DEATH);
             return;
@@ -314,8 +302,8 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             return;
         }
 
-        if (isMovingOnGround) {
-            if (this.isAggressive() && !this.swinging) {
+        if (moveAnalysis.isMoving()) {
+            if (this.isAggressive()) {
                 playAnimation(ClientAnimState.RUN);
             } else {
                 playAnimation(ClientAnimState.WALK);

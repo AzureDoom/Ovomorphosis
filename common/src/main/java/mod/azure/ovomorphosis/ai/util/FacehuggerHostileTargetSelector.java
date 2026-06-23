@@ -1,12 +1,9 @@
 package mod.azure.ovomorphosis.ai.util;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ambient.AmbientCreature;
 import net.minecraft.world.entity.animal.AbstractFish;
-import net.minecraft.world.phys.Vec3;
-
-import java.util.*;
+import net.minecraft.world.phys.AABB;
 
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
@@ -18,29 +15,8 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
 
     private final double range;
 
-    private final ArrayDeque<BlockPos> heardQueue = new ArrayDeque<>();
-
     public FacehuggerHostileTargetSelector(double range) {
         this.range = range;
-    }
-
-    public void hearSound(Vec3 pos) {
-        var incoming = BlockPos.containing(pos);
-
-        for (var queued : heardQueue) {
-            var dx = queued.getX() - incoming.getX();
-            var dy = queued.getY() - incoming.getY();
-            var dz = queued.getZ() - incoming.getZ();
-            if (dx * dx + dy * dy + dz * dz < 4.0 * 4.0) {
-                return;
-            }
-        }
-
-        if (heardQueue.size() >= 15) {
-            heardQueue.pollFirst();
-        }
-
-        heardQueue.addLast(incoming);
     }
 
     @Override
@@ -51,18 +27,19 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
             current != null && current.isAlive()
                 && !(current instanceof AbstractAlienEntity) && !(current instanceof AbstractFish)
                 && TargetingUtils.faceHuggerTest(mob, current)
+                && !hasOtherFacehuggerPassenger(mob, current)
                 && mob.distanceToSqr(current) <= range * range
         ) {
             return current;
         }
 
-        var level = mob.level();
-
-        var nearby = level.getEntitiesOfClass(
-            LivingEntity.class,
-            mob.getBoundingBox().inflate(range),
-            candidate -> isValidCandidateFullRange(mob, candidate)
-        );
+        var searchBox = AABB.ofSize(mob.position(), range * 2, range * 2, range * 2);
+        var nearby = mob.level()
+            .getEntitiesOfClass(
+                LivingEntity.class,
+                searchBox,
+                candidate -> isValidCandidateFullRange(mob, candidate)
+            );
 
         LivingEntity closest = null;
         double closestDistSq = Double.MAX_VALUE;
@@ -74,17 +51,7 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
             }
         }
 
-        if (closest != null) {
-            heardQueue.clear();
-            return closest;
-        }
-
-        if (!heardQueue.isEmpty() && blackboard.get(AiKeys.DESTINATION, BlockPos.class) == null) {
-            var nextPos = heardQueue.pollFirst();
-            blackboard.set(AiKeys.DESTINATION, nextPos);
-        }
-
-        return null;
+        return closest;
     }
 
     private boolean isValidCandidateFullRange(E mob, LivingEntity candidate) {
@@ -94,7 +61,7 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
             return false;
         if (candidate.getType().is(ModTags.FACEHUGGER_BLACKLIST))
             return false;
-        if (TargetingUtils.isFacehuggerAttached(candidate))
+        if (hasOtherFacehuggerPassenger(mob, candidate))
             return false;
         if (candidate.getVehicle() instanceof AbstractAlienEntity)
             return false;
@@ -105,8 +72,14 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
             && mob.distanceToSqr(candidate) <= range * range;
     }
 
-    public void onTargetKilled() {
-        heardQueue.clear();
+    /**
+     * Returns true if {@code candidate} has any facehugger passenger that is NOT {@code self}.
+     */
+    private static boolean hasOtherFacehuggerPassenger(FacehuggerEntity self, LivingEntity candidate) {
+        return candidate.getPassengers()
+            .stream()
+            .anyMatch(p -> p instanceof FacehuggerEntity fh && fh != self);
     }
 
+    public void onTargetKilled() {}
 }
