@@ -67,5 +67,21 @@ public final class AiKeys {
      */
     public static final String LIGHT_SCAN_COOLDOWN = "destroy_light_scan";
 
+    public static final String ACTIVE_GOAL = "active_goal";
+
+    public static final String ACTIVE_GOAL_TYPE = "active_goal_type";
+
+    public static final String GOAL_TARGET = "goal_target";
+
+    public static final String GOAL_DESTINATION = "goal_destination";
+
+    public static final String LAST_GOAL_REASON = "last_goal_reason";
+
+    public static final String LAST_SEEN_TARGET_POS = "last_seen_target_pos";
+
+    public static final String LAST_HEARD_SOUND_POS = "last_heard_sound_pos";
+
+    public static final String FAILED_GOAL_COUNT = "failed_goal_count";
+
     private AiKeys() {}
 }
