@@ -23,7 +23,6 @@ import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.registry.DamageTypeRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
-import mod.azure.ovomorphosis.services.XenoServices;
 
 public final class InfectionManager {
 
@@ -130,8 +129,6 @@ public final class InfectionManager {
                 continue;
             }
 
-            if (XenoServices.COMMON_REGISTRY.isDevelopmentEnvironment())
-                CommonMod.LOGGER.info("Ticks : {}, Duration {}", state.ticks, state.duration);
             state.ticksSinceLastDamage++;
             if (entity instanceof Mob mob) {
                 mob.setPersistenceRequired();
