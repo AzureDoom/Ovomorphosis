@@ -42,9 +42,4 @@ public final class HiveMemory {
 
         return Optional.ofNullable(best);
     }
-
-    // TODO: Clear this somewhere, likely on mob death
-    public void clear() {
-        placedBlocks.clear();
-    }
 }
