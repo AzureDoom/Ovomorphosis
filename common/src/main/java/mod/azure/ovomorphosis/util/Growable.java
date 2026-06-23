@@ -40,12 +40,4 @@ public interface Growable {
             entity.remove(Entity.RemovalReason.DISCARDED);
         }
     }
-
-    default float getGrowthNeededUntilGrowUp() {
-        return getMaxGrowth() - getGrowth();
-    }
-
-    default float getGrowthMultiplier() {
-        return 1.0f;
-    }
 }
