@@ -68,10 +68,7 @@ public class ResinBlock extends AbstractResinBlock {
         @NotNull BlockPos pos,
         @NotNull CollisionContext context
     ) {
-        return context instanceof EntityCollisionContext entitycollisioncontext && entitycollisioncontext
-            .getEntity() instanceof AbstractAlienEntity
-                ? Block.box(0, 0, 0, 0, 0, 0)
-                : LAYERS_TO_SHAPE.get(state.getValue(LAYERS));
+        return LAYERS_TO_SHAPE.get(state.getValue(LAYERS));
     }
 
     @Override
