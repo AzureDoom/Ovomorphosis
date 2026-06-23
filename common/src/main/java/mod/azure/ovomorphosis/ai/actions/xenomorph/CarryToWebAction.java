@@ -14,6 +14,7 @@ import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.CrawlingCustomAStar;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.registry.BlockRegistry;
 
 public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
@@ -61,6 +62,13 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             nearest.ifPresent(pos -> webTarget = pos);
         }
 
+        if (webTarget == null) {
+            webTarget = scanWorldForWebCross(mob);
+            if (webTarget != null && memory != null) {
+                memory.trackBlock(webTarget);
+            }
+        }
+
         onStartCallback.accept(mob);
     }
 
@@ -79,21 +87,24 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             webTarget == null || !mob.level()
                 .getBlockState(webTarget)
                 .is(
-                    mod.azure.ovomorphosis.registry.BlockRegistry.RESIN_WEB_CROSS.get()
+                    BlockRegistry.RESIN_WEB_CROSS.get()
                 )
         ) {
             var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
-            if (memory == null)
-                return ActionStatus.FAILURE;
-            Optional<BlockPos> nearest = memory.findNearestWebCross(
-                mob.level(),
-                mob.blockPosition(),
-                80D
-            );
-            if (nearest.isEmpty())
-                return ActionStatus.FAILURE;
-            webTarget = nearest.get();
-            path = java.util.Collections.emptyList();
+            Optional<BlockPos> nearest = memory != null
+                ? memory.findNearestWebCross(mob.level(), mob.blockPosition(), 80D)
+                : Optional.empty();
+
+            if (nearest.isPresent()) {
+                webTarget = nearest.get();
+            } else {
+                webTarget = scanWorldForWebCross(mob);
+                if (webTarget == null)
+                    return ActionStatus.FAILURE;
+                if (memory != null)
+                    memory.trackBlock(webTarget);
+            }
+            path = Collections.emptyList();
         }
 
         pinVictim(mob, victim);
@@ -214,5 +225,32 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         mob.setYRot(yaw);
         mob.yBodyRot = yaw;
         mob.yHeadRot = yaw;
+    }
+
+    private BlockPos scanWorldForWebCross(E mob) {
+        var origin = mob.blockPosition();
+        var rangeSqr = 80.0 * 80.0;
+        var webBlock = BlockRegistry.RESIN_WEB_CROSS.get();
+        var r = (int) Math.ceil(80.0);
+
+        BlockPos best = null;
+        var bestDistSq = Double.MAX_VALUE;
+
+        for (
+            var pos : BlockPos.betweenClosed(
+                origin.offset(-r, -r, -r),
+                origin.offset(r, r, r)
+            )
+        ) {
+            var distSq = origin.distSqr(pos);
+            if (distSq > rangeSqr || distSq >= bestDistSq)
+                continue;
+            if (!mob.level().getBlockState(pos).is(webBlock))
+                continue;
+            best = pos.immutable();
+            bestDistSq = distSq;
+        }
+
+        return best;
     }
 }
