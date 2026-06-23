@@ -199,6 +199,10 @@ public class OvomorphosisConfig {
             @Configurable.DecimalRange(min = 0.0F)
             public float xenoCarryToResinChance = 0.08F;
 
+            @Configurable
+            @Configurable.Synchronized
+            public boolean enableXenomorphItemSlap = true;
+
         }
     }
 }

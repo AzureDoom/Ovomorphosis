@@ -41,6 +41,7 @@
   "config.ovomorphosis.option.chestbursterArmor": "Chestburster Armor",
   "config.ovomorphosis.option.chestbursterArmorToughness": "Chestburster Armor Toughness",
   "config.ovomorphosis.option.chestbursterKnockbackRes": "Chestburster Knockback Resistance",
+  "config.ovomorphosis.option.enableXenomorphItemSlap": "Enable Xenomorph Rare Item Slapping",
   "entity.ovomorphosis.ovomorph": "Ovomorph",
   "entity.ovomorphosis.facehugger": "Facehugger",
   "entity.ovomorphosis.chestburster": "Chestburster",

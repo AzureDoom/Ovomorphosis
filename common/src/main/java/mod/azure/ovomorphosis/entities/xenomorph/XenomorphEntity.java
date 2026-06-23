@@ -306,7 +306,8 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     @Override
     public boolean doHurtTarget(@NotNull Entity target) {
         if (
-            target instanceof LivingEntity livingEntity
+            CommonMod.getConfig().entityConfigs.xenomorphConfigs.enableXenomorphItemSlap &&
+                target instanceof LivingEntity livingEntity
                 && !this.level().isClientSide
                 && this.getRandom().nextInt(100) < 5
         ) {
