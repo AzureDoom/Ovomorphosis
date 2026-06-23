@@ -6,13 +6,14 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.client.layer.EggmorphRenderState;
 
 /**
  * Server → client packet sent every 10 ticks per eggmorphing entity. Payload: int entityId, float progress [0.0 – 1.0].
- * A progress of 0 signals the client to clear the entry (escape or completion).
+ * Progress of 0 signals the client to clear the entry (escape or completion).
  */
 public class EggmorphProgressPacket implements AbstractPacket {
 
@@ -54,7 +55,7 @@ public class EggmorphProgressPacket implements AbstractPacket {
     }
 
     @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+    public CustomPacketPayload.@NotNull Type<? extends CustomPacketPayload> type() {
         return TYPE;
     }
 }

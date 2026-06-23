@@ -228,4 +228,9 @@ public final class TargetingUtils {
         }
         return null;
     }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T self(Object object) {
+        return (T) object;
+    }
 }

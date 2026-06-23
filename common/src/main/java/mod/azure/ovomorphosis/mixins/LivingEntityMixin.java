@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.client.facehugger.EntityHeadData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
@@ -36,7 +37,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "die", at = @At("TAIL"))
     public void ovomorphosis$onDie(DamageSource source, CallbackInfo ci) {
-        InfectionManager.clearInfection(LivingEntityMixin.self(this));
+        InfectionManager.clearInfection(TargetingUtils.self(this));
     }
 
     @Inject(method = { "hurt" }, at = { @At("HEAD") }, cancellable = true)
@@ -104,9 +105,5 @@ public abstract class LivingEntityMixin extends Entity {
         var worldZ = px * Math.sin(yaw) + pz * Math.cos(yaw);
 
         cir.setReturnValue(self.position().add(worldX, py, worldZ));
-    }
-
-    private static <T> T self(Object object) {
-        return (T) object;
     }
 }

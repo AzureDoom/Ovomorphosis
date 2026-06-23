@@ -5,7 +5,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ambient.AmbientCreature;
 import net.minecraft.world.entity.animal.AbstractFish;
 import net.minecraft.world.phys.Vec3;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
@@ -25,7 +24,7 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
         this.range = range;
     }
 
-    public void hearSound(@Nullable LivingEntity candidate, Vec3 pos) {
+    public void hearSound(Vec3 pos) {
         var incoming = BlockPos.containing(pos);
 
         for (var queued : heardQueue) {

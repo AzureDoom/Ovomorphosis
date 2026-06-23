@@ -97,7 +97,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         for (var i = 0; i < path.size(); i++) {
             var pos = path.get(i);
             var isWalk = canStandAt(level, mob, pos);
-            var isClimb = MovementUtils.isSafeClimbNode(level, mob, pos);
+            var isClimb = MovementUtils.isSafeClimbNode(level, pos);
             var isTunnel = tunnelCanStandAt(level, mob, pos);
             if (i == path.size() - 1 || isWalk || isClimb || isTunnel) {
                 filtered.add(pos);
@@ -124,7 +124,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             var cy = pos.getY() + 0.5D;
             var cz = pos.getZ() + 0.5D;
 
-            var isClimb = MovementUtils.isSafeClimbNode(level, mob, pos);
+            var isClimb = MovementUtils.isSafeClimbNode(level, pos);
             var isWalk = canStandAt(level, mob, pos);
 
             // BLUE = climb node, YELLOW = walk node, WHITE = both/unknown
@@ -233,7 +233,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                     for (var rise = 1; rise <= 4; rise++) {
                         var candidate = side.above(rise);
                         if (
-                            MovementUtils.isSafeClimbNode(level, mob, candidate)
+                            MovementUtils.isSafeClimbNode(level, candidate)
                                 && hasClimbClearance(level, mob, candidate)
                         ) {
                             result.add(candidate);
@@ -248,7 +248,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                 for (var drop = 1; drop <= 6; drop++) {
                     var candidate = side.below(drop);
                     if (
-                        MovementUtils.isSafeClimbNode(level, mob, candidate) && hasClimbClearance(level, mob, candidate)
+                        MovementUtils.isSafeClimbNode(level, candidate) && hasClimbClearance(level, mob, candidate)
                     ) {
                         result.add(candidate);
                         break;
@@ -336,7 +336,7 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     private static void tryAddClimb(Level level, Mob mob, List<BlockPos> result, BlockPos feet) {
-        if (MovementUtils.isSafeClimbNode(level, mob, feet) && hasClimbClearance(level, mob, feet)) {
+        if (MovementUtils.isSafeClimbNode(level, feet) && hasClimbClearance(level, mob, feet)) {
             result.add(feet);
         }
     }
@@ -404,7 +404,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         var toIsWalkable = canStandAt(level, mob, to);
         var toIsTunnelWalk = !toIsWalkable && (tunnelCanStandAt(level, mob, to)
             || (isTightTunnel(level, to) && canStandAtCrawlSize(level, mob, to)));
-        var toIsClimbable = MovementUtils.isSafeClimbNode(level, mob, to);
+        var toIsClimbable = MovementUtils.isSafeClimbNode(level, to);
 
         if (!toIsWalkable && !toIsTunnelWalk && !toIsClimbable) {
             return 9999.0D;

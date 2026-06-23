@@ -554,7 +554,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         var waypointIsGroundOnly = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
-            && !MovementUtils.isSafeClimbNode(mob.level(), mob, waypointBlock);
+            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock);
         var canAttachToWall = shouldUseCrawlingNow
             && !waypointIsGroundOnly
             && canAttachToClimbSurface(mob, waypoint);

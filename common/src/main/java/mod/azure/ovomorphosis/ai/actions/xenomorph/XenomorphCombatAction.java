@@ -110,6 +110,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         return priority;
     }
 
+    // TODO: Fix me for warning
     private ActionStatus tickStalk(E mob, LivingEntity target) {
         var distSq = mob.distanceToSqr(target);
 

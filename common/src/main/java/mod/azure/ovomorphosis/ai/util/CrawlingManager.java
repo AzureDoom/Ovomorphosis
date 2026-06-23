@@ -65,60 +65,6 @@ public final class CrawlingManager {
     }
 
     /**
-     * Returns {@code true} if reaching {@code destination} warrants switching to wall-crawl movement. Considers
-     * vertical height difference and whether the destination is on a climbable surface.
-     *
-     * @param mob         the mob evaluating the move
-     * @param destination the target block position
-     * @return {@code true} if wall-crawl pathing should be used
-     */
-    public static boolean shouldUseWallCrawlingTo(Mob mob, BlockPos destination) {
-        if (!canWallCrawl(mob) || destination == null) {
-            return false;
-        }
-
-        var destVec = Vec3.atBottomCenterOf(destination);
-
-        if (MovementUtils.needsWallCrawl(mob, destVec)) {
-            return true;
-        }
-
-        var yDiff = destination.getY() - mob.blockPosition().getY();
-
-        if (Math.abs(yDiff) >= 2) {
-            return true;
-        }
-
-        return MovementUtils.isClimbable(mob.level(), destination, false);
-    }
-
-    /**
-     * Returns {@code true} if reaching {@code target} warrants switching to wall-crawl movement. Considers the vertical
-     * difference and whether the target's position is on a climbable surface.
-     *
-     * @param mob    the mob evaluating the move
-     * @param target the entity to reach
-     * @return {@code true} if wall-crawl pathing should be used
-     */
-    public static boolean shouldUseWallCrawlingTo(Mob mob, LivingEntity target) {
-        if (!canWallCrawl(mob) || target == null || !target.isAlive()) {
-            return false;
-        }
-
-        if (MovementUtils.needsWallCrawl(mob, target.position())) {
-            return true;
-        }
-
-        var yDiff = target.blockPosition().getY() - mob.blockPosition().getY();
-
-        if (Math.abs(yDiff) >= 2) {
-            return true;
-        }
-
-        return MovementUtils.isClimbable(mob.level(), target.blockPosition(), false);
-    }
-
-    /**
      * Updates gravity suppression and fall-distance zeroing each tick for wall-crawling mobs.
      * <p>
      * Gravity is suppressed while the mob is actively crawling or has grace ticks remaining and is adjacent to a
@@ -350,7 +296,7 @@ public final class CrawlingManager {
                     var origin = mob.blockPosition();
                     for (var dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
                         var adj = origin.relative(dir);
-                        if (MovementUtils.isSafeClimbNode(level, mob, adj)) {
+                        if (MovementUtils.isSafeClimbNode(level, adj)) {
                             return true;
                         }
                     }

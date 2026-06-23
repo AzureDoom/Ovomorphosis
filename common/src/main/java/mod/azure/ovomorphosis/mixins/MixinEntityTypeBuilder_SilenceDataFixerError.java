@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableSet;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.level.block.Block;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -13,9 +14,11 @@ import mod.azure.ovomorphosis.entities.SilencedEntityTypeBuilder;
 @Mixin(EntityType.Builder.class)
 public class MixinEntityTypeBuilder_SilenceDataFixerError implements SilencedEntityTypeBuilder {
 
+    @Final
     @Shadow
     private EntityType.EntityFactory<Entity> factory;
 
+    @Final
     @Shadow
     private MobCategory category;
 

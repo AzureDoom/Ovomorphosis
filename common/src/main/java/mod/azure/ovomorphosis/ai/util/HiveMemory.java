@@ -43,11 +43,7 @@ public final class HiveMemory {
         return Optional.ofNullable(best);
     }
 
-    public Deque<BlockPos> all() {
-        return placedBlocks;
-    }
-
-    // TODO: Clear this somewhere
+    // TODO: Clear this somewhere, likely on mob death
     public void clear() {
         placedBlocks.clear();
     }

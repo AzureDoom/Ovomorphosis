@@ -114,7 +114,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
 
         var investigatePos = source != null ? source.position() : pos;
 
-        targetSelector.hearSound(source instanceof LivingEntity living ? living : null, investigatePos);
+        targetSelector.hearSound(investigatePos);
         return true;
     }
 

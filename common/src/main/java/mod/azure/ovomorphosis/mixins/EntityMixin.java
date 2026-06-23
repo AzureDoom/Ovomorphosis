@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 /**
@@ -19,7 +20,7 @@ public abstract class EntityMixin {
 
     @Inject(at = @At("HEAD"), method = "startRiding", cancellable = true)
     void ovomorphosis$boatRidingCancel(Entity entity, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        var self = EntityMixin.<Entity>self(this);
+        var self = TargetingUtils.<Entity>self(this);
 
         if (!(self instanceof AbstractAlienEntity))
             return;
@@ -31,7 +32,7 @@ public abstract class EntityMixin {
 
     @Inject(at = @At("HEAD"), method = "tick")
     void ovomorphosis$kickOut(CallbackInfo callbackInfo) {
-        var self = EntityMixin.<Entity>self(this);
+        var self = TargetingUtils.<Entity>self(this);
         var level = self.level();
 
         if (level.isClientSide)
@@ -42,9 +43,5 @@ public abstract class EntityMixin {
         if (self.getVehicle() instanceof Boat || self.getVehicle() instanceof Minecart) {
             self.stopRiding();
         }
-    }
-
-    private static <T> T self(Object object) {
-        return (T) object;
     }
 }

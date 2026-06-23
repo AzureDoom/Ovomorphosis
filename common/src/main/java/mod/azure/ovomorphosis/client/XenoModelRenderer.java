@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 
+@SuppressWarnings("unused")
 public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRenderer<T> {
 
     public XenoModelRenderer(
@@ -53,6 +54,7 @@ public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRend
         super.applyRotations(animatable, poseStack, ageInTicks, rotationYaw, partialTick, nativeScale);
     }
 
+    // TODO: Update for crawling animations + new system
     private static void applyClimbingRotations(
         LivingEntity entity,
         WallCrawlingMob wallCrawler,

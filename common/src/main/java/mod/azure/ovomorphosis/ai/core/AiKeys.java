@@ -67,7 +67,5 @@ public final class AiKeys {
      */
     public static final String LIGHT_SCAN_COOLDOWN = "destroy_light_scan";
 
-    public static final String SEEK_COOLDOWN = "seek_dark_replan";
-
     private AiKeys() {}
 }

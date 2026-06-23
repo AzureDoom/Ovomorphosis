@@ -369,11 +369,10 @@ public final class MovementUtils {
      * are safe, neither is blocked by solid geometry, and the position is adjacent to a climbable surface.
      *
      * @param level the world
-     * @param mob   the mob being evaluated
      * @param feet  the candidate feet position
      * @return {@code true} if the mob can cling at this position
      */
-    public static boolean isSafeClimbNode(Level level, Mob mob, BlockPos feet) {
+    public static boolean isSafeClimbNode(Level level, BlockPos feet) {
         var head = feet.above();
 
         if (!isSafeBlock(level, feet)) {

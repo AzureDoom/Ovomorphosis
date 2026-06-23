@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * Client-side store for eggmorph progress values keyed by entity ID. Written by
  * {@link mod.azure.ovomorphosis.network.EggmorphProgressPacket#handle()} and read by {@link EggmorphResinLayer}. Both
- * accesses happen on the client main/render thread so no synchronisation is needed.
+ * accesses happen on the client main/render thread so no synchronization is needed.
  */
 public final class EggmorphRenderState {
 

@@ -46,7 +46,7 @@ public final class AiDebugUtils {
         var blockPos = BlockPos.containing(pos);
         var level = mob.level();
 
-        var isClimb = MovementUtils.isSafeClimbNode(level, mob, blockPos);
+        var isClimb = MovementUtils.isSafeClimbNode(level, blockPos);
         var isWalk = CustomAStar.canStandAt(level, mob, blockPos);
 
         var marker = isClimb && !isWalk

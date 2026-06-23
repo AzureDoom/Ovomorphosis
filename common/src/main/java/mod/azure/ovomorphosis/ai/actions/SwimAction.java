@@ -9,13 +9,7 @@ import java.util.Objects;
 
 import mod.azure.ovomorphosis.ai.core.*;
 
-public final class SwimAction<E extends Mob> implements Action<E> {
-
-    private final int priority;
-
-    public SwimAction(int priority) {
-        this.priority = priority;
-    }
+public record SwimAction<E extends Mob>(int priority) implements Action<E> {
 
     @Override
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {}
@@ -63,11 +57,6 @@ public final class SwimAction<E extends Mob> implements Action<E> {
     @Override
     public boolean isInterruptible() {
         return true;
-    }
-
-    @Override
-    public int priority() {
-        return priority;
     }
 
     private void faceMovementDirection(E mob, Vec3 movement) {

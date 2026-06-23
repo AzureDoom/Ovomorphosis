@@ -22,7 +22,7 @@ public class XenomorphGrowthOverlayLayer<T extends XenomorphEntity> implements A
 
     @Override
     public void render(AzRendererPipelineContext<UUID, T> context) {
-        T animatable = (T) context.animatable();
+        T animatable = context.animatable();
         AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
         var rendertype = RenderType.entityTranslucentCull(textureLocation);
 
