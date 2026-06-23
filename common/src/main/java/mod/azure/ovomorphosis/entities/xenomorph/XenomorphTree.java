@@ -38,10 +38,6 @@ public class XenomorphTree {
             2.5D,
             0.3D,
             25,
-            5.0D,
-            1.0D,
-            0.55D,
-            0.85D,
             true
         );
 
