@@ -23,7 +23,7 @@ import mod.azure.ovomorphosis.CommonMod;
 /**
  * Datapack-driven version of the original head-offset table.
  * <p>
- * Datapack location: {@code data/<namespace>/gigeresque_head_offsets/<entity>.json}
+ * Datapack location: {@code data/<namespace>/ovomorphosis_head_offsets/<entity>.json}
  * <p>
  * Each JSON file looks like:
  *
