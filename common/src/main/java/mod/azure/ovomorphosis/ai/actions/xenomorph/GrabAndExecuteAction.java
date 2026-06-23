@@ -1,6 +1,9 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
@@ -13,9 +16,7 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
 
     private static final int HOLD_DURATION_TICKS = 200;
 
-    private static final int KILL_TICK = HOLD_DURATION_TICKS - 20;
-
-    private static final double GRAB_REACH = 1.5D;
+    private static final int KILL_TICK = 180;
 
     private final int priority;
 
@@ -54,7 +55,11 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
         }
 
         if (!grabbed) {
-            if (!TargetingUtils.isInAttackRange(mob, target, GRAB_REACH)) {
+            if (!TargetingUtils.isInAttackRange(mob, target, 1.5D)) {
+                return ActionStatus.FAILURE;
+            }
+
+            if (!hasMeleeLineOfSight(mob, target)) {
                 return ActionStatus.FAILURE;
             }
 
@@ -107,5 +112,24 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
     @Override
     public int priority() {
         return priority;
+    }
+
+    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
+        var level = mob.level();
+
+        var from = mob.getEyePosition();
+        var to = target.getEyePosition();
+
+        var hit = level.clip(
+            new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                mob
+            )
+        );
+
+        return hit.getType() == HitResult.Type.MISS;
     }
 }
