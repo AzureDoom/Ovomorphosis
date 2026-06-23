@@ -6,6 +6,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
+import mod.azure.ovomorphosis.ai.actions.MoveToTargetAction;
 import mod.azure.ovomorphosis.ai.core.Action;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
@@ -17,8 +18,8 @@ import mod.azure.ovomorphosis.util.ModTags;
 /**
  * Makes the xenomorph break blocks that are directly obstructing its path to its current attack target.
  * <p>
- * This action is only entered when {@link mod.azure.ovomorphosis.ai.actions.MoveToTargetAction} reports the mob as
- * stuck (via {@link AiKeys#BREAK_TO_TARGET_TRIGGER}). Once the obstructing block is cleared it returns
+ * This action is only entered when {@link MoveToTargetAction} reports the mob as stuck (via
+ * {@link AiKeys#BREAK_TO_TARGET_TRIGGER}). Once the obstructing block is cleared it returns
  * {@link ActionStatus#SUCCESS} so the tree immediately falls back to movement. The action is {@link #isInterruptible()
  * interruptible} so higher-priority combat actions always preempt it.
  *
