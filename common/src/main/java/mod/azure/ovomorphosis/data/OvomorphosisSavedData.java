@@ -7,6 +7,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
@@ -28,7 +29,7 @@ public final class OvomorphosisSavedData extends SavedData {
                 new SavedData.Factory<>(
                     OvomorphosisSavedData::createEmpty,
                     (tag, provider) -> load(tag, overworld),
-                    net.minecraft.util.datafix.DataFixTypes.SAVED_DATA_RANDOM_SEQUENCES
+                    DataFixTypes.SAVED_DATA_RANDOM_SEQUENCES
                 ),
                 DATA_NAME
             );
