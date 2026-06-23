@@ -2,8 +2,6 @@ package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
@@ -11,6 +9,7 @@ import java.util.function.Consumer;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
@@ -146,7 +145,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
         var distSq = mob.distanceToSqr(target);
 
-        if (hasMeleeLineOfSight(mob, target)) {
+        if (TargetingUtils.hasMeleeLineOfSight(mob, target)) {
             losConfirmTicks++;
         } else {
             losConfirmTicks = 0;
@@ -187,7 +186,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         if (!didStrike && phaseAge == 5) {
             if (
                 mob.getBoundingBox().inflate(2.8D).intersects(target.getBoundingBox())
-                    && hasMeleeLineOfSight(mob, target)
+                    && TargetingUtils.hasMeleeLineOfSight(mob, target)
             ) {
                 mob.doHurtTarget(target);
                 didStrike = true;
@@ -290,19 +289,5 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         }
         mob.setDeltaMovement(result.x, mob.getDeltaMovement().y, result.z);
         mob.hasImpulse = true;
-    }
-
-    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
-        var hit = mob.level()
-            .clip(
-                new ClipContext(
-                    mob.getEyePosition(),
-                    target.getEyePosition(),
-                    ClipContext.Block.COLLIDER,
-                    ClipContext.Fluid.NONE,
-                    mob
-                )
-            );
-        return hit.getType() == HitResult.Type.MISS;
     }
 }

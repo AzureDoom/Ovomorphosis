@@ -1,9 +1,6 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
@@ -59,7 +56,7 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
                 return ActionStatus.FAILURE;
             }
 
-            if (!hasMeleeLineOfSight(mob, target)) {
+            if (!TargetingUtils.hasMeleeLineOfSight(mob, target)) {
                 return ActionStatus.FAILURE;
             }
 
@@ -112,24 +109,5 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
     @Override
     public int priority() {
         return priority;
-    }
-
-    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
-        var level = mob.level();
-
-        var from = mob.getEyePosition();
-        var to = target.getEyePosition();
-
-        var hit = level.clip(
-            new ClipContext(
-                from,
-                to,
-                ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE,
-                mob
-            )
-        );
-
-        return hit.getType() == HitResult.Type.MISS;
     }
 }

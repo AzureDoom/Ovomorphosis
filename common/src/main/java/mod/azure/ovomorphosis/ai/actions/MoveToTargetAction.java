@@ -94,7 +94,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             return ActionStatus.FAILURE;
         }
 
-        if (mob.distanceToSqr(target) <= stopDistanceSqr && hasMeleeLineOfSight(mob, target)) {
+        if (mob.distanceToSqr(target) <= stopDistanceSqr && TargetingUtils.hasMeleeLineOfSight(mob, target)) {
             var dangerMove = MovementUtils.steerAwayFromDangerEntities(mob, Vec3.ZERO);
 
             if (dangerMove.lengthSqr() > 0.0001D) {
@@ -1237,25 +1237,6 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         return best;
-    }
-
-    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
-        var level = mob.level();
-
-        var from = mob.getEyePosition();
-        var to = target.getEyePosition();
-
-        var hit = level.clip(
-            new ClipContext(
-                from,
-                to,
-                ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE,
-                mob
-            )
-        );
-
-        return hit.getType() == HitResult.Type.MISS;
     }
 
     private boolean needsCrawlStepUp(E mob, BlockPos waypointBlock, BlockPos mobFeet) {

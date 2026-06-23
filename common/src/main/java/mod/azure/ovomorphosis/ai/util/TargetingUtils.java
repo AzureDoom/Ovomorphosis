@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -9,11 +10,16 @@ import net.minecraft.world.entity.animal.WaterAnimal;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Phantom;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 
 import java.util.function.Predicate;
 
+import mod.azure.ovomorphosis.ai.core.AiKeys;
+import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
+import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.infection.InfectionManager;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
@@ -161,5 +167,65 @@ public final class TargetingUtils {
 
     public static boolean isFacehuggerAttached(Entity entity) {
         return (entity != null && entity.getPassengers().stream().anyMatch(FacehuggerEntity.class::isInstance));
+    }
+
+    public static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
+        var level = mob.level();
+
+        var from = mob.getEyePosition();
+        var to = target.getEyePosition();
+
+        var hit = level.clip(
+            new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                mob
+            )
+        );
+
+        return hit.getType() == HitResult.Type.MISS;
+    }
+
+    public static boolean hasNearbyWebCross(Blackboard blackboard, XenomorphEntity xenomorph) {
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        if (memory == null)
+            return false;
+        return memory.findNearestWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D).isPresent();
+    }
+
+    public static BlockPos findNearbyGroundPos(XenomorphEntity mob) {
+        var level = mob.level();
+        var origin = mob.blockPosition();
+
+        for (var dy = 1; dy <= 16; dy++) {
+            var candidate = origin.below(dy);
+            var below = candidate.below();
+            if (
+                level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
+                    && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
+            ) {
+                return candidate;
+            }
+        }
+
+        int[][] lateralDirs = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+        for (var radius = 1; radius <= 4; radius++) {
+            for (var dir : lateralDirs) {
+                var lateral = origin.offset(dir[0] * radius, 0, dir[1] * radius);
+                for (var dy = 0; dy <= 16; dy++) {
+                    var candidate = lateral.below(dy);
+                    var below = candidate.below();
+                    if (
+                        level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
+                            && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
+                    ) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

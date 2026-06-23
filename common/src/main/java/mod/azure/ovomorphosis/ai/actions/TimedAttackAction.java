@@ -2,8 +2,6 @@ package mod.azure.ovomorphosis.ai.actions;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
@@ -11,6 +9,7 @@ import java.util.function.Consumer;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 public final class TimedAttackAction<E extends Mob> implements Action<E> {
 
@@ -100,7 +99,7 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
         if (age == damageTick) {
             if (
                 mob.getBoundingBox().inflate(2.5D).intersects(target.getBoundingBox())
-                    && hasMeleeLineOfSight(mob, target)
+                    && TargetingUtils.hasMeleeLineOfSight(mob, target)
             ) {
                 mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
                 mob.doHurtTarget(target);
@@ -137,24 +136,5 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
     @Override
     public int priority() {
         return priority;
-    }
-
-    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
-        var level = mob.level();
-
-        var from = mob.getEyePosition();
-        var to = target.getEyePosition();
-
-        var hit = level.clip(
-            new ClipContext(
-                from,
-                to,
-                ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE,
-                mob
-            )
-        );
-
-        return hit.getType() == HitResult.Type.MISS;
     }
 }

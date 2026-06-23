@@ -2,9 +2,6 @@ package mod.azure.ovomorphosis.entities.xenomorph;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.phys.HitResult;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.actions.*;
@@ -12,9 +9,7 @@ import mod.azure.ovomorphosis.ai.actions.xenomorph.*;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
-import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -115,7 +110,7 @@ public class XenomorphTree {
                 var yGap = currentTarget.getY() - xenomorph.getY();
                 var canReachVert = Math.abs(yGap) <= 2.5D;
                 var dangerTarget = currentTarget.getType().is(ModTags.DANGER_ENTITIES);
-                var hasMeleeLOS = hasMeleeLineOfSight(xenomorph, currentTarget);
+                var hasMeleeLOS = TargetingUtils.hasMeleeLineOfSight(xenomorph, currentTarget);
                 var canGrab = currentTarget.getType().is(ModTags.XENO_GRAB_BLACKLIST);
                 var inMeleeRange = TargetingUtils.isInAttackRange(xenomorph, currentTarget, 2.0D);
 
@@ -125,7 +120,7 @@ public class XenomorphTree {
                         && cooldowns.ready(AiKeys.CARRY_COOLDOWN)
                         && cooldowns.ready(AiKeys.GRAB_COOLDOWN)
                         && cooldowns.ready("swipe_combo")
-                        && hasNearbyWebCross(blackboard, xenomorph)
+                        && TargetingUtils.hasNearbyWebCross(blackboard, xenomorph)
                         && xenomorph.getRandom().nextFloat() < CommonMod
                             .getConfig().entityConfigs.xenomorphConfigs.xenoCarryToResinChance
                 ) {
@@ -176,7 +171,7 @@ public class XenomorphTree {
 
             if (CrawlingManager.wasRecentlyWallCrawling(xenomorph)) {
                 if (blackboard.get(AiKeys.DESTINATION, BlockPos.class) == null) {
-                    var groundPos = findNearbyGroundPos(xenomorph);
+                    var groundPos = TargetingUtils.findNearbyGroundPos(xenomorph);
                     if (groundPos != null) {
                         blackboard.set(AiKeys.DESTINATION, groundPos);
                     }
@@ -207,60 +202,5 @@ public class XenomorphTree {
 
             return BehaviorResult.run(idle, 8);
         };
-    }
-
-    private static boolean hasNearbyWebCross(Blackboard blackboard, XenomorphEntity xenomorph) {
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
-        if (memory == null)
-            return false;
-        return memory.findNearestWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D).isPresent();
-    }
-
-    private static BlockPos findNearbyGroundPos(XenomorphEntity mob) {
-        var level = mob.level();
-        var origin = mob.blockPosition();
-
-        for (var dy = 1; dy <= 16; dy++) {
-            var candidate = origin.below(dy);
-            var below = candidate.below();
-            if (
-                level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
-                    && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
-            ) {
-                return candidate;
-            }
-        }
-
-        int[][] lateralDirs = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-        for (var radius = 1; radius <= 4; radius++) {
-            for (var dir : lateralDirs) {
-                var lateral = origin.offset(dir[0] * radius, 0, dir[1] * radius);
-                for (var dy = 0; dy <= 16; dy++) {
-                    var candidate = lateral.below(dy);
-                    var below = candidate.below();
-                    if (
-                        level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
-                            && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
-                    ) {
-                        return candidate;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private static boolean hasMeleeLineOfSight(Mob mob, LivingEntity target) {
-        var hit = mob.level()
-            .clip(
-                new ClipContext(
-                    mob.getEyePosition(),
-                    target.getEyePosition(),
-                    ClipContext.Block.COLLIDER,
-                    ClipContext.Fluid.NONE,
-                    mob
-                )
-            );
-        return hit.getType() == HitResult.Type.MISS;
     }
 }
