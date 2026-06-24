@@ -79,6 +79,12 @@ public class XenomorphAnimationDispatcher {
         AzPlayBehaviors.PLAY_ONCE
     );
 
+    private final AzCommand inAirCommand = AzCommand.create(
+        CommonStrings.BASE_CONTROLLER,
+        "in_air",
+        AzPlayBehaviors.LOOP
+    );
+
     private final XenomorphEntity xenomorph;
 
     public XenomorphAnimationDispatcher(XenomorphEntity xenomorph) {
@@ -111,6 +117,10 @@ public class XenomorphAnimationDispatcher {
 
     public void clientSwim() {
         swimCommand.sendForEntity(xenomorph);
+    }
+
+    public void clientInAir() {
+        inAirCommand.sendForEntity(xenomorph);
     }
 
     public void serverAttack() {

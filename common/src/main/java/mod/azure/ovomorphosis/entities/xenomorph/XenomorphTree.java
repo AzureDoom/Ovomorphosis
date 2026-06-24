@@ -53,8 +53,8 @@ public class XenomorphTree {
 
         var lunge = new LungeAction<>(
             105,
-            x -> x.animationDispatcher.serverAttack(),
-            x -> x.animationDispatcher.serverAttack()
+            x -> x.animationDispatcher.serverWindUp(),
+            x -> x.animationDispatcher.clientInAir()
         );
         var swipeCombo = new XenomorphCombatAction<XenomorphEntity>(
             "swipe_combo",

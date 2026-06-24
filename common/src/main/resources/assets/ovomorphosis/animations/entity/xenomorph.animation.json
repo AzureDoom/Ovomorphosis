@@ -8344,6 +8344,15 @@
 		},
 		"carrying": {
 			"loop": "once"
+		},
+		"crawling": {
+			"loop": "once"
+		},
+		"windup": {
+			"loop": "once"
+		},
+		"in_air": {
+			"loop": "once"
 		}
 	}
 }
