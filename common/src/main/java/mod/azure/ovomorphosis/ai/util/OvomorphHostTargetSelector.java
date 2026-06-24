@@ -11,12 +11,15 @@ public final class OvomorphHostTargetSelector<E extends OvomorphEntity> implemen
 
     @Override
     public LivingEntity findTarget(E egg, Blackboard blackboard) {
+        var searchRange = CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphSearchRange;
         var current = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (current != null && current.isAlive() && TargetingUtils.faceHuggerTest(egg, current)) {
-            return current;
+            var effectiveRangeSqr = current.isCrouching() ? 4.0 : (searchRange * searchRange);
+            if (egg.distanceToSqr(current) <= effectiveRangeSqr) {
+                return current;
+            }
         }
 
-        var searchRange = CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphSearchRange;
         var searchBox = egg.getBoundingBox().inflate(searchRange);
         var searchRangeSqr = searchRange * searchRange;
 
@@ -24,9 +27,13 @@ public final class OvomorphHostTargetSelector<E extends OvomorphEntity> implemen
             .getEntitiesOfClass(
                 LivingEntity.class,
                 searchBox,
-                candidate -> egg.distanceToSqr(candidate) <= searchRangeSqr
-                    && TargetingUtils.faceHuggerTest(egg, candidate)
-                    && egg.hasLineOfSight(candidate)
+                candidate -> {
+                    var distSq = egg.distanceToSqr(candidate);
+                    var effectiveRangeSqr = candidate.isCrouching() ? 4.0 : searchRangeSqr;
+                    return distSq <= effectiveRangeSqr
+                        && TargetingUtils.faceHuggerTest(egg, candidate)
+                        && egg.hasLineOfSight(candidate);
+                }
             );
 
         if (candidates.isEmpty()) {

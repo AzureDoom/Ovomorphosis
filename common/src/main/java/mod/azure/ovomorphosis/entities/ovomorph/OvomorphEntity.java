@@ -203,6 +203,49 @@ public class OvomorphEntity extends AbstractAlienEntity {
         return super.hurt(source, amount);
     }
 
+    /**
+     * Returns true if all cardinal directions + upper diagonals are solid, meaning the egg is in a fully enclosed space
+     * and should not hatch.
+     */
+    public boolean isEnclosed() {
+        var level = this.level();
+        var pos = this.blockPosition();
+
+        for (var dir : Direction.values()) {
+            if (!level.getBlockState(pos.relative(dir)).isSolidRender(level, pos.relative(dir))) {
+                return false;
+            }
+        }
+
+        var above = pos.above();
+        for (var dx : new int[] { -1, 1 }) {
+            for (var dz : new int[] { -1, 1 }) {
+                var diag = above.offset(dx, 0, dz);
+                if (!level.getBlockState(diag).isSolidRender(level, diag)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Returns how many consecutive air (or non-solid) blocks exist directly above this egg, up to a cap of 3.
+     */
+    public int getOpenSpaceAbove() {
+        var level = this.level();
+        var pos = this.blockPosition();
+        var count = 0;
+        for (var i = 1; i <= 3; i++) {
+            var check = pos.above(i);
+            if (level.getBlockState(check).isSolidRender(level, check))
+                break;
+            count++;
+        }
+        return count;
+    }
+
     private void playAnimation(ClientAnimState next) {
         if (currentClientAnim == next) {
             return;

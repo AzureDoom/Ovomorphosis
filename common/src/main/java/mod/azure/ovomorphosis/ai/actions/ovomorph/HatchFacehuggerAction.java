@@ -1,7 +1,9 @@
 package mod.azure.ovomorphosis.ai.actions.ovomorph;
 
+import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.core.Action;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
@@ -35,13 +37,47 @@ public final class HatchFacehuggerAction implements Action<OvomorphEntity> {
         if (ticks >= hatchAt) {
             if (!egg.level().isClientSide()) {
                 var facehugger = new FacehuggerEntity(EntityRegistry.FACEHUGGER.get(), egg.level());
-                facehugger.setPos(egg.position().x, egg.position().y + 1.2, egg.position().z);
-                facehugger.setDeltaMovement(
-                    Mth.nextFloat(facehugger.getRandom(), -0.5f, 0.5f),
-                    0.7,
-                    Mth.nextFloat(facehugger.getRandom(), -0.5f, 0.5f)
-                );
                 facehugger.setIsInfertile(false);
+
+                var openAbove = egg.getOpenSpaceAbove();
+                var level = egg.level();
+                var eggPos = egg.blockPosition();
+
+                if (openAbove >= 2) {
+                    facehugger.setPos(egg.position().x, egg.position().y + 1.2, egg.position().z);
+                    facehugger.setDeltaMovement(
+                        Mth.nextFloat(facehugger.getRandom(), -0.5f, 0.5f),
+                        0.7,
+                        Mth.nextFloat(facehugger.getRandom(), -0.5f, 0.5f)
+                    );
+                } else if (openAbove == 1) {
+                    var top = eggPos.above();
+                    facehugger.setPos(top.getX() + 0.5, top.getY(), top.getZ() + 0.5);
+                    facehugger.setDeltaMovement(
+                        Mth.nextFloat(facehugger.getRandom(), -0.2f, 0.2f),
+                        0.0,
+                        Mth.nextFloat(facehugger.getRandom(), -0.2f, 0.2f)
+                    );
+                } else {
+                    var spawned = false;
+                    for (
+                        var dir : new Direction[] { Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST }
+                    ) {
+                        var side = eggPos.relative(dir);
+                        if (level.getBlockState(side).isAir()) {
+                            facehugger.setPos(side.getX() + 0.5, side.getY(), side.getZ() + 0.5);
+                            var nudge = Vec3.atCenterOf(dir.getNormal()).scale(0.2);
+                            facehugger.setDeltaMovement(nudge.x, 0.1, nudge.z);
+                            spawned = true;
+                            break;
+                        }
+                    }
+                    if (!spawned) {
+                        facehugger.setPos(egg.position().x, egg.position().y + 0.5, egg.position().z);
+                        facehugger.setDeltaMovement(0, 0, 0);
+                    }
+                }
+
                 egg.level().addFreshEntity(facehugger);
             }
             return ActionStatus.SUCCESS;
