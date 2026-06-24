@@ -164,6 +164,11 @@ public class XenomorphTree {
             }
 
             if (currentTarget != null && currentTarget.isAlive()) {
+                var targetIsFireUser = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_FIRE_USER, Boolean.class));
+                var fireDangerActive = FleeFireAction.isFireDangerActive(
+                    blackboard,
+                    (int) xenomorph.level().getGameTime()
+                );
                 var yGap = currentTarget.getY() - xenomorph.getY();
                 var canReachVert = Math.abs(yGap) <= 2.5D;
                 var dangerTarget = currentTarget.getType().is(ModTags.DANGER_ENTITIES);
@@ -214,6 +219,7 @@ public class XenomorphTree {
                     canReachVert
                         && LungeAction.canLunge(xenomorph, currentTarget, cooldowns)
                         && cooldowns.ready("swipe_combo")
+                        && !(targetIsFireUser && fireDangerActive)
                 ) {
                     return BehaviorResult.run(lunge, 105);
                 }
@@ -227,6 +233,10 @@ public class XenomorphTree {
 
                 if (goalType == AiGoalType.AMBUSH_TARGET) {
                     return BehaviorResult.run(moveToTargetAmbush, 18);
+                }
+
+                if (targetIsFireUser && fireDangerActive) {
+                    return BehaviorResult.run(moveToTargetAmbush, 19);
                 }
 
                 return BehaviorResult.run(moveToTargetCombat, 20);

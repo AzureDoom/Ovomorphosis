@@ -21,6 +21,12 @@ public final class LungeAction<E extends XenomorphEntity> implements Action<E> {
         LAND
     }
 
+    private static final double KITING_DOT_THRESHOLD = 0.25D;
+
+    private static final double MIN_KITING_SPEED = 0.05D;
+
+    private static final float NON_KITE_LUNGE_CHANCE = 0.25f;
+
     private Phase phase;
 
     private int phaseAge;
@@ -42,8 +48,38 @@ public final class LungeAction<E extends XenomorphEntity> implements Action<E> {
     public static boolean canLunge(XenomorphEntity mob, LivingEntity target, Cooldowns cooldowns) {
         if (cooldowns.isOnCooldown(AiKeys.LUNGE_COOLDOWN))
             return false;
+
         var distSq = mob.distanceToSqr(target);
-        return distSq >= 3.0 * 3.0 && distSq <= 14.0 * 14.0;
+        if (distSq < 3.0 * 3.0 || distSq > 14.0 * 14.0)
+            return false;
+
+        if (isTargetKiting(mob, target))
+            return true;
+
+        return mob.getRandom().nextFloat() < NON_KITE_LUNGE_CHANCE;
+    }
+
+    /**
+     * Returns {@code true} if {@code target} is actively moving away from {@code mob}.
+     * <p>
+     * Uses the dot product of the target's horizontal velocity against the direction from the mob to the target. A
+     * positive dot product means the velocity vector points generally away from the mob — i.e., the target is
+     * retreating or strafing away.
+     */
+    private static boolean isTargetKiting(XenomorphEntity mob, LivingEntity target) {
+        var targetVel = target.getDeltaMovement();
+        var horizontal = new Vec3(targetVel.x, 0, targetVel.z);
+
+        if (horizontal.length() < MIN_KITING_SPEED)
+            return false;
+
+        var awayFromMob = target.position().subtract(mob.position());
+        var awayHorizontal = new Vec3(awayFromMob.x, 0, awayFromMob.z);
+        if (awayHorizontal.lengthSqr() < 0.0001D)
+            return false;
+
+        var dot = horizontal.normalize().dot(awayHorizontal.normalize());
+        return dot > KITING_DOT_THRESHOLD;
     }
 
     @Override

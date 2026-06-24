@@ -127,7 +127,32 @@ public final class AiKeys {
      */
     public static final String FIRE_FLEE_COOLDOWN = "fire_flee_cooldown";
 
+    /** Last known position of an environmental fire source. Type: {@link net.minecraft.core.BlockPos}. */
     public static final String LAST_FIRE_POS = "last_fire_pos";
+
+    /**
+     * The entity that most recently caused fire damage to or near this mob (flint-and-steel user, fire arrow shooter,
+     * lava-bucket placer detected via fire proximity). Type: {@link net.minecraft.world.entity.LivingEntity}.
+     * <p>
+     * Written by {@link FleeFireAction} when it detects fire near a known attacker. Cleared when
+     * {@link #FIRE_DANGER_UNTIL_TICK} expires. The planner uses this to switch from direct combat to flanking or
+     * cautious hive-defence posture against the attacker.
+     */
+    public static final String LAST_FIRE_ATTACKER = "last_fire_attacker";
+
+    /**
+     * {@code true} when the current {@link #TARGET} is the same entity recorded in {@link #LAST_FIRE_ATTACKER}.
+     * Recomputed by the planner each cycle; cached here so the behavior tree can gate lunge/charge without re-querying
+     * the attacker every tick. Type: {@link Boolean}.
+     */
+    public static final String TARGET_IS_FIRE_USER = "target_is_fire_user";
+
+    /**
+     * Game tick timestamp until which the xenomorph considers fire a serious danger from a specific attacker. Set to
+     * {@code currentTick + 200} (10 s) when a fire attacker is recorded; extended on repeated fire events. The planner
+     * degrades fire-user penalties once this expires. Type: {@link Integer}.
+     */
+    public static final String FIRE_DANGER_UNTIL_TICK = "fire_danger_until_tick";
 
     public static final String HIVE_SYNC_COOLDOWN = "hive_sync_cooldown";
 }

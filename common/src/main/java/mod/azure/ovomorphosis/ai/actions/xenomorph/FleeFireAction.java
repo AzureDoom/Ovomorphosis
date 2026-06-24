@@ -2,8 +2,11 @@ package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.core.Action;
@@ -19,6 +22,12 @@ import mod.azure.ovomorphosis.ai.util.MovementUtils;
 public final class FleeFireAction<E extends Mob> implements Action<E> {
 
     private static final int SCAN_RADIUS = 4;
+
+    /**
+     * How long (ticks) fire-attacker danger persists after the last fire event. 200 ticks = 10 seconds. Extended on
+     * repeated events.
+     */
+    private static final int FIRE_DANGER_DURATION = 200;
 
     public static final float TOLERANCE_GAIN_RATE = 8.0f;
 
@@ -65,6 +74,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         var nearestFire = findNearestFire(mob);
         if (nearestFire != null) {
             blackboard.set(AiKeys.LAST_FIRE_POS, nearestFire);
+            updateFireAttacker(mob, blackboard, nearestFire);
         } else {
             nearestFire = blackboard.get(AiKeys.LAST_FIRE_POS, BlockPos.class);
         }
@@ -89,7 +99,10 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             if (distSq >= SAFE_DIST_SQ && !onFire) {
                 writeTolerance(blackboard);
                 blackboard.set(AiKeys.LAST_FIRE_POS, null);
-                blackboard.set(AiKeys.FIRE_FLEE_COOLDOWN, (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS);
+                blackboard.set(
+                    AiKeys.FIRE_FLEE_COOLDOWN,
+                    (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS
+                );
                 slowDown(mob);
                 return ActionStatus.SUCCESS;
             }
@@ -151,20 +164,120 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         return priority;
     }
 
-    private static float readTolerance(Blackboard blackboard) {
-        var val = blackboard.get(AiKeys.FIRE_TOLERANCE, Float.class);
-        return val != null ? val : 0f;
+    /**
+     * Attempts to identify which entity caused the fire near {@code mob} and writes it to
+     * {@link AiKeys#LAST_FIRE_ATTACKER}, {@link AiKeys#TARGET_IS_FIRE_USER}, and {@link AiKeys#FIRE_DANGER_UNTIL_TICK}.
+     * <p>
+     * Attribution strategy (in priority order):
+     * <ol>
+     * <li>A flaming {@link AbstractArrow} near the fire whose owner is a living entity.</li>
+     * <li>A living entity within 8 blocks that is holding a fire-related item (checked via {@link #isHoldingFireTool})
+     * — covers flint-and-steel and lava bucket users.</li>
+     * <li>The mob's current vanilla target if it is alive and within 16 blocks — best-effort fallback for cases like
+     * fire-aspect weapons.</li>
+     * </ol>
+     * <p>
+     * The attacker record is extended by {@link #FIRE_DANGER_DURATION} ticks each time fire is detected, so it persists
+     * through brief gaps where the fire block has been removed.
+     */
+    private static <E extends Mob> void updateFireAttacker(E mob, Blackboard blackboard, BlockPos firePos) {
+        var level = mob.level();
+        var currentTick = (int) level.getGameTime();
+
+        LivingEntity attacker = null;
+
+        var arrowBox = new AABB(
+            firePos.getX() - 3,
+            firePos.getY() - 2,
+            firePos.getZ() - 3,
+            firePos.getX() + 3,
+            firePos.getY() + 2,
+            firePos.getZ() + 3
+        );
+        var arrows = level.getEntitiesOfClass(
+            AbstractArrow.class,
+            arrowBox,
+            a -> a.isOnFire() && a.getOwner() instanceof LivingEntity
+        );
+        if (!arrows.isEmpty()) {
+            attacker = (LivingEntity) arrows.get(0).getOwner();
+        }
+
+        if (attacker == null) {
+            var nearbyBox = mob.getBoundingBox().inflate(8.0D);
+            var candidates = level.getEntitiesOfClass(
+                LivingEntity.class,
+                nearbyBox,
+                e -> e.isAlive() && e != mob && isHoldingFireTool(e)
+            );
+            if (!candidates.isEmpty()) {
+                attacker = candidates.stream()
+                    .min(java.util.Comparator.comparingDouble(mob::distanceToSqr))
+                    .orElse(null);
+            }
+        }
+
+        if (attacker == null) {
+            var vanillaTarget = mob.getTarget();
+            if (
+                vanillaTarget != null && vanillaTarget.isAlive()
+                    && mob.distanceToSqr(vanillaTarget) <= 16.0 * 16.0
+            ) {
+                attacker = vanillaTarget;
+            }
+        }
+
+        if (attacker != null) {
+            blackboard.set(AiKeys.LAST_FIRE_ATTACKER, attacker);
+            var existingExpiry = blackboard.get(AiKeys.FIRE_DANGER_UNTIL_TICK, Integer.class);
+            var newExpiry = currentTick + FIRE_DANGER_DURATION;
+            if (existingExpiry == null || newExpiry > existingExpiry) {
+                blackboard.set(AiKeys.FIRE_DANGER_UNTIL_TICK, newExpiry);
+            }
+
+            var currentTarget = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, currentTarget != null && currentTarget == attacker);
+        }
     }
 
-    private static void writeTolerance(Blackboard blackboard) {
-        blackboard.set(AiKeys.FIRE_TOLERANCE, 0.0F);
+    /**
+     * Returns {@code true} if {@code entity} is holding an item that could be used to start fires: flint and steel, a
+     * lava bucket, or a fire-charge-type item.
+     */
+    private static boolean isHoldingFireTool(LivingEntity entity) {
+        for (var slot : entity.getHandSlots()) {
+            var item = slot.getItem();
+            var id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath();
+            if (
+                id.contains("flint_and_steel")
+                    || id.contains("lava_bucket")
+                    || id.contains("fire_charge")
+            ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static <E extends Mob> boolean hasNearbyFire(E mob) {
         return findNearestFire(mob) != null;
     }
 
-    private static <E extends Mob> BlockPos findNearestFire(E mob) {
+    public static boolean isFireDangerActive(Blackboard blackboard, int currentTick) {
+        var expiry = blackboard.get(AiKeys.FIRE_DANGER_UNTIL_TICK, Integer.class);
+        return expiry != null && currentTick < expiry;
+    }
+
+    public static void tickFireAttackerMemory(Blackboard blackboard, int currentTick) {
+        var expiry = blackboard.get(AiKeys.FIRE_DANGER_UNTIL_TICK, Integer.class);
+        if (expiry != null && currentTick >= expiry) {
+            blackboard.set(AiKeys.LAST_FIRE_ATTACKER, null);
+            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, false);
+            blackboard.set(AiKeys.FIRE_DANGER_UNTIL_TICK, null);
+        }
+    }
+
+    static <E extends Mob> BlockPos findNearestFire(E mob) {
         var origin = mob.blockPosition();
         var level = mob.level();
 
@@ -193,6 +306,15 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             }
         }
         return best;
+    }
+
+    private static float readTolerance(Blackboard blackboard) {
+        var val = blackboard.get(AiKeys.FIRE_TOLERANCE, Float.class);
+        return val != null ? val : 0f;
+    }
+
+    private static void writeTolerance(Blackboard blackboard) {
+        blackboard.set(AiKeys.FIRE_TOLERANCE, 0.0F);
     }
 
     private static <E extends Mob> void slowDown(E mob) {

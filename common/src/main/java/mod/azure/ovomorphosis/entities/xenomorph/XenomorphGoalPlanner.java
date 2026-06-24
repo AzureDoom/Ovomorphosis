@@ -3,6 +3,7 @@ package mod.azure.ovomorphosis.entities.xenomorph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
+import mod.azure.ovomorphosis.ai.actions.xenomorph.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
@@ -164,6 +165,34 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                         hiveScore -= PENALTY_FAILED * 0.5f;
                 }
                 default -> {}
+            }
+        }
+
+        FleeFireAction.tickFireAttackerMemory(blackboard, tick);
+
+        var fireAttacker = blackboard.get(AiKeys.LAST_FIRE_ATTACKER, LivingEntity.class);
+        var fireUserIsTarget = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_FIRE_USER, Boolean.class));
+        var fireDangerActive = FleeFireAction.isFireDangerActive(blackboard, tick);
+
+        if (fireAttacker != null && target != null) {
+            var isSame = fireAttacker == target;
+            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, isSame);
+            fireUserIsTarget = isSame;
+        }
+
+        if (fireDangerActive && hasTarget) {
+            if (fireUserIsTarget) {
+                huntScore -= 25f;
+                ambushScore += 35f;
+                lightsScore += 15f;
+
+                if (nearWeb) {
+                    defendScore = Math.max(0f, defendScore - 20f);
+                    retreatScore += 20f;
+                }
+            } else {
+                retreatScore += 15f;
+                ambushScore += 10f;
             }
         }
 
