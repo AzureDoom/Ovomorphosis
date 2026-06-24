@@ -192,7 +192,7 @@ public class OvomorphosisConfig {
             @Configurable
             @Configurable.Synchronized
             @Configurable.DecimalRange(min = 0.0F)
-            public float xenoExecuteChance = 0.05F;
+            public float xenoExecuteChance = 0.25F;
 
             @Configurable
             @Configurable.Synchronized
