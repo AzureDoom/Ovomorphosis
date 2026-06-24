@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
@@ -169,6 +170,13 @@ public class ResinBlock extends AbstractResinBlock {
         @NotNull BlockPos pos,
         @NotNull RandomSource random
     ) {
+        if (
+            !level
+                .getGameRules()
+                .getBoolean(GameRules.RULE_MOBGRIEFING)
+        ) {
+            return;
+        }
         var directions = Direction.values();
         var start = random.nextInt(directions.length);
         for (var i = 0; i < directions.length; i++) {

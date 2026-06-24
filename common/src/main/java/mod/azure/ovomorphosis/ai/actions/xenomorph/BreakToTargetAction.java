@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -49,6 +50,14 @@ public class BreakToTargetAction<E extends XenomorphEntity> implements Action<E>
     public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive()) {
+            return ActionStatus.FAILURE;
+        }
+
+        if (
+            !mob.level()
+                .getGameRules()
+                .getBoolean(GameRules.RULE_MOBGRIEFING)
+        ) {
             return ActionStatus.FAILURE;
         }
 

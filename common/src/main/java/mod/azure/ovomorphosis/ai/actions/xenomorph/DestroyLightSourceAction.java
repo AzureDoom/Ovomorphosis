@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -54,6 +55,14 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
     @Override
     public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         var level = mob.level();
+
+        if (
+            !mob.level()
+                .getGameRules()
+                .getBoolean(GameRules.RULE_MOBGRIEFING)
+        ) {
+            return ActionStatus.FAILURE;
+        }
 
         if (lightBlock == null) {
             lightBlock = findBrightestLightBlock(mob);
