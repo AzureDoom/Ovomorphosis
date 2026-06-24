@@ -107,7 +107,7 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         @SuppressWarnings("unchecked")
         var activeGoal = (PlannedGoal<ChestbursterEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
 
-        int currentTick = (int) this.level().getGameTime();
+        var currentTick = (int) this.level().getGameTime();
 
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.GROW_SAFE

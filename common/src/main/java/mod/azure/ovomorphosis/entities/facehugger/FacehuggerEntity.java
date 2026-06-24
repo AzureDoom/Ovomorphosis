@@ -108,7 +108,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         @SuppressWarnings("unchecked")
         var activeGoal = (PlannedGoal<FacehuggerEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
 
-        int currentTick = (int) this.level().getGameTime();
+        var currentTick = (int) this.level().getGameTime();
 
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.WANDER || goalType == AiGoalType.NONE;
