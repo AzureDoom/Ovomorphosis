@@ -287,7 +287,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         var executing = this.isExecuting();
         var smallMob = mob.getBbHeight() < 1.4F;
 
-        var xzOffset = executing ? -1.4F : -1.85F;
+        var xzOffset = -0.95F;
 
         var yOffset = executing
             ? smallMob ? 1.145F : 0.745F
