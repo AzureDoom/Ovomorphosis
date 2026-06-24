@@ -53,6 +53,8 @@ public final class MobBrainRuntime<E extends Mob> {
      * </ol>
      */
     public void tick() {
+        if (mob.isNoAi())
+            return;
         cooldowns.tick();
         if (targetingSystem != null)
             targetingSystem.tick(mob, blackboard);

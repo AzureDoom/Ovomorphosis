@@ -10,6 +10,8 @@ public final class GoalApplicator {
     private GoalApplicator() {}
 
     public static <E extends Mob> void apply(E mob, Blackboard blackboard, PlannedGoal<E> goal) {
+        if (mob.isNoAi())
+            return;
         blackboard.set(AiKeys.ACTIVE_GOAL, goal);
         blackboard.set(AiKeys.ACTIVE_GOAL_TYPE, goal.type());
         blackboard.set(AiKeys.LAST_GOAL_REASON, goal.reason());
