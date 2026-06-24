@@ -37,6 +37,8 @@ public final class MovementUtils {
         var state = level.getBlockState(pos);
         if (state.is(ModTags.DANGER_BLOCKS))
             return false;
+        if (state.is(ModTags.RESIN))
+            return true;
         if (!state.getFluidState().isEmpty()) {
             return true;
         }
@@ -383,11 +385,17 @@ public final class MovementUtils {
             return false;
         }
 
-        if (!level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()) {
+        if (
+            !level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                && !level.getBlockState(feet).is(ModTags.RESIN)
+        ) {
             return false;
         }
 
-        if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
+        if (
+            !level.getBlockState(head).getCollisionShape(level, head).isEmpty()
+                && !level.getBlockState(head).is(ModTags.RESIN)
+        ) {
             return false;
         }
 

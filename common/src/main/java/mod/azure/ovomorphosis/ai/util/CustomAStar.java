@@ -8,6 +8,8 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
+import mod.azure.ovomorphosis.util.ModTags;
+
 /**
  * A grid-based A* pathfinder for ground-walking mobs.
  * <p>
@@ -314,11 +316,17 @@ public class CustomAStar {
                     return false;
                 }
 
-                if (!level.getBlockState(checkFeet).getCollisionShape(level, checkFeet).isEmpty()) {
+                if (
+                    !level.getBlockState(checkFeet).getCollisionShape(level, checkFeet).isEmpty()
+                        && !level.getBlockState(checkFeet).is(ModTags.RESIN)
+                ) {
                     return false;
                 }
 
-                if (!level.getBlockState(checkHead).getCollisionShape(level, checkHead).isEmpty()) {
+                if (
+                    !level.getBlockState(checkHead).getCollisionShape(level, checkHead).isEmpty()
+                        && !level.getBlockState(checkHead).is(ModTags.RESIN)
+                ) {
                     return false;
                 }
 
