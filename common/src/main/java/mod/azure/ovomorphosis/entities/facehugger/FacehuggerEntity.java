@@ -119,12 +119,12 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             || activeGoal.isNone()
             || activeGoal.isExpired(currentTick)
             || reactiveReplan
-            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown("goal_replan"));
+            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN));
 
         if (!shouldReplan)
             return;
 
-        cooldowns.set("goal_replan", 20);
+        cooldowns.set(AiKeys.GOAL_REPLAN, 20);
 
         var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
         GoalApplicator.apply(this, blackboard, newGoal);
@@ -150,7 +150,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         if (brainRuntime.getCurrentAction() == null && blackboard.has(AiKeys.TARGET)) {
             if (leapJustFailed) {
                 leapJustFailed = false;
-                cooldowns.set("goal_replan", 0);
+                cooldowns.set(AiKeys.GOAL_REPLAN, 0);
                 var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
                 GoalApplicator.apply(this, blackboard, newGoal);
             } else {

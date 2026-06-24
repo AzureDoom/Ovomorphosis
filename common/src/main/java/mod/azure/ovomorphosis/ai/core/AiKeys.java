@@ -67,6 +67,8 @@ public final class AiKeys {
      */
     public static final String LIGHT_SCAN_COOLDOWN = "destroy_light_scan";
 
+    public static final String GOAL_REPLAN = "goal_replan";
+
     public static final String ACTIVE_GOAL = "active_goal";
 
     public static final String ACTIVE_GOAL_TYPE = "active_goal_type";
