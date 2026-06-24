@@ -128,4 +128,6 @@ public final class AiKeys {
     public static final String FIRE_FLEE_COOLDOWN = "fire_flee_cooldown";
 
     public static final String LAST_FIRE_POS = "last_fire_pos";
+
+    public static final String HIVE_SYNC_COOLDOWN = "hive_sync_cooldown";
 }

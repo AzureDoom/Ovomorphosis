@@ -68,11 +68,13 @@ public final class TargetingUtils {
             e != mob &&
             !e.isSpectator() &&
             !(e instanceof Player p && (p.isCreative() || p.isSpectator())) &&
-            e.getType() != mob.getType() && !(e instanceof AbstractAlienEntity) && e.getPassengers()
-                .stream()
-                .noneMatch(AbstractAlienEntity.class::isInstance) && !e.hasControllingPassenger() && e
-                    .getInBlockState() != BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState() && !InfectionManager
-                        .isInfected(e);
+            e.getType() != mob.getType() &&
+            !(e instanceof AbstractAlienEntity) &&
+            e.getPassengers().stream().noneMatch(AbstractAlienEntity.class::isInstance) &&
+            !e.hasControllingPassenger() &&
+            (!e.isPassenger() || !(e.getVehicle() instanceof AbstractAlienEntity)) &&
+            e.getInBlockState() != BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState() &&
+            !InfectionManager.isInfected(e);
     }
 
     /**

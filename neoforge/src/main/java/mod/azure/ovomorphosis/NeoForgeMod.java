@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis;
 
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.EntityType;
@@ -17,6 +18,7 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.RegisterSpawnPlacementsEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -26,6 +28,7 @@ import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
@@ -68,6 +71,13 @@ public final class NeoForgeMod {
         soundEventDeferredRegister.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(
             (AddReloadListenerEvent event) -> event.addListener(new EntityHeadOffsetData.ReloadListener())
+        );
+        NeoForge.EVENT_BUS.addListener(
+            (LevelEvent.Unload event) -> {
+                if (event.getLevel() instanceof ServerLevel serverLevel) {
+                    ResinWebRegistry.clearDimension(serverLevel.dimension());
+                }
+            }
         );
         modEventBus.addListener(this::createEntityAttributes);
         modEventBus.addListener(this::addSpawnPlacements);

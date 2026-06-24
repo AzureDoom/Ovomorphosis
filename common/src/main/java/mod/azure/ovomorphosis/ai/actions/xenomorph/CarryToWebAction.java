@@ -3,13 +3,15 @@ package mod.azure.ovomorphosis.ai.actions.xenomorph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
@@ -17,8 +19,21 @@ import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.ai.util.CrawlingCustomAStar;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 
+/**
+ * Carries a grabbed victim to the nearest {@code RESIN_WEB_CROSS} block for deposit.
+ * <h3>Web location strategy</h3> Web lookup now goes through {@link HiveMemory} exclusively:
+ * <ol>
+ * <li>{@link HiveMemory#findNearestWebCross} is tried first against the already-cached set.</li>
+ * <li>If that misses, {@link HiveMemory#syncFromRegistry} is called to pull fresh positions from
+ * {@link ResinWebRegistry} (a chunk-bucketed index updated by {@code ResinWebFullBlock} on every placement and
+ * removal). The expensive O(n³) world-cube scan that previously lived here is gone.</li>
+ * </ol>
+ * <h3>Sync cooldown</h3> Registry syncs are gated behind {@link AiKeys#HIVE_SYNC_COOLDOWN} (default 60 ticks) so the
+ * chunk-bucket iteration does not run every tick when no web is nearby.
+ */
 public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
     private final int priority;
@@ -37,6 +52,8 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
     private final int[] steerBias = { 0 };
 
+    private int revalidateCooldown = 0;
+
     public CarryToWebAction(
         int priority,
         Consumer<E> onStartCallback,
@@ -54,7 +71,9 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         path = Collections.emptyList();
         pathIndex = 0;
         repathCooldown = 0;
+        revalidateCooldown = 0;
 
+        syncMemoryFromRegistry(mob, blackboard, cooldowns);
         webTarget = resolveWebTarget(mob, blackboard);
 
         onStartCallback.accept(mob);
@@ -67,17 +86,35 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
         var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (victim == null || !victim.isAlive()) {
+            CommonMod.LOGGER.info(
+                "[CarryToWeb] FAILURE: victim null={} alive={}",
+                victim == null,
+                victim != null && victim.isAlive()
+            );
             writeFeedback(mob, blackboard, PlanFailureReason.FAILED_TARGET_LOST);
             return ActionStatus.FAILURE;
         }
 
-        if (webTarget == null || !mob.level().getBlockState(webTarget).is(BlockRegistry.RESIN_WEB_CROSS.get())) {
+        if (webTarget == null) {
+            if (cooldowns.ready(AiKeys.HIVE_SYNC_COOLDOWN)) {
+                syncMemoryFromRegistry(mob, blackboard, cooldowns);
+            }
             webTarget = resolveWebTarget(mob, blackboard);
             if (webTarget == null) {
+                CommonMod.LOGGER.info("[CarryToWeb] FAILURE: no web target found");
                 writeFeedback(mob, blackboard, PlanFailureReason.FAILED_NO_WEB);
                 return ActionStatus.FAILURE;
             }
             path = Collections.emptyList();
+        } else if (revalidateCooldown <= 0) {
+            var chunkLoaded = mob.level().isLoaded(webTarget);
+            if (chunkLoaded && !mob.level().getBlockState(webTarget).is(BlockRegistry.RESIN_WEB_CROSS.get())) {
+                webTarget = null;
+                path = Collections.emptyList();
+            }
+            revalidateCooldown = 40;
+        } else {
+            revalidateCooldown--;
         }
 
         victim.startRiding(mob, true);
@@ -120,67 +157,80 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
     }
 
     /**
-     * Resolves the nearest valid web cross block. Checks {@link HiveMemory} first. If memory is empty or finds nothing
-     * in range, falls back to {@link #scanWorldForWebCross}, which bulk-adds all found positions to memory so the scan
-     * is rarely needed again.
+     * Returns the nearest valid web cross from {@link HiveMemory} (which may have just been synced from
+     * {@link ResinWebRegistry}). No world scan is performed here.
      */
     private BlockPos resolveWebTarget(E mob, Blackboard blackboard) {
         var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        if (memory == null)
+            return null;
 
-        if (memory != null) {
-            Optional<BlockPos> fromMemory = memory.findNearestWebCross(mob.level(), mob.blockPosition(), 80D);
-            if (fromMemory.isPresent()) {
-                return fromMemory.get();
-            }
-        }
-
-        return scanWorldForWebCross(mob, memory);
-    }
-
-    /**
-     * Scans the surrounding world for all resin web cross blocks within range, adds every hit to {@code memory} so
-     * future calls can skip the scan entirely, then returns the nearest found.
-     * <p>
-     * This is intentionally a bulk-populate rather than a single-result scan: paying the iteration cost once and
-     * caching all results means the expensive loop is almost never repeated.
-     */
-    private BlockPos scanWorldForWebCross(E mob, HiveMemory memory) {
+        var level = mob.level();
         var origin = mob.blockPosition();
-        var rangeSqr = 80.0 * 80.0;
-        var webBlock = BlockRegistry.RESIN_WEB_CROSS.get();
-        var r = (int) Math.ceil(80.0);
+        var maxRange = 80D;
+        var maxRangeSqr = maxRange * maxRange;
 
         BlockPos best = null;
         var bestDistSq = Double.MAX_VALUE;
 
-        for (
-            var pos : BlockPos.betweenClosed(
-                origin.offset(-r, -r, -r),
-                origin.offset(r, r, r)
-            )
-        ) {
-            var distSq = origin.distSqr(pos);
-            if (distSq > rangeSqr)
+        for (var pos : memory.getAllWebCrosses()) {
+            if (origin.distSqr(pos) > maxRangeSqr)
                 continue;
-            if (!mob.level().getBlockState(pos).is(webBlock))
+            if (!level.isLoaded(pos))
+                continue;
+            if (!level.getBlockState(pos).is(BlockRegistry.RESIN_WEB_CROSS.get()))
+                continue;
+            if (isBlockOccupied(level, pos))
                 continue;
 
-            var immutable = pos.immutable();
-
-            if (memory != null) {
-                memory.trackBlock(immutable);
-            }
-
-            if (distSq < bestDistSq) {
-                bestDistSq = distSq;
-                best = immutable;
+            var dSq = origin.distSqr(pos);
+            if (dSq < bestDistSq) {
+                bestDistSq = dSq;
+                best = pos;
             }
         }
 
         return best;
     }
 
+    private static boolean isBlockOccupied(Level level, BlockPos pos) {
+        var cx = pos.getX() + 0.5;
+        var cy = pos.getY() + 0.5;
+        var cz = pos.getZ() + 0.5;
+        var aabb = new AABB(
+            cx - 0.5,
+            cy - 0.5,
+            cz - 0.5,
+            cx + 0.5,
+            cy + 0.5,
+            cz + 0.5
+        );
+        return !level.getEntitiesOfClass(
+            LivingEntity.class,
+            aabb,
+            e -> e.isAlive() && !e.isSpectator()
+        ).isEmpty();
+    }
+
+    /**
+     * Pulls fresh cross-block positions from {@link ResinWebRegistry} into {@link HiveMemory} and resets the sync
+     * cooldown.
+     * <p>
+     * This is cheap: the registry iterates at most a small grid of chunk buckets rather than every block in a cube.
+     * Still, callers should gate it behind {@link AiKeys#HIVE_SYNC_COOLDOWN} to avoid even that small overhead running
+     * every tick.
+     */
+    private void syncMemoryFromRegistry(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        if (memory == null)
+            return;
+
+        memory.syncFromRegistry(mob.level(), mob.blockPosition(), 80D);
+        cooldowns.set(AiKeys.HIVE_SYNC_COOLDOWN, 60);
+    }
+
     private void deposit(E mob, LivingEntity victim, Blackboard blackboard, Cooldowns cooldowns) {
+        victim.stopRiding();
         var centre = Vec3.atBottomCenterOf(webTarget);
         victim.setPos(centre.x, webTarget.getY(), centre.z);
         victim.setDeltaMovement(Vec3.ZERO);
@@ -200,7 +250,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         }
 
         if (repathCooldown <= 0 || path.isEmpty() || pathIndex >= path.size()) {
-            path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), webTarget, 96, 2);
+            path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), webTarget, 1024, 2);
             pathIndex = path.size() > 1 ? 1 : 0;
             repathCooldown = 15;
         }
@@ -216,6 +266,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         if (pathIndex < path.size()) {
             direction = Vec3.atBottomCenterOf(path.get(pathIndex)).subtract(mob.position());
         } else {
+            repathCooldown = 0;
             direction = Vec3.atBottomCenterOf(webTarget).subtract(mob.position());
         }
 
@@ -223,16 +274,14 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         if (horizontal.lengthSqr() < 0.0001D)
             return;
 
-        var movement = MovementUtils.steerAwayFromDangerEntities(
-            mob,
-            horizontal.normalize().scale(0.28D)
-        );
+        var normalised = horizontal.normalize().scale(0.28D);
+        var movement = MovementUtils.steerAwayFromDangerEntities(mob, normalised);
         var safe = MovementUtils.findSafeMovement(mob, movement, steerBias);
 
-        if (!safe.equals(Vec3.ZERO)) {
-            mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-            mob.hasImpulse = true;
-        }
+        var toApply = safe.equals(Vec3.ZERO) ? normalised : safe;
+
+        mob.setDeltaMovement(toApply.x, mob.getDeltaMovement().y, toApply.z);
+        mob.hasImpulse = true;
     }
 
     private void faceToward(E mob, Vec3 target) {
@@ -252,7 +301,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
                 reason,
                 (int) mob.level().getGameTime(),
                 mob.blockPosition(),
-                activeGoalType != null ? activeGoalType : mod.azure.ovomorphosis.ai.goap.AiGoalType.NONE
+                activeGoalType != null ? activeGoalType : AiGoalType.NONE
             )
         );
     }

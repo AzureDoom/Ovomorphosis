@@ -3,7 +3,10 @@ package mod.azure.ovomorphosis.ai.core;
 import net.minecraft.world.entity.Mob;
 import org.jetbrains.annotations.Nullable;
 
+import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
+import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 /**
  * The central AI driver for a single mob.
@@ -56,7 +59,9 @@ public final class MobBrainRuntime<E extends Mob> {
         if (mob.isNoAi())
             return;
         cooldowns.tick();
-        if (targetingSystem != null)
+
+        var actionIsLocked = currentAction != null && !currentAction.isInterruptible();
+        if (targetingSystem != null && !actionIsLocked)
             targetingSystem.tick(mob, blackboard);
 
         if (currentAction != null) {
@@ -67,8 +72,23 @@ public final class MobBrainRuntime<E extends Mob> {
             }
 
             if (status != ActionStatus.RUNNING) {
+                CommonMod.LOGGER.info(
+                    "[Brain] Action {} stopped with status {} on mob {} at {}",
+                    currentAction.getClass().getSimpleName(),
+                    status,
+                    mob.getType().toShortString(),
+                    mob.blockPosition()
+                );
                 currentAction.stop(mob, blackboard, cooldowns, status);
                 currentAction = null;
+            }
+        }
+
+        if (mob instanceof XenomorphEntity xenomorph && cooldowns.ready(AiKeys.HIVE_SYNC_COOLDOWN)) {
+            var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+            if (memory != null) {
+                memory.syncFromRegistry(xenomorph.level(), xenomorph.blockPosition(), 80D);
+                cooldowns.set(AiKeys.HIVE_SYNC_COOLDOWN, 120);
             }
         }
 
@@ -76,7 +96,7 @@ public final class MobBrainRuntime<E extends Mob> {
 
         if (result.action() != null) {
             var shouldSwitch = currentAction == null
-                || result.priority() > currentAction.priority();
+                || (result.priority() > currentAction.priority() && currentAction.isInterruptible());
 
             if (shouldSwitch) {
                 if (currentAction != null) {

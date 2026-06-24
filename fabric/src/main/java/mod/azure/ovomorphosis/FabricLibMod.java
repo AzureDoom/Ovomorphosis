@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.registry.FlammableBlockRegistry;
@@ -17,6 +18,7 @@ import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
@@ -89,5 +91,6 @@ public final class FabricLibMod implements ModInitializer {
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
         );
+        ServerWorldEvents.UNLOAD.register((server, world) -> ResinWebRegistry.clearDimension(world.dimension()));
     }
 }

@@ -72,6 +72,10 @@ public final class WanderAction<E extends Mob> implements Action<E> {
             return ActionStatus.INTERRUPTED;
         }
 
+        if (!mob.getPassengers().isEmpty()) {
+            return ActionStatus.INTERRUPTED;
+        }
+
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target != null && target.isAlive()) {
             return ActionStatus.INTERRUPTED;
