@@ -3,6 +3,7 @@ package mod.azure.ovomorphosis.client.facehugger;
 import mod.azure.azurelib.common.render.entity.AzEntityRenderer;
 import mod.azure.azurelib.common.render.entity.AzEntityRendererConfig;
 import mod.azure.azurelib.common.render.entity.AzEntityRendererPipeline;
+import mod.azure.azurelib.common.render.lod.AzLodConfig;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 
@@ -35,6 +36,12 @@ public class FacehuggerRenderer extends AzEntityRenderer<FacehuggerEntity> {
                 .setAnimatorProvider(FacehuggerAnimator::new)
                 .setDeathMaxRotation(0F)
                 .setShadowRadius(0.25F)
+                .withLodConfig(
+                    AzLodConfig.builder()
+                        .boneLod(1028, 3)
+                        .animLod(1028, 2)
+                        .build()
+                )
                 .build(),
             context
         );

@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.client.xenomorph;
 
 import mod.azure.azurelib.common.render.entity.AzEntityRenderer;
 import mod.azure.azurelib.common.render.entity.AzEntityRendererConfig;
+import mod.azure.azurelib.common.render.lod.AzLodConfig;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 
@@ -34,6 +35,12 @@ public class XenomorphRenderer extends AzEntityRenderer<XenomorphEntity> {
                         0.5f,
                         1.0f
                     )
+                )
+                .withLodConfig(
+                    AzLodConfig.builder()
+                        .boneLod(1028, 3)
+                        .animLod(1028, 2)
+                        .build()
                 )
                 .build(),
             context
