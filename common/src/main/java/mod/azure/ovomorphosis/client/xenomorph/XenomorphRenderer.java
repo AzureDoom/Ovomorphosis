@@ -8,6 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.client.XenoModelRenderer;
+import mod.azure.ovomorphosis.client.layer.XenomorphGrowthOverlayLayer;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 public class XenomorphRenderer extends AzEntityRenderer<XenomorphEntity> {

@@ -1,4 +1,4 @@
-package mod.azure.ovomorphosis.client.xenomorph;
+package mod.azure.ovomorphosis.client.layer;
 
 import mod.azure.azurelib.common.model.AzBone;
 import mod.azure.azurelib.common.render.AzRendererPipeline;
@@ -9,13 +9,13 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.UUID;
 
-import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.util.Growable;
 
-public class XenomorphGrowthOverlayLayer<T extends XenomorphEntity> implements AzRenderLayer<UUID, T> {
+public class BloodLayer<T extends AbstractAlienEntity & Growable> implements AzRenderLayer<UUID, T> {
 
     private static final ResourceLocation textureLocation =
-        CommonMod.modResource("textures/entity/xenomorph_youth.png");
+        ResourceLocation.withDefaultNamespace("textures/block/crimson_nylium.png");
 
     @Override
     public void preRender(AzRendererPipelineContext<UUID, T> context) {}
@@ -23,16 +23,21 @@ public class XenomorphGrowthOverlayLayer<T extends XenomorphEntity> implements A
     @Override
     public void render(AzRendererPipelineContext<UUID, T> context) {
         T animatable = context.animatable();
+
         AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
         var rendertype = RenderType.entityTranslucentCull(textureLocation);
-
-        if (animatable.getGrowth() < animatable.getMaxGrowth() && animatable.isAlive()) {
+        var maxGrowth = animatable.getMaxGrowth() / 2;
+        if (animatable.getGrowth() < maxGrowth && animatable.isAlive()) {
             context.setRenderType(rendertype);
             context.setVertexConsumer(context.multiBufferSource().getBuffer(rendertype));
+            var progress = (maxGrowth - animatable.getGrowth()) / maxGrowth;
+            progress = progress * progress;
 
-            var progress = (animatable.getMaxGrowth() - animatable.getGrowth()) / animatable.getMaxGrowth();
-            var alpha = (int) (progress * 0xFF) << 24;
-            var color = (context.renderColor() & 0xFFFFFF) | alpha;
+            var maxAlpha = 80;
+            var alpha = (int) (progress * maxAlpha) << 24;
+
+            var bloodTint = 0x5A0A0A;
+            var color = bloodTint | alpha;
 
             context.setRenderColor(color);
             renderPipeline.reRender(context);
