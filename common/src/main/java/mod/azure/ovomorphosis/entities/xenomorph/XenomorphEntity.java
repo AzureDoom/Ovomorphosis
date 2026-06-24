@@ -275,8 +275,10 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             return;
         }
 
-        mob.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 100, true, true));
-        mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 40, 1, true, true));
+        if (this.tickCount % 20 == 0) {
+            mob.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 100, true, true));
+            mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 40, 1, true, true));
+        }
 
         var radians = this.yBodyRot * ((float) Math.PI / 180.0F);
         var sin = Mth.sin(radians);
