@@ -74,7 +74,7 @@ public class XenomorphTree {
         var carryToWeb = new CarryToWebAction<XenomorphEntity>(
             115,
             x -> x.animationDispatcher.serverExecute(),
-            x -> {}
+            x -> x.animationDispatcher.clientIdle()
         );
 
         var swim = new SwimAction<XenomorphEntity>(200);
