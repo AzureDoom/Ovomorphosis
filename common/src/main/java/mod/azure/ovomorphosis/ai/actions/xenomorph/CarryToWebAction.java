@@ -80,7 +80,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             path = Collections.emptyList();
         }
 
-        pinVictim(mob, victim);
+        victim.startRiding(mob, true);
 
         var webVec = Vec3.atBottomCenterOf(webTarget);
         if (mob.distanceToSqr(webVec) <= 1.8D * 1.8D) {
@@ -178,17 +178,6 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         }
 
         return best;
-    }
-
-    private void pinVictim(E mob, LivingEntity victim) {
-        var eyePos = mob.getEyePosition();
-        var forward = mob.getLookAngle().scale(0.6D);
-        var carryPos = eyePos.add(forward).add(0, 0.5D, 0);
-
-        victim.setPos(carryPos.x, carryPos.y, carryPos.z);
-        victim.setDeltaMovement(Vec3.ZERO);
-        victim.fallDistance = 0F;
-        victim.setNoGravity(true);
     }
 
     private void deposit(E mob, LivingEntity victim, Blackboard blackboard, Cooldowns cooldowns) {
