@@ -36,6 +36,7 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
@@ -207,10 +208,10 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         var blackboard = brainRuntime.getBlackboard();
         var cooldowns = brainRuntime.getCooldowns();
 
+        int currentTick = (int) this.level().getGameTime();
+
         @SuppressWarnings("unchecked")
         var activeGoal = (PlannedGoal<XenomorphEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
-
-        int currentTick = (int) this.level().getGameTime();
 
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.WANDER
@@ -218,19 +219,19 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             || goalType == AiGoalType.EXPAND_HIVE
             || goalType == AiGoalType.KILL_LIGHTS;
 
-        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET);
+        var huntSuppressed = GoalFailureCooldowns.getOrCreate(blackboard)
+            .isSuppressed(AiGoalType.HUNT_TARGET, currentTick);
+        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !huntSuppressed;
 
-        var shouldReplan = activeGoal == null
-            || activeGoal.isNone()
-            || activeGoal.isExpired(currentTick)
-            || reactiveReplan
-            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN));
+        if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+            return;
 
-        if (!shouldReplan)
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick))
             return;
 
         cooldowns.set(AiKeys.GOAL_REPLAN, 20);
         var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
+
         GoalApplicator.apply(this, blackboard, newGoal);
     }
 

@@ -8,6 +8,8 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.GoalPlanner;
 import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
@@ -17,28 +19,25 @@ import mod.azure.ovomorphosis.ai.util.HiveMemory;
 
 /**
  * GOAP planner for {@link XenomorphEntity}.
- * <h3>Goals scored</h3>
- * <ul>
- * <li>{@link AiGoalType#HUNT_TARGET} — active pursuit of a confirmed target.</li>
- * <li>{@link AiGoalType#AMBUSH_TARGET} — stalk a target without being detected (target facing away, far).</li>
- * <li>{@link AiGoalType#BREAK_OBSTACLE} — break a block obstructing the path to target.</li>
- * <li>{@link AiGoalType#KILL_LIGHTS} — destroy light sources to darken the area.</li>
- * <li>{@link AiGoalType#EXPAND_HIVE} — place resin / carry victim to web.</li>
- * <li>{@link AiGoalType#DEFEND_HIVE} — target is within the hive area, defend it aggressively.</li>
- * <li>{@link AiGoalType#RETREAT_TO_RESIN}— low health, retreat toward resin web.</li>
- * <li>{@link AiGoalType#INVESTIGATE} — check last known position after target loss.</li>
- * <li>{@link AiGoalType#WANDER} — default idle.</li>
- * </ul>
- * <h3>Failure feedback integration</h3> The planner reads {@link AiKeys#LAST_PLAN_FEEDBACK} before scoring and applies
- * modifiers:
- * <ul>
- * <li>{@link PlanFailureReason#FAILED_NO_PATH} / {@link PlanFailureReason#FAILED_STUCK} /
- * {@link PlanFailureReason#FAILED_BLOCKED} → raise {@code BREAK_OBSTACLE} score; penalise the failing goal type.</li>
- * <li>{@link PlanFailureReason#FAILED_TARGET_LOST} → raise {@code INVESTIGATE}.</li>
- * <li>{@link PlanFailureReason#FAILED_TOO_BRIGHT} → raise {@code KILL_LIGHTS}.</li>
- * <li>{@link PlanFailureReason#FAILED_NO_WEB} → raise {@code EXPAND_HIVE}.</li>
- * <li>{@link PlanFailureReason#FAILED_DANGER} → raise {@code RETREAT_TO_RESIN}.</li>
- * </ul>
+ * <h3>Anti-thrash design</h3> Four mechanisms prevent goal oscillation:
+ * <ol>
+ * <li><b>Min-commit lock</b> — {@link GoalApplicator#shouldReplan} suppresses the planner until
+ * {@link PlannedGoal#canReplan} is true (default 40 ticks). The entity's tick method must call {@code shouldReplan}
+ * before invoking this planner.</li>
+ * <li><b>Hysteresis bonus</b> — the currently active goal type receives a flat {@link #HYSTERESIS_BONUS} score
+ * addition, raising the bar a challenger must clear to displace it. Emergency-tier situations still win because their
+ * base scores are much higher than the bonus.</li>
+ * <li><b>Per-goal failure cooldowns</b> — {@link GoalFailureCooldowns} tracks which goal types have recently failed and
+ * applies a linearly decaying penalty to their scores, persisting well beyond the 80-tick {@link PlanFeedback}
+ * freshness window.</li>
+ * <li><b>Emergency override tier</b> — goals scored at or above {@link #EMERGENCY_SCORE_THRESHOLD} are tagged
+ * {@link GoalUrgency#EMERGENCY}, which causes {@link GoalApplicator#shouldReplan} to bypass the min-commit lock on the
+ * caller side.</li>
+ * </ol>
+ * <h3>Failure recording</h3> When the feedback switch fires for path/stuck/blocked failures the planner now calls
+ * {@link GoalFailureCooldowns#recordFailure} in addition to the existing score penalty. This means a goal that fails
+ * repeatedly is suppressed for a full {@link GoalFailureCooldowns#DEFAULT_DURATION} (200 ticks) rather than just the
+ * 80-tick feedback window.
  */
 public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> {
 
@@ -56,6 +55,10 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
 
     private static final float PENALTY_FAILED = 40f;
 
+    private static final float HYSTERESIS_BONUS = 20f;
+
+    private static final float EMERGENCY_SCORE_THRESHOLD = 85f;
+
     @Override
     public PlannedGoal<XenomorphEntity> chooseGoal(
         XenomorphEntity mob,
@@ -63,6 +66,10 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         Cooldowns cooldowns
     ) {
         int tick = (int) mob.level().getGameTime();
+
+        var gfc = GoalFailureCooldowns.getOrCreate(blackboard);
+        gfc.evictExpired(tick);
+
         var feedback = readFeedback(blackboard, tick);
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
@@ -137,36 +144,60 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 case FAILED_NO_PATH, FAILED_STUCK, FAILED_BLOCKED -> {
                     breakScore += BOOST_BREAK;
                     investigateScore += BOOST_INVEST * 0.5f;
-                    if (failedGoal == AiGoalType.HUNT_TARGET)
+                    if (failedGoal == AiGoalType.HUNT_TARGET) {
                         huntScore -= PENALTY_FAILED;
-                    if (failedGoal == AiGoalType.AMBUSH_TARGET)
+                        gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 160);
+                    }
+                    if (failedGoal == AiGoalType.AMBUSH_TARGET) {
                         ambushScore -= PENALTY_FAILED;
+                        gfc.recordFailure(AiGoalType.AMBUSH_TARGET, tick, 120);
+                    }
+                    if (failedGoal == AiGoalType.EXPAND_HIVE) {
+                        gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 100);
+                    }
                 }
                 case FAILED_TARGET_LOST -> {
                     investigateScore += BOOST_INVEST;
                     huntScore -= PENALTY_FAILED * 0.5f;
+                    gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 80);
                 }
                 case FAILED_TOO_BRIGHT -> {
                     lightsScore += BOOST_LIGHTS;
                     huntScore -= PENALTY_FAILED * 0.5f;
+                    gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 60);
                 }
                 case FAILED_NO_WEB -> {
                     hiveScore += BOOST_HIVE;
+                    gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 120);
                 }
                 case FAILED_DANGER -> {
                     retreatScore += BOOST_RETREAT;
                     huntScore -= PENALTY_FAILED;
                     ambushScore -= PENALTY_FAILED;
+                    gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 200);
+                    gfc.recordFailure(AiGoalType.AMBUSH_TARGET, tick, 200);
                 }
                 case FAILED_COOLDOWN -> {
-                    if (failedGoal == AiGoalType.HUNT_TARGET)
+                    if (failedGoal == AiGoalType.HUNT_TARGET) {
                         huntScore -= PENALTY_FAILED * 0.5f;
-                    if (failedGoal == AiGoalType.EXPAND_HIVE)
+                        gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 40);
+                    }
+                    if (failedGoal == AiGoalType.EXPAND_HIVE) {
                         hiveScore -= PENALTY_FAILED * 0.5f;
+                        gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 40);
+                    }
                 }
                 default -> {}
             }
         }
+
+        huntScore -= gfc.getPenalty(AiGoalType.HUNT_TARGET, tick);
+        ambushScore -= gfc.getPenalty(AiGoalType.AMBUSH_TARGET, tick);
+        breakScore -= gfc.getPenalty(AiGoalType.BREAK_OBSTACLE, tick);
+        hiveScore -= gfc.getPenalty(AiGoalType.EXPAND_HIVE, tick);
+        lightsScore -= gfc.getPenalty(AiGoalType.KILL_LIGHTS, tick);
+        retreatScore -= gfc.getPenalty(AiGoalType.RETREAT_TO_RESIN, tick);
+        investigateScore -= gfc.getPenalty(AiGoalType.INVESTIGATE, tick);
 
         FleeFireAction.tickFireAttackerMemory(blackboard, tick);
 
@@ -185,7 +216,6 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 huntScore -= 25f;
                 ambushScore += 35f;
                 lightsScore += 15f;
-
                 if (nearWeb) {
                     defendScore = Math.max(0f, defendScore - 20f);
                     retreatScore += 20f;
@@ -204,6 +234,22 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         defendScore = Math.max(0f, defendScore);
         retreatScore = Math.max(0f, retreatScore);
         investigateScore = Math.max(0f, investigateScore);
+
+        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        if (activeGoalType != null) {
+            switch (activeGoalType) {
+                case HUNT_TARGET -> huntScore += HYSTERESIS_BONUS;
+                case AMBUSH_TARGET -> ambushScore += HYSTERESIS_BONUS;
+                case BREAK_OBSTACLE -> breakScore += HYSTERESIS_BONUS;
+                case KILL_LIGHTS -> lightsScore += HYSTERESIS_BONUS;
+                case EXPAND_HIVE -> hiveScore += HYSTERESIS_BONUS;
+                case DEFEND_HIVE -> defendScore += HYSTERESIS_BONUS;
+                case RETREAT_TO_RESIN -> retreatScore += HYSTERESIS_BONUS;
+                case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
+                case WANDER -> wanderScore += HYSTERESIS_BONUS;
+                default -> {}
+            }
+        }
 
         record Candidate(
             AiGoalType type,
@@ -234,11 +280,11 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         boolean interruptible;
         String reason;
         LivingEntity chosenTarget = hasTarget ? target : null;
-        net.minecraft.core.BlockPos chosenDest = null;
+        BlockPos chosenDest = null;
 
         switch (chosen) {
             case HUNT_TARGET -> {
-                urgency = GoalUrgency.HIGH;
+                urgency = chosenScore >= EMERGENCY_SCORE_THRESHOLD ? GoalUrgency.EMERGENCY : GoalUrgency.HIGH;
                 interruptible = false;
                 reason = buildReason("Hunting target", feedback);
             }

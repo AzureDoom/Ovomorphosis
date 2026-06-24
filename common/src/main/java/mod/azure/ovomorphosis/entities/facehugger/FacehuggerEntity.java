@@ -28,6 +28,7 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.FacehuggerHostileTargetSelector;
@@ -101,31 +102,29 @@ public class FacehuggerEntity extends AbstractAlienEntity {
      * again once the minimum commit ticks have elapsed or the goal has expired. Emergency replans (e.g. health drop
      * mid-tick) are handled by the score dominating on the next eligible replan window.
      */
-    private void tickGoalPlanner() {
+    protected void tickGoalPlanner() {
         var blackboard = brainRuntime.getBlackboard();
         var cooldowns = brainRuntime.getCooldowns();
+
+        var currentTick = (int) this.level().getGameTime();
 
         @SuppressWarnings("unchecked")
         var activeGoal = (PlannedGoal<FacehuggerEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
 
-        var currentTick = (int) this.level().getGameTime();
-
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.WANDER || goalType == AiGoalType.NONE;
 
-        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET);
+        var infectSuppressed = GoalFailureCooldowns.getOrCreate(blackboard)
+            .isSuppressed(AiGoalType.INFECT_HOST, currentTick);
+        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !infectSuppressed;
 
-        var shouldReplan = activeGoal == null
-            || activeGoal.isNone()
-            || activeGoal.isExpired(currentTick)
-            || reactiveReplan
-            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN));
+        if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+            return;
 
-        if (!shouldReplan)
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick))
             return;
 
         cooldowns.set(AiKeys.GOAL_REPLAN, 20);
-
         var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
         GoalApplicator.apply(this, blackboard, newGoal);
     }

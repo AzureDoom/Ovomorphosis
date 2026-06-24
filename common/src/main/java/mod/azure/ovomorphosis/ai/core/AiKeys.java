@@ -155,4 +155,6 @@ public final class AiKeys {
     public static final String FIRE_DANGER_UNTIL_TICK = "fire_danger_until_tick";
 
     public static final String HIVE_SYNC_COOLDOWN = "hive_sync_cooldown";
+
+    public static final String GOAL_FAILURE_COOLDOWNS = "goal_failure_cooldowns";
 }

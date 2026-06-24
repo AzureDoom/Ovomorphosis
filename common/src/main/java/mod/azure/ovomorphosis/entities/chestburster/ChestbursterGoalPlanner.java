@@ -8,7 +8,7 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.GoalPlanner;
 import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
@@ -17,25 +17,15 @@ import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 
 /**
  * GOAP planner for {@link ChestbursterEntity}.
- * <p>
- * Scores five goals each planning interval:
+ * <h3>Anti-thrash design</h3> Mirrors the Xenomorph planner structure:
  * <ul>
- * <li>{@link AiGoalType#HIDE} — flee to safety when a threat is present.</li>
- * <li>{@link AiGoalType#FIND_FOOD} — seek and eat nearby food to accelerate growth.</li>
- * <li>{@link AiGoalType#GROW_SAFE} — no threat, no food; survive and grow.</li>
- * <li>{@link AiGoalType#INVESTIGATE} — check the last position a threat was seen from.</li>
- * <li>{@link AiGoalType#WANDER} — fallback idle roam.</li>
+ * <li><b>Hysteresis</b> — active goal receives {@link #HYSTERESIS_BONUS} so a challenger must clearly outscore it to
+ * displace it.</li>
+ * <li><b>GoalFailureCooldowns</b> — per-goal decaying penalty that persists beyond the 80-tick {@link PlanFeedback}
+ * freshness window.</li>
+ * <li><b>Emergency threshold</b> — HIDE at close range scores ≥ 100 and is always tagged {@link GoalUrgency#EMERGENCY},
+ * bypassing min-commit on the next cycle.</li>
  * </ul>
- * <h3>Failure feedback</h3> Actions write a {@link PlanFeedback} to {@link AiKeys#LAST_PLAN_FEEDBACK} when they fail.
- * This planner reads that feedback <em>before</em> scoring and applies additive score modifiers:
- * <ul>
- * <li>{@link PlanFailureReason#FAILED_NO_PATH} / {@link PlanFailureReason#FAILED_STUCK} → penalize the failing goal;
- * nudge INVESTIGATE to try a different route.</li>
- * <li>{@link PlanFailureReason#FAILED_TARGET_LOST} → boost INVESTIGATE toward last-seen.</li>
- * <li>{@link PlanFailureReason#FAILED_DANGER} → hard boost HIDE.</li>
- * <li>{@link PlanFailureReason#FAILED_COOLDOWN} → suppress the goal that was on cooldown.</li>
- * </ul>
- * Feedback is cleared by {@link GoalApplicator#apply} after a new goal is committed.
  */
 public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEntity> {
 
@@ -51,6 +41,8 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
 
     private static final float PENALTY_FAILED_GOAL = 35f;
 
+    private static final float HYSTERESIS_BONUS = 15f;
+
     private final EatFoodAction eatFoodAction;
 
     public ChestbursterGoalPlanner(EatFoodAction eatFoodAction) {
@@ -64,6 +56,9 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
         Cooldowns cooldowns
     ) {
         var tick = (int) mob.level().getGameTime();
+
+        var gfc = GoalFailureCooldowns.getOrCreate(blackboard);
+        gfc.evictExpired(tick);
 
         var feedback = readFeedback(blackboard, tick);
 
@@ -97,43 +92,68 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
             var failedGoal = feedback.failedGoalType();
 
             switch (reason) {
-                case FAILED_TARGET_LOST -> {
-                    investigateScore += BOOST_INVESTIGATE;
-                }
+                case FAILED_TARGET_LOST -> investigateScore += BOOST_INVESTIGATE;
                 case FAILED_NO_PATH, FAILED_STUCK, FAILED_BLOCKED -> {
-                    if (failedGoal == AiGoalType.HIDE)
+                    if (failedGoal == AiGoalType.HIDE) {
                         hideScore -= PENALTY_FAILED_GOAL;
-                    if (failedGoal == AiGoalType.FIND_FOOD)
+                        gfc.recordFailure(AiGoalType.HIDE, tick, 120);
+                    }
+                    if (failedGoal == AiGoalType.FIND_FOOD) {
                         foodScore -= PENALTY_FAILED_GOAL;
-                    if (failedGoal == AiGoalType.GROW_SAFE)
+                        gfc.recordFailure(AiGoalType.FIND_FOOD, tick, 100);
+                    }
+                    if (failedGoal == AiGoalType.GROW_SAFE) {
                         growScore -= PENALTY_FAILED_GOAL;
+                        gfc.recordFailure(AiGoalType.GROW_SAFE, tick, 80);
+                    }
                     investigateScore += BOOST_INVESTIGATE * 0.5f;
                 }
                 case FAILED_DANGER -> {
                     hideScore += BOOST_HIDE_DANGER;
                     foodScore -= PENALTY_FAILED_GOAL;
+                    gfc.recordFailure(AiGoalType.FIND_FOOD, tick, 200);
                 }
                 case FAILED_COOLDOWN -> {
-                    if (failedGoal == AiGoalType.FIND_FOOD)
+                    if (failedGoal == AiGoalType.FIND_FOOD) {
                         foodScore -= PENALTY_FAILED_GOAL;
-                    if (failedGoal == AiGoalType.HIDE)
+                        gfc.recordFailure(AiGoalType.FIND_FOOD, tick, 40);
+                    }
+                    if (failedGoal == AiGoalType.HIDE) {
                         hideScore -= PENALTY_FAILED_GOAL;
+                        gfc.recordFailure(AiGoalType.HIDE, tick, 40);
+                    }
                 }
-                default -> { /* NONE, etc. — no adjustment */ }
+                default -> {}
             }
         }
+
+        hideScore -= gfc.getPenalty(AiGoalType.HIDE, tick);
+        foodScore -= gfc.getPenalty(AiGoalType.FIND_FOOD, tick);
+        growScore -= gfc.getPenalty(AiGoalType.GROW_SAFE, tick);
+        investigateScore -= gfc.getPenalty(AiGoalType.INVESTIGATE, tick);
 
         hideScore = Math.max(0f, hideScore);
         foodScore = Math.max(0f, foodScore);
         growScore = Math.max(0f, growScore);
         investigateScore = Math.max(0f, investigateScore);
 
+        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        if (activeGoalType != null) {
+            switch (activeGoalType) {
+                case HIDE -> hideScore += HYSTERESIS_BONUS;
+                case FIND_FOOD -> foodScore += HYSTERESIS_BONUS;
+                case GROW_SAFE, WANDER -> growScore += HYSTERESIS_BONUS;
+                case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
+                default -> {}
+            }
+        }
+
         AiGoalType chosen;
         float chosenScore;
         GoalUrgency chosenUrgency;
         boolean interruptible;
         String reason;
-        net.minecraft.core.BlockPos chosenDest = null;
+        BlockPos chosenDest = null;
         LivingEntity chosenTarget = null;
 
         if (hideScore >= foodScore && hideScore >= growScore && hideScore >= investigateScore) {
@@ -156,7 +176,7 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
             interruptible = true;
             chosenDest = lastSeenPos != null
                 ? lastSeenPos
-                : feedback.failurePos();
+                : (feedback != null ? feedback.failurePos() : null);
             reason = buildReason("Investigating last known position", feedback);
         } else {
             chosen = AiGoalType.GROW_SAFE;

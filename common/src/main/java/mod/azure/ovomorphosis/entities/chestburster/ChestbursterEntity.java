@@ -104,10 +104,10 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         var blackboard = brainRuntime.getBlackboard();
         var cooldowns = brainRuntime.getCooldowns();
 
+        var currentTick = (int) this.level().getGameTime();
+
         @SuppressWarnings("unchecked")
         var activeGoal = (PlannedGoal<ChestbursterEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
-
-        var currentTick = (int) this.level().getGameTime();
 
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.GROW_SAFE
@@ -117,17 +117,13 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         var reactiveReplan = (isPassive && blackboard.has(AiKeys.TARGET))
             || (goalType == AiGoalType.GROW_SAFE && eatAction.canStart(this));
 
-        var shouldReplan = activeGoal == null
-            || activeGoal.isNone()
-            || activeGoal.isExpired(currentTick)
-            || reactiveReplan
-            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN));
+        if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+            return;
 
-        if (!shouldReplan)
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick))
             return;
 
         cooldowns.set(AiKeys.GOAL_REPLAN, 20);
-
         var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
         GoalApplicator.apply(this, blackboard, newGoal);
     }

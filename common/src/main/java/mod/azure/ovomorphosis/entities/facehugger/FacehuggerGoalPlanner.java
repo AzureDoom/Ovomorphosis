@@ -7,7 +7,7 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.GoalPlanner;
 import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
@@ -17,26 +17,20 @@ import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 /**
  * GOAP planner for {@link FacehuggerEntity}.
- * <p>
- * Evaluated once per planning interval, this planner scores the facehugger goals and commits the highest-scoring one to
- * the blackboard via {@link GoalApplicator}:
+ * <h3>Anti-thrash design</h3>
  * <ul>
- * <li>{@link AiGoalType#INFECT_HOST} — sprint-leap at a target in range and line of sight.</li>
- * <li>{@link AiGoalType#STALK_HOST} — cautiously close distance on a sensed target.</li>
- * <li>{@link AiGoalType#RETREAT_AND_HIDE} — flee to darkness when injured or outnumbered.</li>
- * <li>{@link AiGoalType#INVESTIGATE} — move to last-known target position after losing sight.</li>
- * <li>{@link AiGoalType#WANDER} — default low-priority idle roam.</li>
+ * <li><b>Hysteresis</b> — active goal receives {@link #HYSTERESIS_BONUS} so minor score fluctuations don't cause goal
+ * switching every cycle.</li>
+ * <li><b>GoalFailureCooldowns</b> — per-goal decaying penalty persisting beyond the 80-tick {@link PlanFeedback}
+ * window. A failed leap attempt suppresses INFECT_HOST for 160 ticks so the facehugger stalks before trying again
+ * rather than immediately re-leaping.</li>
+ * <li><b>Emergency threshold</b> — RETREAT_AND_HIDE when a threat is present scores ≥ 90 and is tagged
+ * {@link GoalUrgency#EMERGENCY}, bypassing min-commit.</li>
  * </ul>
- * <h3>Failure feedback</h3> Actions write a {@link PlanFeedback} to {@link AiKeys#LAST_PLAN_FEEDBACK} when they fail.
- * This planner reads that feedback <em>before</em> scoring and applies additive score modifiers:
- * <ul>
- * <li>{@link PlanFailureReason#FAILED_TARGET_LOST} → boost {@link AiGoalType#INVESTIGATE}</li>
- * <li>{@link PlanFailureReason#FAILED_NO_PATH} / {@link PlanFailureReason#FAILED_STUCK} → suppress the failing goal;
- * boost INVESTIGATE to try a different approach angle</li>
- * <li>{@link PlanFailureReason#FAILED_DANGER} → boost {@link AiGoalType#RETREAT_AND_HIDE}</li>
- * <li>{@link PlanFailureReason#FAILED_COOLDOWN} → suppress the goal that was on cooldown</li>
- * </ul>
- * Feedback is cleared by {@link GoalApplicator#apply} after a new goal is committed.
+ * <h3>isSuppressed usage</h3> {@link GoalFailureCooldowns#isSuppressed} is read in
+ * {@link FacehuggerEntity#tickGoalPlanner} to skip the reactive replan fast-path when INFECT_HOST is currently
+ * suppressed — there is no point triggering an immediate replan if the planner will just score that goal near zero
+ * anyway.
  */
 public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity> {
 
@@ -54,6 +48,8 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
 
     private static final float PENALTY_FAILED_GOAL = 40f;
 
+    private static final float HYSTERESIS_BONUS = 15f;
+
     @Override
     public PlannedGoal<FacehuggerEntity> chooseGoal(
         FacehuggerEntity mob,
@@ -62,6 +58,7 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
     ) {
         int tick = (int) mob.level().getGameTime();
 
+        // Already attached — lock in immediately, no scoring needed.
         if (mob.isAttachedToHost()) {
             return PlannedGoal.of(
                 AiGoalType.INFECT_HOST,
@@ -77,6 +74,10 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             );
         }
 
+        // --- Failure cooldown tracker ---
+        var gfc = GoalFailureCooldowns.getOrCreate(blackboard);
+        gfc.evictExpired(tick);
+
         var feedback = readFeedback(blackboard, tick);
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
@@ -89,6 +90,7 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
         var healthFraction = mob.getHealth() / mob.getMaxHealth();
         var lowHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
 
+        // --- Base scores ---
         var infectScore = 0f;
         var stalkScore = 0f;
         var retreatScore = 0f;
@@ -126,6 +128,7 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             investigateDest = lastSeenPos;
         }
 
+        // --- Feedback modifiers + failure recording ---
         if (feedback != null && feedback.isFresh(tick)) {
             var reason = feedback.reason();
             var failedGoal = feedback.failedGoalType();
@@ -133,17 +136,23 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             switch (reason) {
                 case FAILED_TARGET_LOST -> {
                     investigateScore += BOOST_INVESTIGATE;
-                    if (feedback.failurePos() != null) {
+                    if (feedback.failurePos() != null)
                         investigateDest = feedback.failurePos();
-                    }
                 }
                 case FAILED_NO_PATH, FAILED_STUCK, FAILED_BLOCKED -> {
-                    if (failedGoal == AiGoalType.INFECT_HOST)
+                    if (failedGoal == AiGoalType.INFECT_HOST) {
                         infectScore -= PENALTY_FAILED_GOAL;
-                    if (failedGoal == AiGoalType.STALK_HOST)
+                        // Suppress leap attempts for 160 ticks — force stalk before retry.
+                        gfc.recordFailure(AiGoalType.INFECT_HOST, tick, 160);
+                    }
+                    if (failedGoal == AiGoalType.STALK_HOST) {
                         stalkScore -= PENALTY_FAILED_GOAL;
-                    if (failedGoal == AiGoalType.RETREAT_AND_HIDE)
+                        gfc.recordFailure(AiGoalType.STALK_HOST, tick, 100);
+                    }
+                    if (failedGoal == AiGoalType.RETREAT_AND_HIDE) {
                         retreatScore -= PENALTY_FAILED_GOAL;
+                        gfc.recordFailure(AiGoalType.RETREAT_AND_HIDE, tick, 80);
+                    }
                     investigateScore += BOOST_INVESTIGATE * 0.5f;
                 }
                 case FAILED_DANGER -> {
@@ -151,22 +160,49 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
                     retreatDest = retreatDest != null ? retreatDest : findHidePosition(mob);
                     infectScore -= PENALTY_FAILED_GOAL;
                     stalkScore -= PENALTY_FAILED_GOAL;
+                    gfc.recordFailure(AiGoalType.INFECT_HOST, tick, 200);
+                    gfc.recordFailure(AiGoalType.STALK_HOST, tick, 200);
                 }
                 case FAILED_COOLDOWN -> {
-                    if (failedGoal == AiGoalType.INFECT_HOST)
+                    if (failedGoal == AiGoalType.INFECT_HOST) {
                         infectScore -= PENALTY_FAILED_GOAL;
-                    if (failedGoal == AiGoalType.STALK_HOST)
+                        gfc.recordFailure(AiGoalType.INFECT_HOST, tick, 40);
+                    }
+                    if (failedGoal == AiGoalType.STALK_HOST) {
                         stalkScore -= PENALTY_FAILED_GOAL;
+                        gfc.recordFailure(AiGoalType.STALK_HOST, tick, 40);
+                    }
                 }
-                default -> { /* NONE, FAILED_PRECONDITION, etc. — no adjustment */ }
+                default -> {}
             }
         }
 
+        // --- Apply per-goal-type decaying penalties ---
+        infectScore -= gfc.getPenalty(AiGoalType.INFECT_HOST, tick);
+        stalkScore -= gfc.getPenalty(AiGoalType.STALK_HOST, tick);
+        retreatScore -= gfc.getPenalty(AiGoalType.RETREAT_AND_HIDE, tick);
+        investigateScore -= gfc.getPenalty(AiGoalType.INVESTIGATE, tick);
+
+        // --- Floor at zero ---
         infectScore = Math.max(0f, infectScore);
         stalkScore = Math.max(0f, stalkScore);
         retreatScore = Math.max(0f, retreatScore);
         investigateScore = Math.max(0f, investigateScore);
 
+        // --- Hysteresis: boost the currently active goal type ---
+        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        if (activeGoalType != null) {
+            switch (activeGoalType) {
+                case INFECT_HOST -> infectScore += HYSTERESIS_BONUS;
+                case STALK_HOST -> stalkScore += HYSTERESIS_BONUS;
+                case RETREAT_AND_HIDE -> retreatScore += HYSTERESIS_BONUS;
+                case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
+                case WANDER -> wanderScore += HYSTERESIS_BONUS;
+                default -> {}
+            }
+        }
+
+        // --- Pick best ---
         AiGoalType chosen;
         float chosenScore;
         LivingEntity chosenTarget;
@@ -190,7 +226,7 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             chosen = AiGoalType.INFECT_HOST;
             chosenScore = infectScore;
             chosenTarget = infectTarget;
-            chosenDest = infectTarget.blockPosition();
+            chosenDest = infectTarget != null ? infectTarget.blockPosition() : null;
             chosenUrgency = GoalUrgency.HIGH;
             interruptible = false;
             reason = "Target in range, attempting infection";
@@ -234,10 +270,6 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
         );
     }
 
-    /**
-     * Reads {@link PlanFeedback} from the blackboard, falling back to constructing one from the raw
-     * {@link PlanFailureReason} shorthand key if the full record isn't present.
-     */
     private static PlanFeedback readFeedback(Blackboard blackboard, int tick) {
         var full = blackboard.get(AiKeys.LAST_PLAN_FEEDBACK, PlanFeedback.class);
         if (full != null)
