@@ -119,7 +119,7 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
 
     @Override
     public float getMaxGrowth() {
-        return 2400;
+        return 1400;
     }
 
     @Override
