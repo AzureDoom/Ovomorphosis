@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.ai.core;
 
+import mod.azure.ovomorphosis.ai.actions.xenomorph.FleeFireAction;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
@@ -103,4 +104,26 @@ public final class AiKeys {
      * Type: {@link PlanFailureReason}. Cleared automatically by {@code GoalApplicator.apply}.
      */
     public static final String LAST_FAILURE_REASON = "last_failure_reason";
+
+    /**
+     * Cooldown between dodge attempts. Prevents spamming DodgeProjectileAction. Type: cooldown ticks (int).
+     */
+    public static final String DODGE_COOLDOWN = "dodge_cooldown";
+
+    /**
+     * Lunge action cooldown. Prevents LungeAction from firing every tick. Type: cooldown ticks (int).
+     */
+    public static final String LUNGE_COOLDOWN = "lunge_cooldown";
+
+    /**
+     * Persistent fire tolerance counter for FleeFireAction. Accumulates while fire is nearby; decays while fleeing.
+     * Survives action restarts. Type: {@link Float}.
+     */
+    public static final String FIRE_TOLERANCE = "fire_tolerance";
+
+    /**
+     * Game tick timestamp after which flee-fire can trigger again. Set by {@link FleeFireAction} on success. Type:
+     * {@link Integer} (game tick expiry).
+     */
+    public static final String FIRE_FLEE_COOLDOWN = "fire_flee_cooldown";
 }

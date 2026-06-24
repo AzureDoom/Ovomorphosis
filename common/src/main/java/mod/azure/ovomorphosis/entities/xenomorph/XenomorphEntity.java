@@ -32,10 +32,15 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.BiConsumer;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.ai.util.XenomorphHostileTargetSelector;
+import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
 import mod.azure.ovomorphosis.util.ClientAnimState;
@@ -58,6 +63,8 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     private final DynamicGameEventListener<GameEventListener> dynamicGameEventListener;
 
     private final MobBrainRuntime<XenomorphEntity> brainRuntime;
+
+    private final XenomorphGoalPlanner goalPlanner = new XenomorphGoalPlanner();
 
     public final XenomorphAnimationDispatcher animationDispatcher;
 
@@ -185,12 +192,46 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     public void tick() {
         super.tick();
         if (!this.level().isClientSide()) {
-            brainRuntime.tick();
-            CrawlingManager.updateWallCrawlingPhysics(this);
+            if (!this.isNoAi()) {
+                tickGoalPlanner();
+                brainRuntime.tick();
+                CrawlingManager.updateWallCrawlingPhysics(this);
+            }
             if (this.isAlive()) {
                 grow(this, 1);
             }
         }
+    }
+
+    private void tickGoalPlanner() {
+        var blackboard = brainRuntime.getBlackboard();
+        var cooldowns = brainRuntime.getCooldowns();
+
+        @SuppressWarnings("unchecked")
+        var activeGoal = (PlannedGoal<XenomorphEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+
+        int currentTick = (int) this.level().getGameTime();
+
+        var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
+        var isPassive = goalType == AiGoalType.WANDER
+            || goalType == AiGoalType.NONE
+            || goalType == AiGoalType.EXPAND_HIVE
+            || goalType == AiGoalType.KILL_LIGHTS;
+
+        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET);
+
+        var shouldReplan = activeGoal == null
+            || activeGoal.isNone()
+            || activeGoal.isExpired(currentTick)
+            || reactiveReplan
+            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN));
+
+        if (!shouldReplan)
+            return;
+
+        cooldowns.set(AiKeys.GOAL_REPLAN, 20);
+        var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
+        GoalApplicator.apply(this, blackboard, newGoal);
     }
 
     @Override
@@ -220,6 +261,13 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     ) {
         if (spawnType == MobSpawnType.SPAWN_EGG || spawnType == MobSpawnType.COMMAND)
             setGrowth(1200);
+        if (level instanceof ServerLevel serverLevel) {
+            brainRuntime.getBlackboard()
+                .set(
+                    AiKeys.HIVE_MEMORY,
+                    OvomorphosisSavedData.getHiveMemory(serverLevel)
+                );
+        }
         return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
     }
 
@@ -262,6 +310,13 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         super.readAdditionalSaveData(tag);
         this.setGrowth(tag.getFloat("growth"));
         this.setIsExecuting(tag.getBoolean("isExecuting"));
+        if (this.level() instanceof ServerLevel serverLevel) {
+            brainRuntime.getBlackboard()
+                .set(
+                    AiKeys.HIVE_MEMORY,
+                    OvomorphosisSavedData.getHiveMemory(serverLevel)
+                );
+        }
     }
 
     @Override

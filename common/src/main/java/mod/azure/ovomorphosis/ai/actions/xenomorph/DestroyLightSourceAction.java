@@ -1,6 +1,8 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -171,7 +173,10 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
             for (var y = -6; y <= 6; y++) {
                 for (var z = -12; z <= 12; z++) {
                     var pos = origin.offset(x, y, z);
-                    var emission = getLightEmission(level.getBlockState(pos));
+                    var state = level.getBlockState(pos);
+                    if (isFireOrLava(state))
+                        continue;
+                    var emission = getLightEmission(state);
                     if (emission > bestLight) {
                         bestLight = emission;
                         best = pos.immutable();
@@ -180,6 +185,14 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
             }
         }
         return best;
+    }
+
+    private static boolean isFireOrLava(BlockState state) {
+        return state.is(BlockTags.FIRE)
+            || state.is(Blocks.LAVA)
+            || state.is(Blocks.MAGMA_BLOCK)
+            || state.is(Blocks.CAMPFIRE)
+            || state.is(Blocks.SOUL_CAMPFIRE);
     }
 
     private static int getLightEmission(BlockState state) {

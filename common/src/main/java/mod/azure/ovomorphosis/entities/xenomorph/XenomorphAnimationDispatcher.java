@@ -73,6 +73,12 @@ public class XenomorphAnimationDispatcher {
         AzPlayBehaviors.LOOP
     );
 
+    private final AzCommand windUpCommand = AzCommand.create(
+        CommonStrings.BASE_CONTROLLER,
+        "windup",
+        AzPlayBehaviors.PLAY_ONCE
+    );
+
     private final XenomorphEntity xenomorph;
 
     public XenomorphAnimationDispatcher(XenomorphEntity xenomorph) {
@@ -121,5 +127,9 @@ public class XenomorphAnimationDispatcher {
 
     public void serverCarry() {
         carryingCommand.sendForEntity(xenomorph);
+    }
+
+    public void serverWindUp() {
+        windUpCommand.sendForEntity(xenomorph);
     }
 }
