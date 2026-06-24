@@ -126,4 +126,6 @@ public final class AiKeys {
      * {@link Integer} (game tick expiry).
      */
     public static final String FIRE_FLEE_COOLDOWN = "fire_flee_cooldown";
+
+    public static final String LAST_FIRE_POS = "last_fire_pos";
 }

@@ -63,10 +63,17 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             return ActionStatus.INTERRUPTED;
 
         var nearestFire = findNearestFire(mob);
+        if (nearestFire != null) {
+            blackboard.set(AiKeys.LAST_FIRE_POS, nearestFire);
+        } else {
+            nearestFire = blackboard.get(AiKeys.LAST_FIRE_POS, BlockPos.class);
+        }
+
         var onFire = mob.isOnFire();
 
         if (nearestFire == null && !onFire) {
             writeTolerance(blackboard);
+            blackboard.set(AiKeys.LAST_FIRE_POS, null);
             blackboard.set(
                 AiKeys.FIRE_FLEE_COOLDOWN,
                 (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS
@@ -81,6 +88,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             var distSq = mob.distanceToSqr(Vec3.atCenterOf(nearestFire));
             if (distSq >= SAFE_DIST_SQ && !onFire) {
                 writeTolerance(blackboard);
+                blackboard.set(AiKeys.LAST_FIRE_POS, null);
                 blackboard.set(AiKeys.FIRE_FLEE_COOLDOWN, (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS);
                 slowDown(mob);
                 return ActionStatus.SUCCESS;

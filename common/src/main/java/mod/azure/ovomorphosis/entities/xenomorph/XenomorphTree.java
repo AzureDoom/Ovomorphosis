@@ -111,28 +111,29 @@ public class XenomorphTree {
                 if (!fleeOnCooldown) {
                     var fireTolerance = blackboard.get(AiKeys.FIRE_TOLERANCE, Float.class);
                     var fireToleranceVal = fireTolerance != null ? fireTolerance : 0f;
+                    var hasNearbyFire = FleeFireAction.hasNearbyFire(xenomorph);
 
                     if (xenomorph.isOnFire()) {
                         fireToleranceVal = FleeFireAction.MAX_TOLERANCE;
                         blackboard.set(AiKeys.FIRE_TOLERANCE, fireToleranceVal);
                         blackboard.set(AiKeys.FIRE_FLEE_COOLDOWN, null);
                         return BehaviorResult.run(fleeFire, 125);
-                    } else if (FleeFireAction.hasNearbyFire(xenomorph)) {
+                    } else if (hasNearbyFire) {
                         fireToleranceVal = Math.min(
                             FleeFireAction.MAX_TOLERANCE,
                             fireToleranceVal + FleeFireAction.TOLERANCE_GAIN_RATE
                         );
                         blackboard.set(AiKeys.FIRE_TOLERANCE, fireToleranceVal);
+
+                        if (fireToleranceVal >= FleeFireAction.TOLERANCE_THRESHOLD) {
+                            return BehaviorResult.run(fleeFire, 125);
+                        }
                     } else if (fireToleranceVal > 0f) {
                         fireToleranceVal = Math.max(
                             0f,
                             fireToleranceVal - FleeFireAction.TOLERANCE_DRAIN_RATE
                         );
                         blackboard.set(AiKeys.FIRE_TOLERANCE, fireToleranceVal);
-                    }
-
-                    if (fireToleranceVal >= FleeFireAction.TOLERANCE_THRESHOLD) {
-                        return BehaviorResult.run(fleeFire, 125);
                     }
                 }
             }
