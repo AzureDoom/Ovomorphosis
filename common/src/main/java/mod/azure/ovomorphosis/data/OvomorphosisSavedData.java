@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
 
+import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.blocks.EggmorphTracker;
 import mod.azure.ovomorphosis.infection.InfectionManager;
 import mod.azure.ovomorphosis.infection.InfectionState;
@@ -21,6 +22,8 @@ import mod.azure.ovomorphosis.infection.InfectionState;
 public final class OvomorphosisSavedData extends SavedData {
 
     private static final String DATA_NAME = "ovomorphosis_data";
+
+    private HiveMemory hiveMemory = new HiveMemory();
 
     public static OvomorphosisSavedData get(ServerLevel level) {
         var overworld = level.getServer().overworld();
@@ -35,6 +38,18 @@ public final class OvomorphosisSavedData extends SavedData {
             );
     }
 
+    /**
+     * Returns the shared {@link HiveMemory} for the given level. Convenience shorthand for
+     * {@code OvomorphosisSavedData.get(level).getHiveMemory()}.
+     */
+    public static HiveMemory getHiveMemory(ServerLevel level) {
+        return get(level).hiveMemory;
+    }
+
+    public HiveMemory getHiveMemory() {
+        return hiveMemory;
+    }
+
     private static OvomorphosisSavedData createEmpty() {
         return new OvomorphosisSavedData();
     }
@@ -43,6 +58,7 @@ public final class OvomorphosisSavedData extends SavedData {
     public @NotNull CompoundTag save(CompoundTag tag, HolderLookup.@NotNull Provider provider) {
         tag.put("eggmorph", saveEggmorph());
         tag.put("infections", saveInfections());
+        tag.put("hiveMemory", hiveMemory.save());
         return tag;
     }
 
@@ -52,9 +68,10 @@ public final class OvomorphosisSavedData extends SavedData {
         InfectionManager.clearAll();
         if (tag.contains("eggmorph", Tag.TAG_LIST))
             loadEggmorph(tag.getList("eggmorph", Tag.TAG_COMPOUND), level);
-        if (tag.contains("infections", Tag.TAG_LIST)) {
+        if (tag.contains("infections", Tag.TAG_LIST))
             loadInfections(tag.getList("infections", Tag.TAG_COMPOUND));
-        }
+        if (tag.contains("hiveMemory", Tag.TAG_COMPOUND))
+            data.hiveMemory = HiveMemory.load(tag.getCompound("hiveMemory"));
         return data;
     }
 

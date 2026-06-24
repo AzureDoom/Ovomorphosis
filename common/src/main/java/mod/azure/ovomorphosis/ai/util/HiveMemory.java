@@ -1,6 +1,9 @@
 package mod.azure.ovomorphosis.ai.util;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayDeque;
@@ -9,25 +12,28 @@ import java.util.Optional;
 
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 
+import static net.minecraft.nbt.NbtUtils.readBlockPos;
+import static net.minecraft.nbt.NbtUtils.writeBlockPos;
+
 public final class HiveMemory {
+
+    private static final int MAX_ENTRIES = 256;
+
+    private static final int MISS_THRESHOLD = 8;
+
+    private static final String NBT_KEY = "pos";
 
     private final Deque<BlockPos> placedBlocks = new ArrayDeque<>();
 
     private int missCount = 0;
 
     public void trackBlock(BlockPos pos) {
-        if (placedBlocks.size() >= 256) {
+        if (placedBlocks.size() >= MAX_ENTRIES) {
             placedBlocks.pollFirst();
         }
         placedBlocks.addLast(pos.immutable());
     }
 
-    /**
-     * Returns the nearest tracked position that still contains a resin web cross block.
-     * <p>
-     * Stale entries (blocks that were broken since being tracked) are counted and, once 8 accumulates, a sweep removes
-     * all stale positions so they don't keep polluting future lookups.
-     */
     public Optional<BlockPos> findNearestWebCross(Level level, BlockPos origin, double maxRange) {
         var maxRangeSqr = maxRange * maxRange;
         BlockPos best = null;
@@ -51,7 +57,7 @@ public final class HiveMemory {
         }
 
         missCount += missesThisCall;
-        if (missCount >= 8) {
+        if (missCount >= MISS_THRESHOLD) {
             evictStale(level);
             missCount = 0;
         }
@@ -59,11 +65,6 @@ public final class HiveMemory {
         return Optional.ofNullable(best);
     }
 
-    /**
-     * Removes every entry that no longer contains a resin web cross. Called automatically once enough misses
-     * accumulate; can also be called explicitly when a block is known to have been broken (e.g. from a block-break
-     * event handler on the hive coordinator).
-     */
     public void evictStale(Level level) {
         placedBlocks.removeIf(
             pos -> !level.getBlockState(pos).is(BlockRegistry.RESIN_WEB_CROSS.get())
@@ -72,5 +73,28 @@ public final class HiveMemory {
 
     public int size() {
         return placedBlocks.size();
+    }
+
+    public CompoundTag save() {
+        var tag = new CompoundTag();
+        var list = new ListTag();
+        for (var pos : placedBlocks) {
+            var entry = new CompoundTag();
+            entry.put(NBT_KEY, writeBlockPos(pos));
+            list.add(entry);
+        }
+        tag.put("blocks", list);
+        return tag;
+    }
+
+    public static HiveMemory load(CompoundTag tag) {
+        var memory = new HiveMemory();
+        if (!tag.contains("blocks", Tag.TAG_LIST))
+            return memory;
+        var list = tag.getList("blocks", Tag.TAG_COMPOUND);
+        for (var i = 0; i < list.size(); i++) {
+            readBlockPos(list.getCompound(i), NBT_KEY).ifPresent(memory::trackBlock);
+        }
+        return memory;
     }
 }
