@@ -23,17 +23,13 @@ import mod.azure.ovomorphosis.CommonMod;
 /**
  * Datapack-driven version of the original head-offset table.
  * <p>
- * Datapack location: {@code data/<namespace>/ovomorphosis_head_offsets/<entity>.json}
+ * Datapack location: {@code
+ * data/<namespace>/ovomorphosis_head_offsets/<entity>.json}
  * <p>
  * Each JSON file looks like:
  *
- * <pre>{@code
- * {
- *   "entity": "minecraft:cow",
- *   "vertical_offset": "-size_y",
- *   "face_offset": "size_z + (size_z / 2) + parasite_height"
- * }
- * }</pre>
+ * <pre>{@code { "entity":
+ * "minecraft:cow", "vertical_offset": "-size_y", "face_offset": "size_z + (size_z / 2) + parasite_height" } }</pre>
  * <p>
  * See {@link OffsetExpression} for the supported expression grammar.
  * <p>
