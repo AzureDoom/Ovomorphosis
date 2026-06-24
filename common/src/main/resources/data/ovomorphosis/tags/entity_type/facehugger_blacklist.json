@@ -1,6 +1,10 @@
 {
   "replace": false,
   "values": [
+    "minecraft:dolphin",
+    "minecraft:turtle",
+    "minecraft:guardian",
+    "minecraft:elder_guardian",
     "minecraft:blaze",
     "minecraft:cat",
     "minecraft:cave_spider",
