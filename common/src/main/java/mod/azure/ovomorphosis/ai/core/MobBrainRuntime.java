@@ -3,7 +3,6 @@ package mod.azure.ovomorphosis.ai.core;
 import net.minecraft.world.entity.Mob;
 import org.jetbrains.annotations.Nullable;
 
-import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
@@ -72,13 +71,6 @@ public final class MobBrainRuntime<E extends Mob> {
             }
 
             if (status != ActionStatus.RUNNING) {
-                CommonMod.LOGGER.info(
-                    "[Brain] Action {} stopped with status {} on mob {} at {}",
-                    currentAction.getClass().getSimpleName(),
-                    status,
-                    mob.getType().toShortString(),
-                    mob.blockPosition()
-                );
                 currentAction.stop(mob, blackboard, cooldowns, status);
                 currentAction = null;
             }

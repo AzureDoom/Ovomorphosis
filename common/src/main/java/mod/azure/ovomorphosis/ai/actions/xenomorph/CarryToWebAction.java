@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
@@ -86,11 +85,6 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
         var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (victim == null || !victim.isAlive()) {
-            CommonMod.LOGGER.info(
-                "[CarryToWeb] FAILURE: victim null={} alive={}",
-                victim == null,
-                victim != null && victim.isAlive()
-            );
             writeFeedback(mob, blackboard, PlanFailureReason.FAILED_TARGET_LOST);
             return ActionStatus.FAILURE;
         }
@@ -101,7 +95,6 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             }
             webTarget = resolveWebTarget(mob, blackboard);
             if (webTarget == null) {
-                CommonMod.LOGGER.info("[CarryToWeb] FAILURE: no web target found");
                 writeFeedback(mob, blackboard, PlanFailureReason.FAILED_NO_WEB);
                 return ActionStatus.FAILURE;
             }
