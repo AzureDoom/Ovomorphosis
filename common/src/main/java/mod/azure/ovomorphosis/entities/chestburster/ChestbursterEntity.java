@@ -19,7 +19,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.actions.chestburster.EatFoodAction;
+import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.NearestHostileTargetSelector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
@@ -40,19 +45,26 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
 
     public final ChestbursterAnimationDispatcher animationDispatcher;
 
+    private final ChestbursterGoalPlanner goalPlanner;
+
+    private final EatFoodAction eatAction = new EatFoodAction(
+        16.0,
+        0.5,
+        0.22,
+        5,
+        28,
+        mob -> mob.animationDispatcher.serverEating()
+    );
+
     public ChestbursterEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
         super(entityType, level);
         this.animationDispatcher = new ChestbursterAnimationDispatcher(this);
         this.moveAnalysis = new MoveAnalysis(this);
+        this.goalPlanner = new ChestbursterGoalPlanner(eatAction);
         this.brainRuntime = new MobBrainRuntime<>(
             this,
-            new TargetingSystem<>(
-                new NearestHostileTargetSelector<>(
-                    32
-                ),
-                10
-            ),
-            ChestbursterTree.create()
+            new TargetingSystem<>(new NearestHostileTargetSelector<>(32), 10),
+            ChestbursterTree.create(eatAction)
         );
     }
 
@@ -80,11 +92,44 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         super.tick();
         moveAnalysis.update();
         if (!this.level().isClientSide()) {
+            tickGoalPlanner();
             brainRuntime.tick();
             if (this.isAlive()) {
                 grow(this, 1);
             }
         }
+    }
+
+    private void tickGoalPlanner() {
+        var blackboard = brainRuntime.getBlackboard();
+        var cooldowns = brainRuntime.getCooldowns();
+
+        @SuppressWarnings("unchecked")
+        var activeGoal = (PlannedGoal<ChestbursterEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+
+        int currentTick = (int) this.level().getGameTime();
+
+        var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
+        var isPassive = goalType == AiGoalType.GROW_SAFE
+            || goalType == AiGoalType.WANDER
+            || goalType == AiGoalType.NONE;
+
+        var reactiveReplan = (isPassive && blackboard.has(AiKeys.TARGET))
+            || (goalType == AiGoalType.GROW_SAFE && eatAction.canStart(this));
+
+        var shouldReplan = activeGoal == null
+            || activeGoal.isNone()
+            || activeGoal.isExpired(currentTick)
+            || reactiveReplan
+            || (activeGoal.canReplan(currentTick) && !cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN));
+
+        if (!shouldReplan)
+            return;
+
+        cooldowns.set(AiKeys.GOAL_REPLAN, 20);
+
+        var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
+        GoalApplicator.apply(this, blackboard, newGoal);
     }
 
     @Override

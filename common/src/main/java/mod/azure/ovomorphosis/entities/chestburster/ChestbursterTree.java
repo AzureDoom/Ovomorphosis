@@ -7,20 +7,13 @@ import mod.azure.ovomorphosis.ai.actions.chestburster.EatFoodAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 
 public class ChestbursterTree {
 
-    public static BehaviorNode<ChestbursterEntity> create() {
+    public static BehaviorNode<ChestbursterEntity> create(EatFoodAction eatAction) {
         var idle = new IdleAction<ChestbursterEntity>(40, 100, 1);
-
-        var eatAction = new EatFoodAction(
-            16.0,
-            2.0,
-            0.12,
-            5,
-            28,
-            mob -> mob.animationDispatcher.serverEating()
-        );
 
         var wander = new WanderAction<ChestbursterEntity>(
             0.1D,
@@ -48,34 +41,45 @@ public class ChestbursterTree {
 
         return (chestburster, blackboard, cooldowns) -> {
 
-            var threat = blackboard.get(AiKeys.TARGET, LivingEntity.class);
-            var hasThreat = threat != null && threat.isAlive();
-
             if (fleeExplosive.hasNearbyExplosive(chestburster)) {
                 return BehaviorResult.run(fleeExplosive, 120);
-            }
-
-            if (hasThreat) {
-                return BehaviorResult.run(flee, 70);
-            }
-
-            if (eatAction.canStart(chestburster)) {
-                return BehaviorResult.run(eatAction, 10);
             }
 
             if (chestburster.isInWater() || chestburster.isInLava()) {
                 return BehaviorResult.run(swim, 200);
             }
 
-            if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
-                cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
-                if (chestburster.getRandom().nextFloat() < 0.1F) {
-                    return BehaviorResult.run(wander, 9);
-                }
-                return BehaviorResult.run(idle, 8);
-            }
+            @SuppressWarnings("unchecked")
+            var goal = (PlannedGoal<ChestbursterEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+            var goalType = goal != null ? goal.type() : AiGoalType.NONE;
 
-            return BehaviorResult.run(idle, 8);
+            return switch (goalType) {
+
+                case HIDE -> {
+                    var threat = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+                    if (threat != null && threat.isAlive()) {
+                        yield BehaviorResult.run(flee, flee.priority());
+                    }
+                    yield BehaviorResult.run(idle, 8);
+                }
+
+                case FIND_FOOD -> {
+                    if (eatAction.canStart(chestburster)) {
+                        yield BehaviorResult.run(eatAction, eatAction.priority());
+                    }
+                    yield BehaviorResult.run(idle, 8);
+                }
+
+                default -> {
+                    if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
+                        cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
+                        if (chestburster.getRandom().nextFloat() < 0.1F) {
+                            yield BehaviorResult.run(wander, 9);
+                        }
+                    }
+                    yield BehaviorResult.run(idle, 8);
+                }
+            };
         };
     }
 }
