@@ -42,6 +42,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
     private int repathCooldown = 0;
 
+    private BlockPos lastPathedDestination = null;
+
     public MoveToDestinationAction(
         double stopDistance,
         double speed,
@@ -65,6 +67,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         path = Collections.emptyList();
         pathIndex = 0;
         repathCooldown = 0;
+        lastPathedDestination = null;
     }
 
     @Override
@@ -128,9 +131,14 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             || mobIsInOrAtTunnel
             || (!mobOnSolidGround && CrawlingManager.isWallCrawling(mob)));
 
-        var repathInterval = isCrawlingNow ? 40 : 20;
+        var repathInterval = isCrawlingNow ? 60 : 30;
 
-        if (repathCooldown <= 0 || path.isEmpty() || pathIndex >= path.size()) {
+        var destinationMovedFar = lastPathedDestination == null
+            || lastPathedDestination.distSqr(destination) > 4;
+
+        if ((repathCooldown <= 0 && destinationMovedFar) || path.isEmpty() || pathIndex >= path.size()) {
+            lastPathedDestination = destination;
+
             if (canCrawl) {
                 path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), destination, 96, 0);
                 if (path.isEmpty()) {

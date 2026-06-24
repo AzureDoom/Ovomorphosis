@@ -31,7 +31,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         bestCost.put(startFeet, 0.0D);
 
         var searched = 0;
-        var maxSearched = 5000;
+        var maxSearched = 1500;
         Node bestPartial = null;
         var bestPartialScore = Double.MAX_VALUE;
 
@@ -344,12 +344,13 @@ public class CrawlingCustomAStar extends CustomAStar {
     private static boolean hasClimbClearance(Level level, Mob mob, BlockPos feet) {
         var below = feet.below();
         var belowShape = level.getBlockState(below).getCollisionShape(level, below);
-        var belowTopY = belowShape.isEmpty() ? 0.0D : belowShape.max(net.minecraft.core.Direction.Axis.Y);
+        var belowTopY = belowShape.isEmpty() ? 0.0D : belowShape.max(Direction.Axis.Y);
         var bottomY = feet.getY() + belowTopY;
 
+        var tight = isTightTunnel(level, feet);
         var fullHalfW = mob.getBbWidth() / 2.0D;
-        var testHalfW = isTightTunnel(level, feet) ? Math.min(fullHalfW, 0.35D) : fullHalfW;
-        var testHeight = isTightTunnel(level, feet) ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
+        var testHalfW = tight ? Math.min(fullHalfW, 0.35D) : fullHalfW;
+        var testHeight = tight ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
 
         var mobBox = new AABB(
             feet.getX() + 0.5D - testHalfW,
