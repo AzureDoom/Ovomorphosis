@@ -6,7 +6,7 @@
 ![Requires AzureLib](https://img.shields.io/badge/Requires-AzureLib-purple?style=for-the-badge)
 ![License MIT](https://img.shields.io/badge/License-MIT-lightgrey?style=for-the-badge)
 
-Ovomorphosis brings a basic alien life cycle into Minecraft, built around danger, infection, and hive growth. Ovomorphs can hatch facehuggers, infected hosts can give rise to chestbursters, and xenomorphs can spread their resin covered hive by capturing mobs for eggmorphing.
+Ovomorphosis brings an alien life cycle into Minecraft through exploration, infection, and hive growth. The threat begins in infested structures, where ovomorphs can hatch facehuggers, infected hosts can give rise to chestbursters, and xenomorphs can spread resin-covered hives by capturing mobs for eggmorphing.
 
 This mod is designed for players who want a creature focused horror experience that feels alive in the world. The threat is not just a single mob. It grows, spreads, and becomes harder to ignore the longer it is allowed to survive.
 
@@ -67,9 +67,17 @@ Do not install both loader versions at the same time.
 
 For multiplayer servers, install Ovomorphosis and AzureLib on the server and on every client joining the server.
 
+## Finding the infestation
+
+Ovomorphosis is introduced through world exploration. Instead of spawning everywhere at random, the alien threat begins in certain structures that have been touched by the infestation.
+
+As you explore your world, keep an eye out for unusual resin growth, ovomorphs, and signs that something has already taken hold. These infected areas are where the life cycle begins. If left alone, an ovomorph can hatch a facehugger, infect nearby mobs, and eventually lead to chestbursters, xenomorphs, and a spreading hive.
+
+The infestation is meant to feel like something discovered in the world rather than a normal mob spawn. Finding one early gives you a chance to contain it. Ignoring it may allow the hive to grow into a much larger threat.
+
 ## Gameplay overview
 
-Ovomorphosis is about stopping an infestation before it becomes a real problem. A single ovomorph can lead to facehuggers, infected hosts, chestbursters, and eventually a growing hive. Once xenomorphs begin spreading resin and capturing mobs, the area can quickly become dangerous.
+Ovomorphosis is about discovering and stopping an infestation before it becomes a real problem. The threat usually begins when players find an infested structure or an area touched by alien resin. A single ovomorph can lead to facehuggers, infected hosts, chestbursters, and eventually a growing hive.
 
 Players should watch for signs of hive growth, deal with infected mobs early, and avoid letting ovomorphs remain unchecked. The longer the life cycle continues, the more serious the threat becomes.
 
