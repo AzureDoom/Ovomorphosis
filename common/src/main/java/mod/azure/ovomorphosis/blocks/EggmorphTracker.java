@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
@@ -270,6 +271,11 @@ public final class EggmorphTracker {
         ovomorph.noPhysics = true;
         entry.entity.level().addFreshEntity(ovomorph);
         ovomorph.noPhysics = false;
+
+        for (var effect : entry.entity.getActiveEffects()) {
+            ovomorph.addEffect(new MobEffectInstance(effect));
+        }
+
         if (entry.entity instanceof ServerPlayer serverPlayer) {
             var advancement = serverPlayer.server.getAdvancements()
                 .get(CommonMod.modResource("eggmorphed"));

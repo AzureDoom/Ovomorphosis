@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
@@ -188,6 +189,10 @@ public final class InfectionManager {
             Mth.sin(angle) * 0.4f
         );
         level.addFreshEntity(burster);
+
+        for (var effect : host.getActiveEffects()) {
+            burster.addEffect(new MobEffectInstance(effect));
+        }
 
         if (host instanceof ServerPlayer serverPlayer) {
             var advancement = serverPlayer.server.getAdvancements()
