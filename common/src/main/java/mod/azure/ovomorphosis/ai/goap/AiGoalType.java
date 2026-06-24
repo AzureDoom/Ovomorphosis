@@ -25,5 +25,6 @@ public enum AiGoalType {
     EXPAND_HIVE,
     KILL_LIGHTS,
     DEFEND_HIVE,
-    RETREAT_TO_RESIN
+    RETREAT_TO_RESIN,
+    BREAK_OBSTACLE,
 }

@@ -15,13 +15,12 @@ public final class GoalApplicator {
         blackboard.set(AiKeys.LAST_GOAL_REASON, goal.reason());
 
         goal.target()
-            .ifPresent(
-                target -> blackboard.set(AiKeys.GOAL_TARGET, target)
-            );
+            .ifPresent(target -> blackboard.set(AiKeys.GOAL_TARGET, target));
 
         goal.destination()
-            .ifPresent(
-                pos -> blackboard.set(AiKeys.GOAL_DESTINATION, pos)
-            );
+            .ifPresent(pos -> blackboard.set(AiKeys.GOAL_DESTINATION, pos));
+
+        blackboard.set(AiKeys.LAST_PLAN_FEEDBACK, null);
+        blackboard.set(AiKeys.LAST_FAILURE_REASON, null);
     }
 }

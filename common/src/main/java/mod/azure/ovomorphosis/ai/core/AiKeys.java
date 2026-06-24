@@ -1,89 +1,106 @@
 package mod.azure.ovomorphosis.ai.core;
 
-import mod.azure.ovomorphosis.ai.actions.MoveToTargetAction;
-import mod.azure.ovomorphosis.ai.actions.xenomorph.*;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
+import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 
 /**
- * Central repository of {@link Blackboard} key constants used across all AI actions and nodes.
+ * Typed blackboard keys shared across all Ovomorphosis mobs.
  * <p>
- * Keys are grouped by the mob archetype that uses them (e.g., worker, hopper, sapper). Using constants here avoids
- * typo-prone inline string literals throughout the codebase.
+ * Keys are intentionally {@code String} constants so they remain readable in debug output. Use the typed
+ * {@link Blackboard#get}/{@link Blackboard#set} helpers to avoid raw casts.
  */
 public final class AiKeys {
 
-    /** The mob's current attack target, stored as a {@code LivingEntity}. */
+    private AiKeys() {}
+
     public static final String TARGET = "target";
-
-    /** Tick-based cooldown preventing consecutive leap attacks. */
-    public static final String LEAP_COOLDOWN = "leap_cooldown";
-
-    /** The last known {@code BlockPos} of the mob's target, retained when line of sight is lost. */
-    public static final String LAST_KNOWN_TARGET_POS = "last_known_target_pos";
-
-    /** The {@code BlockPos} the mob is currently navigating toward. */
-    public static final String DESTINATION = "destination";
-
-    /**
-     * Cooldown applied after a {@link GrabAndExecuteAction} completes, preventing the xenomorph from immediately
-     * grabbing again.
-     */
-    public static final String GRAB_COOLDOWN = "grab_cooldown";
-
-    /**
-     * The {@link HiveMemory} instance tracking all resin blocks placed by this xenomorph. Stored as an object
-     * reference; retrieve with {@code blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class)}.
-     */
-    public static final String HIVE_MEMORY = "hive_memory";
-
-    /**
-     * Cooldown between individual resin-block placements. Set by {@link PlaceResinAction} after each successful
-     * placement.
-     */
-    public static final String RESIN_PLACE_COOLDOWN = "resin_place_cooldown";
-
-    /**
-     * Cooldown applied after a carry-to-web action completes, preventing the xenomorph from immediately carrying
-     * another target.
-     */
-    public static final String CARRY_COOLDOWN = "carry_cooldown";
-
-    public static final String PASSIVE_DECISION = "passive_decision";
-
-    /**
-     * Scan-interval cooldown used internally by {@link BreakToTargetAction}.
-     */
-    public static final String BREAK_TO_TARGET_SCAN = "break_to_target_scan";
-
-    /**
-     * Flag written to the blackboard by {@link MoveToTargetAction} when the mob is stuck and a breakable block is
-     * suspected to be the cause. {@link BreakToTargetAction} reads and clears this flag. Using a flag rather than a
-     * permanent tree branch prevents the break action from blocking normal movement.
-     */
-    public static final String BREAK_TO_TARGET_TRIGGER = "break_to_target_trigger";
-
-    /**
-     * Scan-interval cooldown used internally by {@link DestroyLightSourceAction}.
-     */
-    public static final String LIGHT_SCAN_COOLDOWN = "destroy_light_scan";
-
-    public static final String GOAL_REPLAN = "goal_replan";
-
-    public static final String ACTIVE_GOAL = "active_goal";
-
-    public static final String ACTIVE_GOAL_TYPE = "active_goal_type";
 
     public static final String GOAL_TARGET = "goal_target";
 
+    /** Last confirmed world position where the active target was seen. Used by INVESTIGATE goals. */
+    public static final String LAST_SEEN_POS = "last_seen_pos";
+
+    /** Alias kept for legacy action references; prefer {@link #LAST_SEEN_POS} for new code. */
+    public static final String LAST_KNOWN_TARGET_POS = "last_known_target_pos";
+
+    /**
+     * Navigation destination set by the planner for the current goal. Actions should read this rather than computing
+     * their own destination from the target.
+     */
     public static final String GOAL_DESTINATION = "goal_destination";
 
+    /**
+     * Low-level destination consumed by {@code MoveToDestinationAction}. Set by actions that need to drive the
+     * navigator directly (e.g. RetreatAndHideAction, WanderAction).
+     */
+    public static final String DESTINATION = "destination";
+
+    /** Type: {@link PlannedGoal}. The full goal record currently committed by the planner. */
+    public static final String ACTIVE_GOAL = "active_goal";
+
+    /** Type: {@link AiGoalType}. Convenience shorthand extracted from {@link #ACTIVE_GOAL}. */
+    public static final String ACTIVE_GOAL_TYPE = "active_goal_type";
+
+    /** Human-readable string explaining why the planner chose the current goal. */
     public static final String LAST_GOAL_REASON = "last_goal_reason";
 
-    public static final String LAST_SEEN_TARGET_POS = "last_seen_target_pos";
+    /**
+     * Prevents the passive (non-threat) branch of the behavior tree from ticking every frame. Set to a high value on
+     * passive-action start; cleared to 1 on interruption.
+     */
+    public static final String PASSIVE_DECISION = "passive_decision";
 
-    public static final String LAST_HEARD_SOUND_POS = "last_heard_sound_pos";
+    /**
+     * Rate-limits how often the GOAP planner is allowed to re-evaluate goals. Typically set to 20 ticks after each
+     * replan.
+     */
+    public static final String GOAL_REPLAN = "goal_replan";
 
+    /** Cooldown between leap-and-attach attempts (Facehugger). */
+    public static final String GRAB_COOLDOWN = "grab_cooldown";
+
+    /** Cooldown between resin block placements (Xenomorph hive building). */
+    public static final String RESIN_PLACE_COOLDOWN = "resin_place_cooldown";
+
+    /** Cooldown between carry-to-web actions (Xenomorph). */
+    public static final String CARRY_COOLDOWN = "carry_cooldown";
+
+    /** Cooldown between light-source destruction scans (Xenomorph). */
+    public static final String LIGHT_SCAN_COOLDOWN = "light_scan_cooldown";
+
+    /**
+     * Set to {@code true} by {@code BreakToTargetAction} when it determines a block needs to be broken to reach the
+     * target. Cleared when the break completes or the target changes.
+     */
+    public static final String BREAK_TO_TARGET_TRIGGER = "break_to_target_trigger";
+
+    /** BlockPos of the specific block that {@code BreakToTargetAction} is currently targeting. */
+    public static final String BREAK_TO_TARGET_SCAN = "break_to_target_scan";
+
+    /** Type: {@link HiveMemory}. Shared hive state read by WanderAction (dark preference) and hive-building actions. */
+    public static final String HIVE_MEMORY = "hive_memory";
+
+    /**
+     * Running count of how many times the active goal has been abandoned with {@code FAILURE}. Reset when a new goal
+     * type is committed. Used for planner fallback heuristics.
+     */
     public static final String FAILED_GOAL_COUNT = "failed_goal_count";
 
-    private AiKeys() {}
+    /**
+     * Written by actions when they fail or are interrupted. Type: {@link PlanFeedback}.
+     * <p>
+     * The planner reads this on the next planning cycle, uses it to bias goal scores, then clears it so stale feedback
+     * does not persist. Cleared automatically by {@code GoalApplicator.apply}.
+     */
+    public static final String LAST_PLAN_FEEDBACK = "last_plan_feedback";
+
+    /**
+     * Convenience shorthand — actions that only need to record a Reason code (not a full {@link PlanFeedback}) can
+     * write here. The planner wraps this into a {@link PlanFeedback} if {@link #LAST_PLAN_FEEDBACK} is not already set.
+     * Type: {@link PlanFailureReason}. Cleared automatically by {@code GoalApplicator.apply}.
+     */
+    public static final String LAST_FAILURE_REASON = "last_failure_reason";
 }
