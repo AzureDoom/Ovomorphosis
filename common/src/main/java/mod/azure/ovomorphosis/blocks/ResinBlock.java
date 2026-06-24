@@ -34,9 +34,7 @@ public class ResinBlock extends AbstractResinBlock {
 
     public static final IntegerProperty LAYERS = BlockStateProperties.LAYERS;
 
-    protected static final List<VoxelShape> ALIEN_LAYERS_TO_SHAPE = interpolateShapes(false);
-
-    protected static final List<VoxelShape> LAYERS_TO_SHAPE = interpolateShapes(true);
+    protected static final List<VoxelShape> LAYERS_TO_SHAPE = buildLayerShapes();
 
     public ResinBlock(Properties settings) {
         super(settings);
@@ -44,11 +42,11 @@ public class ResinBlock extends AbstractResinBlock {
         registerDefaultState(getStateDefinition().any().setValue(BlockStateProperties.LAYERS, 1));
     }
 
-    private static List<VoxelShape> interpolateShapes(boolean divide) {
-        ArrayList<VoxelShape> list = new ArrayList<>();
+    private static List<VoxelShape> buildLayerShapes() {
+        var list = new ArrayList<VoxelShape>();
         list.add(Shapes.empty());
-        for (var i = 0; i < 8; i++)
-            list.add(box(0.0, 0.0, 0.0, 16.0, divide ? (i * 2.0) / 2.0 : i * 2.0, 16.0));
+        for (var i = 1; i <= 8; i++)
+            list.add(box(0.0, 0.0, 0.0, 16.0, i * 2.0, 16.0));
         return list;
     }
 
@@ -59,7 +57,7 @@ public class ResinBlock extends AbstractResinBlock {
         @NotNull BlockPos pos,
         @NotNull CollisionContext context
     ) {
-        return ALIEN_LAYERS_TO_SHAPE.get(state.getValue(LAYERS));
+        return LAYERS_TO_SHAPE.get(state.getValue(LAYERS));
     }
 
     @Override
