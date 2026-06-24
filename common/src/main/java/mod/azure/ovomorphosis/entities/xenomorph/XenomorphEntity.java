@@ -32,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.BiConsumer;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.actions.xenomorph.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
@@ -57,6 +58,11 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     protected static final EntityDataAccessor<Boolean> IS_EXECUTION = SynchedEntityData.defineId(
         XenomorphEntity.class,
         EntityDataSerializers.BOOLEAN
+    );
+
+    protected static final EntityDataAccessor<Float> FIRE_TOLERANCE_NBT = SynchedEntityData.defineId(
+        XenomorphEntity.class,
+        EntityDataSerializers.FLOAT
     );
 
     private final XenomorphHostileTargetSelector<XenomorphEntity> targetSelector;
@@ -297,6 +303,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         super.defineSynchedData(builder);
         builder.define(GROWTH, 0.0F);
         builder.define(IS_EXECUTION, false);
+        builder.define(FIRE_TOLERANCE_NBT, 0.0F);
     }
 
     @Override
@@ -304,6 +311,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         super.addAdditionalSaveData(tag);
         tag.putFloat("growth", getGrowth());
         tag.putBoolean("isExecuting", this.isExecuting());
+        tag.putFloat("fireToleranceNbt", getFireToleranceNbt());
     }
 
     @Override
@@ -311,6 +319,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         super.readAdditionalSaveData(tag);
         this.setGrowth(tag.getFloat("growth"));
         this.setIsExecuting(tag.getBoolean("isExecuting"));
+        this.setFireToleranceNbt(tag.getFloat("fireToleranceNbt"));
         if (this.level() instanceof ServerLevel serverLevel) {
             brainRuntime.getBlackboard()
                 .set(
@@ -442,6 +451,18 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
     public void setIsExecuting(boolean isExecuting) {
         entityData.set(IS_EXECUTION, isExecuting);
+    }
+
+    public float getFireToleranceNbt() {
+        return entityData.get(FIRE_TOLERANCE_NBT);
+    }
+
+    public void setFireToleranceNbt(float value) {
+        entityData.set(FIRE_TOLERANCE_NBT, Math.min(value, FleeFireAction.MAX_TOLERANCE));
+    }
+
+    public boolean isFireHardened() {
+        return getFireToleranceNbt() >= FleeFireAction.MAX_TOLERANCE;
     }
 
     private void playAnimation(ClientAnimState next) {

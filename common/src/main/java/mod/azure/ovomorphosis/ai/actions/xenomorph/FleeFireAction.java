@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -18,6 +19,7 @@ import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 public final class FleeFireAction<E extends Mob> implements Action<E> {
 
@@ -71,6 +73,15 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         if (mob.getHealth() <= 0)
             return ActionStatus.INTERRUPTED;
 
+        // If the xenomorph has accumulated enough lifetime fire exposure it is hardened
+        // and will no longer flee and pathfinding routes around fire naturally via danger blocks.
+        if (
+            mob instanceof XenomorphEntity xeno
+                && xeno.isFireHardened()
+        ) {
+            return ActionStatus.FAILURE;
+        }
+
         var nearestFire = findNearestFire(mob);
         if (nearestFire != null) {
             blackboard.set(AiKeys.LAST_FIRE_POS, nearestFire);
@@ -119,6 +130,14 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         if (stuckTicks >= STUCK_TICKS_MAX) {
             writeFeedback(mob, blackboard);
             return ActionStatus.FAILURE;
+        }
+
+        // Accumulate persistent (NBT) fire tolerance each tick we are actively fleeing.
+        // This is separate from the per-session blackboard tolerance that gates the flee trigger —
+        // the NBT value persists across deaths and sessions until the cap is reached.
+        if (mob instanceof XenomorphEntity xeno) {
+            var gain = mob.isOnFire() ? ON_FIRE_GAIN_RATE : TOLERANCE_GAIN_RATE;
+            xeno.setFireToleranceNbt(xeno.getFireToleranceNbt() + gain);
         }
 
         Vec3 awayDir;
@@ -200,7 +219,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             a -> a.isOnFire() && a.getOwner() instanceof LivingEntity
         );
         if (!arrows.isEmpty()) {
-            attacker = (LivingEntity) arrows.get(0).getOwner();
+            attacker = (LivingEntity) arrows.getFirst().getOwner();
         }
 
         if (attacker == null) {
@@ -247,7 +266,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
     private static boolean isHoldingFireTool(LivingEntity entity) {
         for (var slot : entity.getHandSlots()) {
             var item = slot.getItem();
-            var id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath();
+            var id = BuiltInRegistries.ITEM.getKey(item).getPath();
             if (
                 id.contains("flint_and_steel")
                     || id.contains("lava_bucket")
@@ -259,7 +278,18 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         return false;
     }
 
-    public static <E extends Mob> boolean hasNearbyFire(E mob) {
+    /**
+     * Returns {@code true} if fire is nearby AND the mob is not yet fire-hardened. Use this in the behavior tree
+     * fire-flee pre-check so hardened xenomorphs never enter the flee branch and instead rely on pathfinding
+     * danger-block avoidance.
+     */
+    public static <E extends Mob> boolean shouldFleefire(E mob) {
+        if (
+            mob instanceof XenomorphEntity xeno
+                && xeno.isFireHardened()
+        ) {
+            return false;
+        }
         return findNearestFire(mob) != null;
     }
 
@@ -306,11 +336,6 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             }
         }
         return best;
-    }
-
-    private static float readTolerance(Blackboard blackboard) {
-        var val = blackboard.get(AiKeys.FIRE_TOLERANCE, Float.class);
-        return val != null ? val : 0f;
     }
 
     private static void writeTolerance(Blackboard blackboard) {

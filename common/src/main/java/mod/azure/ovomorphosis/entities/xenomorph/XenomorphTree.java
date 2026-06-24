@@ -111,7 +111,7 @@ public class XenomorphTree {
                 if (!fleeOnCooldown) {
                     var fireTolerance = blackboard.get(AiKeys.FIRE_TOLERANCE, Float.class);
                     var fireToleranceVal = fireTolerance != null ? fireTolerance : 0f;
-                    var hasNearbyFire = FleeFireAction.hasNearbyFire(xenomorph);
+                    var hasNearbyFire = FleeFireAction.shouldFleefire(xenomorph);
 
                     if (xenomorph.isOnFire()) {
                         fireToleranceVal = FleeFireAction.MAX_TOLERANCE;

@@ -73,6 +73,12 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
             return ActionStatus.SUCCESS;
         }
 
+        if (isFireBlock(state) && !mob.isFireHardened()) {
+            level.destroyBlockProgress(breakId, lightBlock, -1);
+            lightBlock = null;
+            return ActionStatus.FAILURE;
+        }
+
         var target = Vec3.atCenterOf(lightBlock);
         var distSq = mob.distanceToSqr(target);
 
@@ -165,6 +171,7 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
     private static BlockPos findBrightestLightBlock(XenomorphEntity mob) {
         var level = mob.level();
         var origin = mob.blockPosition();
+        var fireHardened = mob.isFireHardened();
 
         BlockPos best = null;
         var bestLight = 8 - 1;
@@ -174,8 +181,13 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
                 for (var z = -12; z <= 12; z++) {
                     var pos = origin.offset(x, y, z);
                     var state = level.getBlockState(pos);
-                    if (isFireOrLava(state))
+
+                    if (isLavaOrMagma(state))
                         continue;
+
+                    if (isFireBlock(state) && !fireHardened)
+                        continue;
+
                     var emission = getLightEmission(state);
                     if (emission > bestLight) {
                         bestLight = emission;
@@ -187,10 +199,21 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
         return best;
     }
 
-    private static boolean isFireOrLava(BlockState state) {
-        return state.is(BlockTags.FIRE)
-            || state.is(Blocks.LAVA)
+    /** Returns true for lava and magma, blocks that cannot be destroyed and are dangerous to approach. */
+    private static boolean isLavaOrMagma(BlockState state) {
+        return state.is(Blocks.LAVA)
             || state.is(Blocks.MAGMA_BLOCK)
+            || state.is(Blocks.LAVA_CAULDRON);
+    }
+
+    /**
+     * Returns true for fire blocks, emissive and destroyable, but only targeted by fire-hardened xenomorphs.
+     * Un-hardened xenomorphs flee fire via FleeFireAction instead of approaching it.
+     */
+    private static boolean isFireBlock(BlockState state) {
+        return state.is(BlockTags.FIRE)
+            || state.is(Blocks.FIRE)
+            || state.is(Blocks.SOUL_FIRE)
             || state.is(Blocks.CAMPFIRE)
             || state.is(Blocks.SOUL_CAMPFIRE);
     }
