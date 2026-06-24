@@ -11,6 +11,7 @@ import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.XenoRole;
 import mod.azure.ovomorphosis.ai.util.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
@@ -22,7 +23,7 @@ import mod.azure.ovomorphosis.util.ModTags;
  * it to unlock or bias branches that would otherwise be gated by simple conditions. This means:
  * <ul>
  * <li>{@link AiGoalType#BREAK_OBSTACLE} explicitly enables the break-to-target branch even if the mob hasn't registered
- * stuck ticks yet — the planner decided breaking is needed based on failure feedback, and the tree honours that.</li>
+ * stuck ticks yet — the planner decided breaking is needed based on failure feedback, and the tree honors that.</li>
  * <li>{@link AiGoalType#KILL_LIGHTS} enables the destroy-light branch at full priority.</li>
  * <li>{@link AiGoalType#EXPAND_HIVE} enables resin placement at higher than usual frequency.</li>
  * <li>{@link AiGoalType#RETREAT_TO_RESIN} routes to a destination-move toward the nearest web.</li>
@@ -99,6 +100,10 @@ public class XenomorphTree {
             if (goalType == null)
                 goalType = AiGoalType.WANDER;
 
+            var role = blackboard.get(AiKeys.XENO_ROLE, XenoRole.class);
+            if (role == null)
+                role = XenoRole.IDLE;
+
             if (cooldowns.ready(AiKeys.DODGE_COOLDOWN) && dodge.hasIncomingProjectile(xenomorph)) {
                 return BehaviorResult.run(dodge, 130);
             }
@@ -148,6 +153,10 @@ public class XenomorphTree {
                     blackboard.set(AiKeys.DESTINATION, dest);
                     return BehaviorResult.run(destinationMove, 90);
                 }
+            }
+
+            if (goalType == AiGoalType.SEEK_DARKNESS || goalType == AiGoalType.AMBUSH_FROM_DARKNESS) {
+                return BehaviorResult.run(wander, 11);
             }
 
             var destination = blackboard.get(AiKeys.DESTINATION, BlockPos.class);
@@ -236,6 +245,10 @@ public class XenomorphTree {
                 }
 
                 if (targetIsFireUser && fireDangerActive) {
+                    return BehaviorResult.run(moveToTargetAmbush, 19);
+                }
+
+                if (role == XenoRole.STALKER) {
                     return BehaviorResult.run(moveToTargetAmbush, 19);
                 }
 

@@ -12,6 +12,9 @@ import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -64,7 +67,17 @@ public class BreakToTargetAction<E extends XenomorphEntity> implements Action<E>
             targetBlock = findObstructingBlock(mob, target);
             if (targetBlock == null) {
                 blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
-                return ActionStatus.SUCCESS;
+                var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+                blackboard.set(
+                    AiKeys.LAST_PLAN_FEEDBACK,
+                    PlanFeedback.of(
+                        PlanFailureReason.FAILED_OBSTACLE_UNBREAKABLE,
+                        (int) mob.level().getGameTime(),
+                        mob.blockPosition(),
+                        activeGoal != null ? activeGoal : AiGoalType.NONE
+                    )
+                );
+                return ActionStatus.FAILURE;
             }
             breakProgress = 0f;
         }

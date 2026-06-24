@@ -1,11 +1,12 @@
 package mod.azure.ovomorphosis.ai.core;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
+
 import mod.azure.ovomorphosis.ai.actions.xenomorph.FleeFireAction;
-import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
+import mod.azure.ovomorphosis.ai.goap.*;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
+import mod.azure.ovomorphosis.entities.xenomorph.XenomorphGoalPlanner;
 
 /**
  * Typed blackboard keys shared across all Ovomorphosis mobs.
@@ -127,16 +128,16 @@ public final class AiKeys {
      */
     public static final String FIRE_FLEE_COOLDOWN = "fire_flee_cooldown";
 
-    /** Last known position of an environmental fire source. Type: {@link net.minecraft.core.BlockPos}. */
+    /** Last known position of an environmental fire source. Type: {@link BlockPos}. */
     public static final String LAST_FIRE_POS = "last_fire_pos";
 
     /**
      * The entity that most recently caused fire damage to or near this mob (flint-and-steel user, fire arrow shooter,
-     * lava-bucket placer detected via fire proximity). Type: {@link net.minecraft.world.entity.LivingEntity}.
+     * lava-bucket placer detected via fire proximity). Type: {@link LivingEntity}.
      * <p>
      * Written by {@link FleeFireAction} when it detects fire near a known attacker. Cleared when
      * {@link #FIRE_DANGER_UNTIL_TICK} expires. The planner uses this to switch from direct combat to flanking or
-     * cautious hive-defence posture against the attacker.
+     * cautious hive-defense posture against the attacker.
      */
     public static final String LAST_FIRE_ATTACKER = "last_fire_attacker";
 
@@ -157,4 +158,34 @@ public final class AiKeys {
     public static final String HIVE_SYNC_COOLDOWN = "hive_sync_cooldown";
 
     public static final String GOAL_FAILURE_COOLDOWNS = "goal_failure_cooldowns";
+
+    /** {@code true} when target is holding a ranged weapon or has fired a projectile recently. Type: Boolean. */
+    public static final String TARGET_IS_RANGED = "target_is_ranged";
+
+    /**
+     * {@code true} when no other non-alien living entity is within 12 blocks of the target. Influences carry/capture
+     * scoring. Type: Boolean.
+     */
+    public static final String TARGET_IS_ISOLATED = "target_is_isolated";
+
+    /** {@code true} when target is within 20 blocks of the nearest resin web cross. Type: Boolean. */
+    public static final String TARGET_IS_NEAR_HIVE = "target_is_near_hive";
+
+    /** {@code true} when target has at least two filled armor slots. Type: Boolean. */
+    public static final String TARGET_IS_ARMORED = "target_is_armored";
+
+    /** {@code true} when target passes the facehugger host validity test (can be infected). Type: Boolean. */
+    public static final String TARGET_IS_VALID_HOST = "target_is_valid_host";
+
+    /**
+     * {@code true} when the target is a danger entity, ranged and at distance, heavily armored, or on the grab
+     * blacklist. Suppresses grab and carry scoring. Type: Boolean.
+     */
+    public static final String TARGET_IS_TOO_DANGEROUS_TO_GRAB = "target_is_too_dangerous_to_grab";
+
+    /**
+     * The current soft intent role for this xenomorph. Type: {@link XenoRole}. Updated every planning cycle by
+     * {@link XenomorphGoalPlanner}.
+     */
+    public static final String XENO_ROLE = "xeno_role";
 }

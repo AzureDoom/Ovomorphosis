@@ -22,7 +22,6 @@ public enum PlanFailureReason {
     /** No failure recorded — default state. */
     NONE,
 
-    // ------------------------------------------------------------------ navigation
     /**
      * Pathfinder returned null or an empty path. GOAP response: raise score for {@link AiGoalType#BREAK_OBSTACLE} or
      * investigate from a different approach angle.
@@ -35,14 +34,12 @@ public enum PlanFailureReason {
      */
     FAILED_STUCK,
 
-    // ------------------------------------------------------------------ targeting
     /**
      * The blackboard target became null, died, or left sensor range mid-action. GOAP response: raise score for
      * INVESTIGATE at the last-known position.
      */
     FAILED_TARGET_LOST,
 
-    // ------------------------------------------------------------------ environment
     /**
      * Required resin/web infrastructure was not present (e.g. CarryToWebAction found no web cross nearby). GOAP
      * response: raise score for {@link AiGoalType#EXPAND_HIVE} / place-web-cross.
@@ -78,4 +75,12 @@ public enum PlanFailureReason {
      * prerequisite failures not covered above).
      */
     FAILED_PRECONDITION,
+
+    /**
+     * The path to the target is obstructed by a block that is not tagged {@code WEAK_BLOCKS} or has hardness > 50. The
+     * xenomorph cannot break through it. GOAP response: switch to {@link AiGoalType#INVESTIGATE} (try another approach
+     * angle), {@link AiGoalType#AMBUSH_TARGET} (wait for target to move), or {@link AiGoalType#SEEK_DARKNESS}
+     * (reposition tactically).
+     */
+    FAILED_OBSTACLE_UNBREAKABLE,
 }

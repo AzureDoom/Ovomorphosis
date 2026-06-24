@@ -74,13 +74,13 @@ public class XenomorphAnimationDispatcher {
     );
 
     private final AzCommand windUpCommand = AzCommand.create(
-        CommonStrings.BASE_CONTROLLER,
+        CommonStrings.ATTACK_CONTROLLER,
         "windup",
         AzPlayBehaviors.PLAY_ONCE
     );
 
     private final AzCommand inAirCommand = AzCommand.create(
-        CommonStrings.BASE_CONTROLLER,
+        CommonStrings.ATTACK_CONTROLLER,
         "in_air",
         AzPlayBehaviors.LOOP
     );

@@ -15,7 +15,9 @@ import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
+import mod.azure.ovomorphosis.ai.goap.XenoRole;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
+import mod.azure.ovomorphosis.ai.util.TargetClassifier;
 
 /**
  * GOAP planner for {@link XenomorphEntity}.
@@ -87,6 +89,15 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         var ambientLight = mob.level().getMaxLocalRawBrightness(mob.blockPosition());
         var tooBright = ambientLight > 4;
 
+        TargetClassifier.classify(mob, blackboard);
+        var targetIsRanged = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_RANGED, Boolean.class));
+        var targetIsIsolated = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_ISOLATED, Boolean.class));
+        var targetIsNearHive = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_NEAR_HIVE, Boolean.class));
+        var targetIsValidHost = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_VALID_HOST, Boolean.class));
+        var targetTooDangerous = Boolean.TRUE.equals(
+            blackboard.get(AiKeys.TARGET_IS_TOO_DANGEROUS_TO_GRAB, Boolean.class)
+        );
+
         var huntScore = 0f;
         var ambushScore = 0f;
         var breakScore = 0f;
@@ -95,6 +106,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         var defendScore = 0f;
         var retreatScore = 0f;
         var investigateScore = 0f;
+        var seekDarknessScore = 0f;
+        var ambushFromDarknessScore = 0f;
         var wanderScore = 5f;
 
         if (hasTarget) {
@@ -103,18 +116,34 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
 
             huntScore = 70f + (targetFacingMob ? 20f : 0f);
 
-            if (!targetFacingMob && distSq > 8.0 * 8.0) {
-                ambushScore = 60f;
-                huntScore -= 15f;
+            if (targetIsRanged) {
+                huntScore -= 20f;
+                ambushScore += 25f;
             }
-
-            if (nearWeb) {
+            if (targetIsIsolated && targetIsValidHost && !targetTooDangerous) {
+                hiveScore += 20f;
+            }
+            if (targetIsNearHive || nearWeb) {
                 defendScore = 85f;
             }
-
+            if (!targetFacingMob && distSq > 8.0 * 8.0) {
+                ambushScore += 25f;
+                huntScore -= 15f;
+            }
             if (distSq <= 12.0 * 12.0) {
                 breakScore = 20f;
             }
+        }
+
+        if (tooBright && !hasTarget) {
+            seekDarknessScore = 30f + ambientLight * 2f;
+        }
+        if (lowHealth && ambientLight > 2) {
+            seekDarknessScore += 25f;
+        }
+        if (hasTarget && tooBright) {
+            ambushFromDarknessScore = 45f + ambientLight * 2f;
+            huntScore -= 20f;
         }
 
         if (lowHealth && hasWebInRange) {
@@ -187,6 +216,17 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                         gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 40);
                     }
                 }
+                case FAILED_OBSTACLE_UNBREAKABLE -> {
+                    investigateScore += BOOST_INVEST;
+                    ambushScore += 20f;
+                    seekDarknessScore += 25f;
+                    breakScore -= PENALTY_FAILED;
+                    gfc.recordFailure(AiGoalType.BREAK_OBSTACLE, tick, 200);
+                    if (failedGoal == AiGoalType.HUNT_TARGET) {
+                        huntScore -= PENALTY_FAILED;
+                        gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 120);
+                    }
+                }
                 default -> {}
             }
         }
@@ -198,6 +238,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         lightsScore -= gfc.getPenalty(AiGoalType.KILL_LIGHTS, tick);
         retreatScore -= gfc.getPenalty(AiGoalType.RETREAT_TO_RESIN, tick);
         investigateScore -= gfc.getPenalty(AiGoalType.INVESTIGATE, tick);
+        seekDarknessScore -= gfc.getPenalty(AiGoalType.SEEK_DARKNESS, tick);
+        ambushFromDarknessScore -= gfc.getPenalty(AiGoalType.AMBUSH_FROM_DARKNESS, tick);
 
         FleeFireAction.tickFireAttackerMemory(blackboard, tick);
 
@@ -234,6 +276,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         defendScore = Math.max(0f, defendScore);
         retreatScore = Math.max(0f, retreatScore);
         investigateScore = Math.max(0f, investigateScore);
+        seekDarknessScore = Math.max(0f, seekDarknessScore);
+        ambushFromDarknessScore = Math.max(0f, ambushFromDarknessScore);
 
         var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
         if (activeGoalType != null) {
@@ -247,6 +291,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 case RETREAT_TO_RESIN -> retreatScore += HYSTERESIS_BONUS;
                 case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
                 case WANDER -> wanderScore += HYSTERESIS_BONUS;
+                case SEEK_DARKNESS -> seekDarknessScore += HYSTERESIS_BONUS;
+                case AMBUSH_FROM_DARKNESS -> ambushFromDarknessScore += HYSTERESIS_BONUS;
                 default -> {}
             }
         }
@@ -267,6 +313,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 new Candidate(AiGoalType.DEFEND_HIVE, defendScore),
                 new Candidate(AiGoalType.RETREAT_TO_RESIN, retreatScore),
                 new Candidate(AiGoalType.INVESTIGATE, investigateScore),
+                new Candidate(AiGoalType.SEEK_DARKNESS, seekDarknessScore),
+                new Candidate(AiGoalType.AMBUSH_FROM_DARKNESS, ambushFromDarknessScore),
             }
         ) {
             if (c.score() > best.score())
@@ -334,6 +382,17 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 reason = buildReason("Investigating last known position", feedback);
                 chosenTarget = null;
             }
+            case SEEK_DARKNESS -> {
+                urgency = GoalUrgency.NORMAL;
+                interruptible = true;
+                reason = "Exposed or hurt — seeking darkness";
+                chosenTarget = null;
+            }
+            case AMBUSH_FROM_DARKNESS -> {
+                urgency = GoalUrgency.NORMAL;
+                interruptible = true;
+                reason = "Repositioning to dark ambush position before engaging";
+            }
             default -> {
                 urgency = GoalUrgency.LOW;
                 interruptible = true;
@@ -341,6 +400,9 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 chosenTarget = null;
             }
         }
+
+        var role = deriveRole(chosen, mob, blackboard, hasTarget, targetIsNearHive, lowHealth);
+        blackboard.set(AiKeys.XENO_ROLE, role);
 
         return PlannedGoal.of(
             chosen,
@@ -354,6 +416,29 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             interruptible,
             reason
         );
+    }
+
+    @SuppressWarnings("unused")
+    private static XenoRole deriveRole(
+        AiGoalType chosen,
+        XenomorphEntity mob,
+        Blackboard blackboard,
+        boolean hasTarget,
+        boolean targetNearHive,
+        boolean lowHealth
+    ) {
+        if (!mob.getPassengers().isEmpty())
+            return XenoRole.CARRIER;
+        return switch (chosen) {
+            case HUNT_TARGET -> XenoRole.HUNTER;
+            case AMBUSH_TARGET, SEEK_DARKNESS,
+                AMBUSH_FROM_DARKNESS -> XenoRole.STALKER;
+            case DEFEND_HIVE -> XenoRole.DEFENDER;
+            case EXPAND_HIVE -> XenoRole.HIVE_SPREADER;
+            case RETREAT_TO_RESIN -> XenoRole.RETREATER;
+            case BREAK_OBSTACLE, INVESTIGATE -> hasTarget ? XenoRole.HUNTER : XenoRole.STALKER;
+            default -> XenoRole.IDLE;
+        };
     }
 
     private static PlanFeedback readFeedback(Blackboard blackboard, int tick) {
