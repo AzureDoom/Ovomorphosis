@@ -11,6 +11,9 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.ai.util.CrawlingCustomAStar;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
@@ -36,8 +39,8 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
     public CarryToWebAction(
         int priority,
-        java.util.function.Consumer<E> onStartCallback,
-        java.util.function.Consumer<E> onDepositCallback
+        Consumer<E> onStartCallback,
+        Consumer<E> onDepositCallback
     ) {
         this.priority = priority;
         this.onStartCallback = onStartCallback;
@@ -52,22 +55,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         pathIndex = 0;
         repathCooldown = 0;
 
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
-        if (memory != null) {
-            Optional<BlockPos> nearest = memory.findNearestWebCross(
-                mob.level(),
-                mob.blockPosition(),
-                80D
-            );
-            nearest.ifPresent(pos -> webTarget = pos);
-        }
-
-        if (webTarget == null) {
-            webTarget = scanWorldForWebCross(mob);
-            if (webTarget != null && memory != null) {
-                memory.trackBlock(webTarget);
-            }
-        }
+        webTarget = resolveWebTarget(mob, blackboard);
 
         onStartCallback.accept(mob);
     }
@@ -78,31 +66,16 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             return ActionStatus.INTERRUPTED;
 
         var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
-
         if (victim == null || !victim.isAlive()) {
+            writeFeedback(mob, blackboard, PlanFailureReason.FAILED_TARGET_LOST);
             return ActionStatus.FAILURE;
         }
 
-        if (
-            webTarget == null || !mob.level()
-                .getBlockState(webTarget)
-                .is(
-                    BlockRegistry.RESIN_WEB_CROSS.get()
-                )
-        ) {
-            var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
-            Optional<BlockPos> nearest = memory != null
-                ? memory.findNearestWebCross(mob.level(), mob.blockPosition(), 80D)
-                : Optional.empty();
-
-            if (nearest.isPresent()) {
-                webTarget = nearest.get();
-            } else {
-                webTarget = scanWorldForWebCross(mob);
-                if (webTarget == null)
-                    return ActionStatus.FAILURE;
-                if (memory != null)
-                    memory.trackBlock(webTarget);
+        if (webTarget == null || !mob.level().getBlockState(webTarget).is(BlockRegistry.RESIN_WEB_CROSS.get())) {
+            webTarget = resolveWebTarget(mob, blackboard);
+            if (webTarget == null) {
+                writeFeedback(mob, blackboard, PlanFailureReason.FAILED_NO_WEB);
+                return ActionStatus.FAILURE;
             }
             path = Collections.emptyList();
         }
@@ -146,6 +119,67 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         return priority;
     }
 
+    /**
+     * Resolves the nearest valid web cross block. Checks {@link HiveMemory} first. If memory is empty or finds nothing
+     * in range, falls back to {@link #scanWorldForWebCross}, which bulk-adds all found positions to memory so the scan
+     * is rarely needed again.
+     */
+    private BlockPos resolveWebTarget(E mob, Blackboard blackboard) {
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+
+        if (memory != null) {
+            Optional<BlockPos> fromMemory = memory.findNearestWebCross(mob.level(), mob.blockPosition(), 80D);
+            if (fromMemory.isPresent()) {
+                return fromMemory.get();
+            }
+        }
+
+        return scanWorldForWebCross(mob, memory);
+    }
+
+    /**
+     * Scans the surrounding world for all resin web cross blocks within range, adds every hit to {@code memory} so
+     * future calls can skip the scan entirely, then returns the nearest found.
+     * <p>
+     * This is intentionally a bulk-populate rather than a single-result scan: paying the iteration cost once and
+     * caching all results means the expensive loop is almost never repeated.
+     */
+    private BlockPos scanWorldForWebCross(E mob, HiveMemory memory) {
+        var origin = mob.blockPosition();
+        var rangeSqr = 80.0 * 80.0;
+        var webBlock = BlockRegistry.RESIN_WEB_CROSS.get();
+        var r = (int) Math.ceil(80.0);
+
+        BlockPos best = null;
+        var bestDistSq = Double.MAX_VALUE;
+
+        for (
+            var pos : BlockPos.betweenClosed(
+                origin.offset(-r, -r, -r),
+                origin.offset(r, r, r)
+            )
+        ) {
+            var distSq = origin.distSqr(pos);
+            if (distSq > rangeSqr)
+                continue;
+            if (!mob.level().getBlockState(pos).is(webBlock))
+                continue;
+
+            var immutable = pos.immutable();
+
+            if (memory != null) {
+                memory.trackBlock(immutable);
+            }
+
+            if (distSq < bestDistSq) {
+                bestDistSq = distSq;
+                best = immutable;
+            }
+        }
+
+        return best;
+    }
+
     private void pinVictim(E mob, LivingEntity victim) {
         var eyePos = mob.getEyePosition();
         var forward = mob.getLookAngle().scale(0.6D);
@@ -177,13 +211,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         }
 
         if (repathCooldown <= 0 || path.isEmpty() || pathIndex >= path.size()) {
-            path = CrawlingCustomAStar.findPath(
-                mob,
-                mob.blockPosition(),
-                webTarget,
-                96,
-                2
-            );
+            path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), webTarget, 96, 2);
             pathIndex = path.size() > 1 ? 1 : 0;
             repathCooldown = 15;
         }
@@ -227,30 +255,16 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         mob.yHeadRot = yaw;
     }
 
-    private BlockPos scanWorldForWebCross(E mob) {
-        var origin = mob.blockPosition();
-        var rangeSqr = 80.0 * 80.0;
-        var webBlock = BlockRegistry.RESIN_WEB_CROSS.get();
-        var r = (int) Math.ceil(80.0);
-
-        BlockPos best = null;
-        var bestDistSq = Double.MAX_VALUE;
-
-        for (
-            var pos : BlockPos.betweenClosed(
-                origin.offset(-r, -r, -r),
-                origin.offset(r, r, r)
+    private void writeFeedback(E mob, Blackboard blackboard, PlanFailureReason reason) {
+        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        blackboard.set(
+            AiKeys.LAST_PLAN_FEEDBACK,
+            PlanFeedback.of(
+                reason,
+                (int) mob.level().getGameTime(),
+                mob.blockPosition(),
+                activeGoalType != null ? activeGoalType : mod.azure.ovomorphosis.ai.goap.AiGoalType.NONE
             )
-        ) {
-            var distSq = origin.distSqr(pos);
-            if (distSq > rangeSqr || distSq >= bestDistSq)
-                continue;
-            if (!mob.level().getBlockState(pos).is(webBlock))
-                continue;
-            best = pos.immutable();
-            bestDistSq = distSq;
-        }
-
-        return best;
+        );
     }
 }
