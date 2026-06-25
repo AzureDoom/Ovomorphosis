@@ -29,4 +29,19 @@ public final class InfectionState {
     public boolean isExpired() {
         return ticks >= duration;
     }
+
+    public enum Phase {
+        DORMANT,
+        SYMPTOMATIC,
+        CRITICAL
+    }
+
+    public Phase getPhase() {
+        var progress = (float) ticks / duration;
+        if (progress < 0.3f)
+            return Phase.DORMANT;
+        if (progress < 0.7f)
+            return Phase.SYMPTOMATIC;
+        return Phase.CRITICAL;
+    }
 }
