@@ -8,6 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.client.layer.BloodLayer;
+import mod.azure.ovomorphosis.client.layer.TextureGrowthOverlayLayer;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 
 public class RunnerRenderer extends AzEntityRenderer<RunnerEntity> {
@@ -25,6 +26,7 @@ public class RunnerRenderer extends AzEntityRenderer<RunnerEntity> {
                     return contextPipeline;
                 })
                 .setAnimatorProvider(RunnerAnimator::new)
+                .addRenderLayer(new TextureGrowthOverlayLayer<>())
                 .addRenderLayer(new BloodLayer<>())
                 .setDeathMaxRotation(0F)
                 .setShadowRadius(0.75F)

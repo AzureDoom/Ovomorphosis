@@ -8,7 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.client.XenoModelRenderer;
-import mod.azure.ovomorphosis.client.layer.XenomorphGrowthOverlayLayer;
+import mod.azure.ovomorphosis.client.layer.TextureGrowthOverlayLayer;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 public class XenomorphRenderer extends AzEntityRenderer<XenomorphEntity> {
@@ -27,7 +27,7 @@ public class XenomorphRenderer extends AzEntityRenderer<XenomorphEntity> {
                 })
                 .setAnimatorProvider(XenomorphAnimator::new)
                 .setModelRenderer(XenoModelRenderer::new)
-                .addRenderLayer(new XenomorphGrowthOverlayLayer<>())
+                .addRenderLayer(new TextureGrowthOverlayLayer<>())
                 .setDeathMaxRotation(0F)
                 .setShadowRadius(0.75F)
                 .withLodConfig(
