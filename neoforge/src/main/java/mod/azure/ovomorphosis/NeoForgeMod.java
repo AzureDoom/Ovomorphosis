@@ -117,6 +117,11 @@ public final class NeoForgeMod {
             event.accept(BlockRegistry.RESIN_WEB_ITEM.get());
             event.accept(BlockRegistry.RESIN_WEB_CROSS_ITEM.get());
         }
+        if (event.getTabKey() == CreativeModeTabs.COMBAT) {
+            event.accept(ItemRegistry.FLAMETHROWER.get());
+            event.accept(ItemRegistry.SCANNER.get());
+            event.accept(ItemRegistry.MOTION_TRACKER.get());
+        }
     }
 
     public void addSpawnPlacements(RegisterSpawnPlacementsEvent event) {

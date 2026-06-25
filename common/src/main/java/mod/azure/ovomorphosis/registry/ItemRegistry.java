@@ -6,6 +6,9 @@ import net.minecraft.world.item.SpawnEggItem;
 
 import java.util.function.Supplier;
 
+import mod.azure.ovomorphosis.items.FlamethrowerLiteItem;
+import mod.azure.ovomorphosis.items.InfectionScannerItem;
+import mod.azure.ovomorphosis.items.MotionTrackerItem;
 import mod.azure.ovomorphosis.services.XenoServices;
 
 public class ItemRegistry {
@@ -59,6 +62,12 @@ public class ItemRegistry {
             new Item.Properties()
         )
     );
+
+    public static final Supplier<Item> FLAMETHROWER = registerItem("flamethrower", FlamethrowerLiteItem::new);
+
+    public static final Supplier<Item> SCANNER = registerItem("infection_scanner", InfectionScannerItem::new);
+
+    public static final Supplier<Item> MOTION_TRACKER = registerItem("motion_tracker", MotionTrackerItem::new);
 
     private ItemRegistry() {}
 
