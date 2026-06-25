@@ -71,6 +71,11 @@ public final class FabricLibMod implements ModInitializer {
             entries.accept(BlockRegistry.RESIN_WEB_ITEM.get());
             entries.accept(BlockRegistry.RESIN_WEB_CROSS_ITEM.get());
         });
+        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.COMBAT).register(entries -> {
+            entries.accept(ItemRegistry.FLAMETHROWER.get());
+            entries.accept(ItemRegistry.SCANNER.get());
+            entries.accept(ItemRegistry.MOTION_TRACKER.get());
+        });
         SpawnPlacements.register(
             EntityRegistry.FACEHUGGER.get(),
             SpawnPlacements.Type.ON_GROUND,

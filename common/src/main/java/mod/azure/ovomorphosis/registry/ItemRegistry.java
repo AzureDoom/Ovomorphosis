@@ -1,5 +1,8 @@
 package mod.azure.ovomorphosis.registry;
 
+import mod.azure.ovomorphosis.items.FlamethrowerLiteItem;
+import mod.azure.ovomorphosis.items.InfectionScannerItem;
+import mod.azure.ovomorphosis.items.MotionTrackerItem;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
@@ -59,6 +62,12 @@ public class ItemRegistry {
             new Item.Properties()
         )
     );
+
+    public static final Supplier<Item> FLAMETHROWER = registerItem("flamethrower", FlamethrowerLiteItem::new);
+
+    public static final Supplier<Item> SCANNER = registerItem("infection_scanner", InfectionScannerItem::new);
+
+    public static final Supplier<Item> MOTION_TRACKER = registerItem("motion_tracker", MotionTrackerItem::new);
 
     private ItemRegistry() {}
 
