@@ -1,7 +1,5 @@
 package mod.azure.ovomorphosis.mixins;
 
-import mod.azure.ovomorphosis.ai.util.TargetingUtils;
-import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.animal.Wolf;
 import org.spongepowered.asm.mixin.Mixin;
@@ -9,6 +7,9 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 @Mixin(Wolf.class)
 public class WolfFacehuggerReactionMixin {
