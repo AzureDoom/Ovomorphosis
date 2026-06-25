@@ -9,6 +9,7 @@ import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
@@ -120,9 +121,6 @@ public final class InfectionManager {
                 continue;
             }
 
-            state.lastKnownPos = host.blockPosition();
-            state.ticks++;
-
             if (
                 entity instanceof Player player
                     && (player.isCreative() || player.isSpectator())
@@ -130,6 +128,25 @@ public final class InfectionManager {
                 state.hasBurst = false;
                 it.remove();
                 continue;
+            }
+
+            state.lastKnownPos = host.blockPosition();
+            state.ticks++;
+
+            var phase = state.getPhase();
+            if (state.ticks % 100 == 0) {
+                switch (phase) {
+                    case SYMPTOMATIC -> {
+                        host.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 140, 0, true, false));
+                        host.addEffect(new MobEffectInstance(MobEffects.HUNGER, 140, 0, true, false));
+                    }
+                    case CRITICAL -> {
+                        host.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 160, 1, true, false));
+                        host.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 160, 1, true, false));
+                        host.addEffect(new MobEffectInstance(MobEffects.HUNGER, 160, 1, true, false));
+                        host.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 60, 0, true, false));
+                    }
+                }
             }
 
             state.ticksSinceLastDamage++;
@@ -244,5 +261,10 @@ public final class InfectionManager {
                 isBurst ? 0.15 : 0.05
             );
         }
+    }
+
+    public static InfectionState.Phase getPhase(LivingEntity entity) {
+        var state = INFECTIONS.get(entity.getUUID());
+        return state != null ? state.getPhase() : null;
     }
 }
