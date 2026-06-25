@@ -39,12 +39,11 @@ public final class MovementUtils {
             return false;
         if (state.is(ModTags.RESIN))
             return true;
-        if (!state.getFluidState().isEmpty()) {
-            return true;
+        var fluid = state.getFluidState();
+        if (!fluid.isEmpty()) {
+            return !fluid.is(ModTags.DANGER_FLUIDS);
         }
-        if (state.getFluidState().is(ModTags.DANGER_FLUIDS))
-            return false;
-        return state.getShape(level, pos).isEmpty() || !state.getCollisionShape(level, pos).isEmpty() || state.isAir();
+        return true;
     }
 
     private static boolean hasGroundWithinDrop(Level level, BlockPos feetPos, int maxDrop) {
@@ -95,7 +94,10 @@ public final class MovementUtils {
                 if (!isSafeBlock(level, headPos))
                     return false;
 
-                if (!level.getBlockState(feetPos).getCollisionShape(level, feetPos).isEmpty())
+                var feetCollision = level.getBlockState(feetPos).getCollisionShape(level, feetPos);
+                var isStepUpRiser = !feetCollision.isEmpty()
+                    && level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty();
+                if (!isStepUpRiser && !feetCollision.isEmpty())
                     return false;
 
                 if (!level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty())
