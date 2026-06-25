@@ -16,7 +16,7 @@ import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
-import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
@@ -29,7 +29,7 @@ import mod.azure.ovomorphosis.util.ModTags;
  *
  * @param <E> xenomorph entity type
  */
-public class BreakToTargetAction<E extends XenomorphEntity> implements Action<E> {
+public class BreakToTargetAction<E extends AbstractAlienEntity> implements Action<E> {
 
     private BlockPos targetBlock = null;
 
@@ -142,7 +142,7 @@ public class BreakToTargetAction<E extends XenomorphEntity> implements Action<E>
         return 15;
     }
 
-    private static BlockPos findObstructingBlock(XenomorphEntity mob, LivingEntity target) {
+    private static BlockPos findObstructingBlock(AbstractAlienEntity mob, LivingEntity target) {
         var from = mob.blockPosition();
         var to = target.blockPosition();
 

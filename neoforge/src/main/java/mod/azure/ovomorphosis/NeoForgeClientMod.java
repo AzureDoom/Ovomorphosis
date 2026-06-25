@@ -12,6 +12,7 @@ import mod.azure.ovomorphosis.client.AcidEntityRender;
 import mod.azure.ovomorphosis.client.chestbuster.ChestbusterRenderer;
 import mod.azure.ovomorphosis.client.facehugger.FacehuggerRenderer;
 import mod.azure.ovomorphosis.client.ovomorph.OvomorphRenderer;
+import mod.azure.ovomorphosis.client.runner.RunnerRenderer;
 import mod.azure.ovomorphosis.client.xenomorph.XenomorphRenderer;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
@@ -32,6 +33,7 @@ public class NeoForgeClientMod {
         event.registerEntityRenderer(EntityRegistry.FACEHUGGER.get(), FacehuggerRenderer::new);
         event.registerEntityRenderer(EntityRegistry.CHESTBURSTER.get(), ChestbusterRenderer::new);
         event.registerEntityRenderer(EntityRegistry.XENOMORPH.get(), XenomorphRenderer::new);
+        event.registerEntityRenderer(EntityRegistry.RUNNER.get(), RunnerRenderer::new);
         event.registerEntityRenderer(EntityRegistry.ACID.get(), AcidEntityRender::new);
     }
 }

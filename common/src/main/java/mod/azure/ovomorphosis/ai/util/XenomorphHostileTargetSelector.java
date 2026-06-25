@@ -8,9 +8,9 @@ import java.util.ArrayDeque;
 
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
-public final class XenomorphHostileTargetSelector<E extends XenomorphEntity> implements TargetSelector<E> {
+public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity> implements TargetSelector<E> {
 
     private final double range;
 

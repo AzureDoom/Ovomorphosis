@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.registry.DamageTypeRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
@@ -177,41 +178,48 @@ public final class InfectionManager {
 
         level.playSound(host, host.blockPosition(), SoundRegistry.CHEST_BURST.get(), SoundSource.HOSTILE, 1.0F, 1.0F);
         spawnBloodParticles(host, level, true);
-        var burster = new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level);
+        // AbstractAlienEntity burster = null;
+        // if (host.getType().is(ModTags.XENOMORPH_HOST)) {
+        // burster = new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level);
+        // } else if (host.getType().is(ModTags.RUNNER_HOST)) {
+        // burster = new RunnerEntity(EntityRegistry.RUNNER.get(), level);
+        // }
+        AbstractAlienEntity burster = new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level);
+        if (burster != null) {
+            var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);
+            burster.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
 
-        var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);
-        burster.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
+            var angle = host.getRandom().nextFloat() * (float) (Math.PI * 2);
+            burster.setDeltaMovement(
+                Mth.cos(angle) * 0.4f,
+                0.6f,
+                Mth.sin(angle) * 0.4f
+            );
+            level.addFreshEntity(burster);
 
-        var angle = host.getRandom().nextFloat() * (float) (Math.PI * 2);
-        burster.setDeltaMovement(
-            Mth.cos(angle) * 0.4f,
-            0.6f,
-            Mth.sin(angle) * 0.4f
-        );
-        level.addFreshEntity(burster);
+            for (var effect : host.getActiveEffects()) {
+                burster.addEffect(new MobEffectInstance(effect));
+            }
 
-        for (var effect : host.getActiveEffects()) {
-            burster.addEffect(new MobEffectInstance(effect));
-        }
-
-        if (host instanceof ServerPlayer serverPlayer) {
-            var advancement = serverPlayer.server.getAdvancements()
-                .get(CommonMod.modResource("chestbursted"));
-            if (
-                advancement != null
-                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
-            ) {
-                for (
-                    var s : serverPlayer.getAdvancements()
-                        .getOrStartProgress(advancement)
-                        .getRemainingCriteria()
+            if (host instanceof ServerPlayer serverPlayer) {
+                var advancement = serverPlayer.server.getAdvancements()
+                    .get(CommonMod.modResource("chest_burst"));
+                if (
+                    advancement != null
+                        && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
                 ) {
-                    serverPlayer.getAdvancements().award(advancement, s);
+                    for (
+                        var s : serverPlayer.getAdvancements()
+                            .getOrStartProgress(advancement)
+                            .getRemainingCriteria()
+                    ) {
+                        serverPlayer.getAdvancements().award(advancement, s);
+                    }
                 }
             }
-        }
 
-        host.hurt(DamageTypeRegistry.of(level), Float.MAX_VALUE);
+            host.hurt(DamageTypeRegistry.of(level), Float.MAX_VALUE);
+        }
     }
 
     private static void spawnBloodParticles(LivingEntity host, ServerLevel level, boolean isBurst) {

@@ -1,0 +1,31 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:evoker",
+    "minecraft:illusioner",
+    "minecraft:pillager",
+    "minecraft:piglin",
+    "minecraft:piglin_brute",
+    "minecraft:player",
+    "minecraft:wandering_trader",
+    "minecraft:witch",
+    "minecraft:villager",
+    "minecraft:vindicator",
+    {
+      "id": "hwg:merc",
+      "required": false
+    },
+    {
+      "id": "hwg:spy",
+      "required": false
+    },
+    {
+      "id": "avp_human:marine",
+      "required": false
+    },
+    {
+      "id": "#avp_predator:predators",
+      "required": false
+    }
+  ]
+}

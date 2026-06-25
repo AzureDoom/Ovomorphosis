@@ -17,6 +17,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
+import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
@@ -55,15 +56,19 @@ public final class FabricLibMod implements ModInitializer {
             EntityRegistry.XENOMORPH.get(),
             XenomorphEntity.createAttributes()
         );
+        FabricDefaultAttributeRegistry.register(
+            EntityRegistry.RUNNER.get(),
+            RunnerEntity.createAttributes()
+        );
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.SPAWN_EGGS).register(entries -> {
             entries.accept(ItemRegistry.OVOMORPH_SPAWN_EGG.get());
             entries.accept(ItemRegistry.FACEHUGGER_SPAWN_EGG.get());
             entries.accept(ItemRegistry.CHESTBURSTER_SPAWN_EGG.get());
             entries.accept(ItemRegistry.XENOMORPH_SPAWN_EGG.get());
+            // entries.accept(ItemRegistry.RUNNER_SPAWN_EGG.get());
         });
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.BUILDING_BLOCKS).register(entries -> {
             entries.accept(BlockRegistry.RESIN_ITEM.get());
-            entries.accept(BlockRegistry.RESIN_BLOCK_ITEM.get());
             entries.accept(BlockRegistry.RESIN_WEB_ITEM.get());
             entries.accept(BlockRegistry.RESIN_WEB_CROSS_ITEM.get());
         });
@@ -87,6 +92,12 @@ public final class FabricLibMod implements ModInitializer {
         );
         SpawnPlacements.register(
             EntityRegistry.XENOMORPH.get(),
+            SpawnPlacementTypes.ON_GROUND,
+            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+            (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
+        );
+        SpawnPlacements.register(
+            EntityRegistry.RUNNER.get(),
             SpawnPlacementTypes.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)

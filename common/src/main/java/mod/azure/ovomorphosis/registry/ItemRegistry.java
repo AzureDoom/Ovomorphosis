@@ -50,6 +50,16 @@ public class ItemRegistry {
         )
     );
 
+    public static final Supplier<SpawnEggItem> RUNNER_SPAWN_EGG = registerItem(
+        "runner_spawn_egg",
+        XenoServices.COMMON_REGISTRY.makeSpawnEggFor(
+            EntityRegistry.RUNNER,
+            0x131416,
+            0x362b1e,
+            new Item.Properties()
+        )
+    );
+
     private ItemRegistry() {}
 
     public static <T extends Item> Supplier<T> registerItem(String itemName, Supplier<T> item) {

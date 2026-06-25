@@ -11,7 +11,7 @@ import net.minecraft.world.level.material.Fluid;
 
 import mod.azure.ovomorphosis.CommonMod;
 
-public class ModTags {
+public record ModTags() {
 
     public static final TagKey<Block> RESIN = TagKey.create(
         Registries.BLOCK,
@@ -56,6 +56,16 @@ public class ModTags {
     public static final TagKey<EntityType<?>> XENO_GRAB_BLACKLIST = TagKey.create(
         Registries.ENTITY_TYPE,
         CommonMod.modResource("xeno_grab_blacklist")
+    );
+
+    public static final TagKey<EntityType<?>> XENOMORPH_HOST = TagKey.create(
+        Registries.ENTITY_TYPE,
+        CommonMod.modResource("xenomorph_host")
+    );
+
+    public static final TagKey<EntityType<?>> RUNNER_HOST = TagKey.create(
+        Registries.ENTITY_TYPE,
+        CommonMod.modResource("runner_host")
     );
 
     public static final TagKey<Structure> INFESTABLE_STRUCTURES = TagKey.create(

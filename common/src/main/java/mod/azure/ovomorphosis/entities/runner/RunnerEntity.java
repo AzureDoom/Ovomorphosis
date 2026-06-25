@@ -1,0 +1,394 @@
+package mod.azure.ovomorphosis.entities.runner;
+
+import mod.azure.azurelib.common.util.MoveAnalysis;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.Mth;
+import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gameevent.*;
+import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.function.BiConsumer;
+
+import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.core.AiKeys;
+import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
+import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
+import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
+import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.util.TargetingSystem;
+import mod.azure.ovomorphosis.ai.util.XenomorphHostileTargetSelector;
+import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.registry.SoundRegistry;
+import mod.azure.ovomorphosis.util.ClientAnimState;
+import mod.azure.ovomorphosis.util.Growable;
+
+public class RunnerEntity extends AbstractAlienEntity implements Growable {
+
+    protected static final EntityDataAccessor<Float> GROWTH = SynchedEntityData.defineId(
+        RunnerEntity.class,
+        EntityDataSerializers.FLOAT
+    );
+
+    private final XenomorphHostileTargetSelector<RunnerEntity> targetSelector;
+
+    private final DynamicGameEventListener<GameEventListener> dynamicGameEventListener;
+
+    private final MobBrainRuntime<RunnerEntity> brainRuntime;
+
+    private final RunnerGoalPlanner goalPlanner = new RunnerGoalPlanner();
+
+    public final RunnerAnimationDispatcher animationDispatcher;
+
+    public RunnerEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
+        super(entityType, level);
+        this.animationDispatcher = new RunnerAnimationDispatcher(this);
+        this.moveAnalysis = new MoveAnalysis(this);
+        this.targetSelector = new XenomorphHostileTargetSelector<>(
+            CommonMod.getConfig().entityConfigs.runnerConfigs.runnerHostileRange
+        );
+
+        var positionSource = new EntityPositionSource(this, this.getEyeHeight());
+        this.dynamicGameEventListener = new DynamicGameEventListener<>(new GameEventListener() {
+
+            @Override
+            public @NotNull PositionSource getListenerSource() {
+                return positionSource;
+            }
+
+            @Override
+            public int getListenerRadius() {
+                return 32;
+            }
+
+            @Override
+            public boolean handleGameEvent(
+                @NotNull ServerLevel serverLevel,
+                @NotNull Holder<GameEvent> eventHolder,
+                GameEvent.@NotNull Context context,
+                @NotNull Vec3 pos
+            ) {
+                return RunnerEntity.this.onGameEvent(eventHolder, context, pos);
+            }
+        });
+
+        this.brainRuntime = new MobBrainRuntime<>(
+            this,
+            new TargetingSystem<>(targetSelector, 10),
+            RunnerTree.create()
+        );
+    }
+
+    public static AttributeSupplier.Builder createAttributes() {
+        return LivingEntity.createLivingAttributes()
+            .add(Attributes.MAX_HEALTH, CommonMod.getConfig().entityConfigs.runnerConfigs.runnerHealth)
+            .add(
+                Attributes.ARMOR,
+                CommonMod.getConfig().entityConfigs.runnerConfigs.runnerArmor
+            )
+            .add(Attributes.ARMOR_TOUGHNESS, CommonMod.getConfig().entityConfigs.runnerConfigs.runnerArmorToughness)
+            .add(
+                Attributes.KNOCKBACK_RESISTANCE,
+                CommonMod.getConfig().entityConfigs.runnerConfigs.runnerKnockbackRes
+            )
+            .add(Attributes.FOLLOW_RANGE, CommonMod.getConfig().entityConfigs.runnerConfigs.runnerHostileRange)
+            .add(Attributes.MOVEMENT_SPEED, 0.25)
+            .add(Attributes.ATTACK_DAMAGE, CommonMod.getConfig().entityConfigs.runnerConfigs.runnerAttackDamage)
+            .add(Attributes.SCALE, 1.0D);
+    }
+
+    private boolean onGameEvent(Holder<GameEvent> eventHolder, GameEvent.Context context, Vec3 pos) {
+        if (this.isDeadOrDying()) {
+            return false;
+        }
+
+        if (!isSignificantEvent(eventHolder)) {
+            return false;
+        }
+
+        var source = context.sourceEntity();
+
+        if (source instanceof AbstractAlienEntity) {
+            return false;
+        }
+
+        if (source instanceof Player player && (player.isCreative() || player.isSpectator())) {
+            return false;
+        }
+
+        var investigatePos = source != null ? source.position() : pos;
+        targetSelector.hearSound(investigatePos);
+        return true;
+    }
+
+    @Override
+    public void updateDynamicGameEventListener(
+        @NotNull BiConsumer<DynamicGameEventListener<?>, ServerLevel> listenerConsumer
+    ) {
+        if (this.level() instanceof ServerLevel serverLevel) {
+            listenerConsumer.accept(this.dynamicGameEventListener, serverLevel);
+        }
+    }
+
+    @Override
+    public boolean killedEntity(@NotNull ServerLevel level, @NotNull LivingEntity entity) {
+        targetSelector.onTargetKilled();
+        return super.killedEntity(level, entity);
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (!this.level().isClientSide()) {
+            if (!this.isNoAi()) {
+                tickGoalPlanner();
+                brainRuntime.tick();
+                CrawlingManager.updateWallCrawlingPhysics(this);
+            }
+            if (this.isAlive()) {
+                grow(this, 1);
+                updateScaleFromGrowth();
+            }
+        }
+    }
+
+    private void updateScaleFromGrowth() {
+        var scaleAttribute = this.getAttribute(Attributes.SCALE);
+
+        if (scaleAttribute == null) {
+            return;
+        }
+
+        var newScale = this.getGrowthScale();
+        var oldScale = scaleAttribute.getBaseValue();
+
+        if (Math.abs(oldScale - newScale) > 0.001D) {
+            scaleAttribute.setBaseValue(newScale);
+            this.refreshDimensions();
+        }
+    }
+
+    public float getGrowthScale() {
+        return Mth.clamp(
+            0.5F + ((this.getGrowth() / this.getMaxGrowth()) * 0.5F),
+            0.5F,
+            1.0F
+        );
+    }
+
+    @Override
+    public @NotNull SoundEvent getDeathSound() {
+        return SoundRegistry.XENOMORPH_DEATH.get();
+    }
+
+    @Override
+    protected SoundEvent getAmbientSound() {
+        return SoundRegistry.XENOMORPH_IDLE.get();
+    }
+
+    @Override
+    protected @NotNull SoundEvent getHurtSound(@NotNull DamageSource damageSourceIn) {
+        return SoundRegistry.XENOMORPH_HURT.get();
+    }
+
+    @Override
+    protected void playStepSound(@NotNull BlockPos pos, @NotNull BlockState blockIn) {}
+
+    @Override
+    public @Nullable SpawnGroupData finalizeSpawn(
+        @NotNull ServerLevelAccessor level,
+        @NotNull DifficultyInstance difficulty,
+        @NotNull MobSpawnType spawnType,
+        @Nullable SpawnGroupData spawnGroupData
+    ) {
+        if (spawnType == MobSpawnType.SPAWN_EGG || spawnType == MobSpawnType.COMMAND)
+            setGrowth(1200);
+        if (level instanceof ServerLevel serverLevel) {
+            brainRuntime.getBlackboard()
+                .set(
+                    AiKeys.HIVE_MEMORY,
+                    OvomorphosisSavedData.getHiveMemory(serverLevel)
+                );
+        }
+        return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
+    }
+
+    @Override
+    public float getGrowth() {
+        return entityData.get(GROWTH);
+    }
+
+    @Override
+    public void setGrowth(float growth) {
+        entityData.set(GROWTH, growth);
+    }
+
+    @Override
+    public float getMaxGrowth() {
+        return 1200;
+    }
+
+    @Override
+    public LivingEntity growInto() {
+        return null;
+    }
+
+    @Override
+    @NotNull
+    public EntityDimensions getDefaultDimensions(@NotNull Pose pose) {
+        if (this.ovomorphosis$isWallCrawling())
+            return EntityDimensions.scalable(0.9F, 0.9F);
+        return super.getDefaultDimensions(pose);
+    }
+
+    @Override
+    public boolean doHurtTarget(@NotNull Entity target) {
+        this.heal(1.0833F);
+        return super.doHurtTarget(target);
+    }
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(GROWTH, 0.0F);
+    }
+
+    @Override
+    public void addAdditionalSaveData(@NotNull CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        tag.putFloat("growth", getGrowth());
+    }
+
+    @Override
+    public void readAdditionalSaveData(@NotNull CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        this.setGrowth(tag.getFloat("growth"));
+        if (this.level() instanceof ServerLevel serverLevel) {
+            brainRuntime.getBlackboard()
+                .set(
+                    AiKeys.HIVE_MEMORY,
+                    OvomorphosisSavedData.getHiveMemory(serverLevel)
+                );
+        }
+    }
+
+    @Override
+    protected boolean canRide(@NotNull Entity vehicle) {
+        return false;
+    }
+
+    private static boolean isSignificantEvent(Holder<GameEvent> event) {
+        return event.unwrapKey()
+            .map(
+                key -> key == GameEvent.STEP.key()
+                    || key == GameEvent.HIT_GROUND.key()
+                    || key == GameEvent.SWIM.key()
+                    || key == GameEvent.SPLASH.key()
+                    || key == GameEvent.ELYTRA_GLIDE.key()
+                    || key == GameEvent.FLAP.key()
+                    || key == GameEvent.ENTITY_INTERACT.key()
+                    || key == GameEvent.ENTITY_DAMAGE.key()
+                    || key == GameEvent.ENTITY_DIE.key()
+                    || key == GameEvent.ENTITY_ACTION.key()
+                    || key == GameEvent.BLOCK_CHANGE.key()
+                    || key == GameEvent.BLOCK_DESTROY.key()
+                    || key == GameEvent.BLOCK_PLACE.key()
+                    || key == GameEvent.PROJECTILE_SHOOT.key()
+                    || key == GameEvent.PROJECTILE_LAND.key()
+                    || key == GameEvent.EXPLODE.key()
+                    || key == GameEvent.EAT.key()
+                    || key == GameEvent.DRINK.key()
+            )
+            .orElse(false);
+    }
+
+    private void tickGoalPlanner() {
+        var blackboard = brainRuntime.getBlackboard();
+        var cooldowns = brainRuntime.getCooldowns();
+
+        int currentTick = (int) this.level().getGameTime();
+
+        @SuppressWarnings("unchecked")
+        var activeGoal = (PlannedGoal<RunnerEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+
+        var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
+        var isPassive = goalType == AiGoalType.WANDER
+            || goalType == AiGoalType.NONE
+            || goalType == AiGoalType.EXPAND_HIVE
+            || goalType == AiGoalType.KILL_LIGHTS;
+
+        var huntSuppressed = GoalFailureCooldowns.getOrCreate(blackboard)
+            .isSuppressed(AiGoalType.HUNT_TARGET, currentTick);
+        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !huntSuppressed;
+
+        if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+            return;
+
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick))
+            return;
+
+        cooldowns.set(AiKeys.GOAL_REPLAN, 20);
+        var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
+
+        GoalApplicator.apply(this, blackboard, newGoal);
+    }
+
+    private void playAnimation(ClientAnimState next) {
+        if (currentClientAnim == next) {
+            return;
+        }
+
+        currentClientAnim = next;
+
+        switch (next) {
+            case DEATH -> animationDispatcher.clientDeath();
+            case WALK -> animationDispatcher.clientWalk();
+            case RUN -> animationDispatcher.clientRun();
+            case IDLE -> animationDispatcher.clientIdle();
+            case SWIMMING -> animationDispatcher.clientSwim();
+        }
+    }
+
+    public void updateAnimations() {
+        if (this.isDeadOrDying() || this.getHealth() <= 0) {
+            playAnimation(ClientAnimState.DEATH);
+            return;
+        }
+
+        if (this.isInWater()) {
+            playAnimation(ClientAnimState.SWIMMING);
+            return;
+        }
+
+        if (moveAnalysis.isMoving()) {
+            if (this.isAggressive() && !this.swinging) {
+                playAnimation(ClientAnimState.RUN);
+            } else {
+                playAnimation(ClientAnimState.WALK);
+            }
+
+            return;
+        }
+
+        playAnimation(ClientAnimState.IDLE);
+    }
+}

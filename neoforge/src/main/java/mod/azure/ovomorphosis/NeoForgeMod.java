@@ -27,6 +27,7 @@ import mod.azure.ovomorphosis.client.facehugger.EntityHeadOffsetData;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
+import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
@@ -100,6 +101,7 @@ public final class NeoForgeMod {
         event.put(EntityRegistry.FACEHUGGER.get(), FacehuggerEntity.createAttributes().build());
         event.put(EntityRegistry.CHESTBURSTER.get(), ChestbursterEntity.createAttributes().build());
         event.put(EntityRegistry.XENOMORPH.get(), XenomorphEntity.createAttributes().build());
+        event.put(EntityRegistry.RUNNER.get(), RunnerEntity.createAttributes().build());
     }
 
     public void addCreativeTabs(final BuildCreativeModeTabContentsEvent event) {
@@ -108,10 +110,10 @@ public final class NeoForgeMod {
             event.accept(ItemRegistry.FACEHUGGER_SPAWN_EGG.get());
             event.accept(ItemRegistry.CHESTBURSTER_SPAWN_EGG.get());
             event.accept(ItemRegistry.XENOMORPH_SPAWN_EGG.get());
+            // event.accept(ItemRegistry.RUNNER_SPAWN_EGG.get());
         }
         if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
             event.accept(BlockRegistry.RESIN_ITEM.get());
-            event.accept(BlockRegistry.RESIN_BLOCK_ITEM.get());
             event.accept(BlockRegistry.RESIN_WEB_ITEM.get());
             event.accept(BlockRegistry.RESIN_WEB_CROSS_ITEM.get());
         }
@@ -141,6 +143,13 @@ public final class NeoForgeMod {
         );
         event.register(
             EntityRegistry.XENOMORPH.get(),
+            SpawnPlacementTypes.ON_GROUND,
+            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+            ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
+            RegisterSpawnPlacementsEvent.Operation.AND
+        );
+        event.register(
+            EntityRegistry.RUNNER.get(),
             SpawnPlacementTypes.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),

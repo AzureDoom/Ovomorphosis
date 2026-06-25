@@ -204,5 +204,42 @@ public class OvomorphosisConfig {
             public boolean enableXenomorphItemSlap = true;
 
         }
+
+        @Configurable
+        @Configurable.Synchronized
+        public RunnerConfigs runnerConfigs = new RunnerConfigs();
+
+        public static class RunnerConfigs {
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double runnerHealth = 100.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double runnerArmor = 10.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double runnerArmorToughness = 3.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double runnerKnockbackRes = 1.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double runnerAttackDamage = 6.0D;
+
+            @Configurable
+            @Configurable.Synchronized
+            @Configurable.DecimalRange(min = 0.0D)
+            public double runnerHostileRange = 32.0D;
+        }
     }
 }

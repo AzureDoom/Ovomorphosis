@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.entities;
 
 import mod.azure.azurelib.common.util.MoveAnalysis;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -17,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 
+import mod.azure.ovomorphosis.ai.actions.xenomorph.FleeFireAction;
 import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.util.ClientAnimState;
@@ -49,6 +51,11 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
 
     private static final EntityDataAccessor<Float> DATA_CRAWL_DIST_FROM_BLOCK =
         SynchedEntityData.defineId(AbstractAlienEntity.class, EntityDataSerializers.FLOAT);
+
+    protected static final EntityDataAccessor<Float> FIRE_TOLERANCE_NBT = SynchedEntityData.defineId(
+        AbstractAlienEntity.class,
+        EntityDataSerializers.FLOAT
+    );
 
     private int wallCrawlGraceTicks;
 
@@ -90,6 +97,19 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
         builder.define(DATA_CRAWL_UP_Z, 0.0F);
 
         builder.define(DATA_CRAWL_DIST_FROM_BLOCK, 0.0F);
+        builder.define(FIRE_TOLERANCE_NBT, 0.0F);
+    }
+
+    @Override
+    public void addAdditionalSaveData(@NotNull CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        tag.putFloat("fireToleranceNbt", getFireToleranceNbt());
+    }
+
+    @Override
+    public void readAdditionalSaveData(@NotNull CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        this.setFireToleranceNbt(tag.getFloat("fireToleranceNbt"));
     }
 
     @Override
@@ -299,5 +319,17 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
                 level.sendParticles(ParticleTypes.SMOKE, x, y, z, 1, 0.02D, 0.03D, 0.02D, 0.0D);
             }
         }
+    }
+
+    public float getFireToleranceNbt() {
+        return entityData.get(FIRE_TOLERANCE_NBT);
+    }
+
+    public void setFireToleranceNbt(float value) {
+        entityData.set(FIRE_TOLERANCE_NBT, Math.min(value, FleeFireAction.MAX_TOLERANCE));
+    }
+
+    public boolean isFireHardened() {
+        return getFireToleranceNbt() >= FleeFireAction.MAX_TOLERANCE;
     }
 }

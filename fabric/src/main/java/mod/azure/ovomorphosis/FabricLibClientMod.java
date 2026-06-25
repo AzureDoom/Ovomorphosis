@@ -10,6 +10,7 @@ import mod.azure.ovomorphosis.client.AcidEntityRender;
 import mod.azure.ovomorphosis.client.chestbuster.ChestbusterRenderer;
 import mod.azure.ovomorphosis.client.facehugger.FacehuggerRenderer;
 import mod.azure.ovomorphosis.client.ovomorph.OvomorphRenderer;
+import mod.azure.ovomorphosis.client.runner.RunnerRenderer;
 import mod.azure.ovomorphosis.client.xenomorph.XenomorphRenderer;
 import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
@@ -25,6 +26,7 @@ public class FabricLibClientMod implements ClientModInitializer {
         EntityRendererRegistry.register(EntityRegistry.FACEHUGGER.get(), FacehuggerRenderer::new);
         EntityRendererRegistry.register(EntityRegistry.CHESTBURSTER.get(), ChestbusterRenderer::new);
         EntityRendererRegistry.register(EntityRegistry.XENOMORPH.get(), XenomorphRenderer::new);
+        EntityRendererRegistry.register(EntityRegistry.RUNNER.get(), RunnerRenderer::new);
         EntityRendererRegistry.register(EntityRegistry.ACID.get(), AcidEntityRender::new);
         FabricAzureLibNetwork.registerPacket(
             EggmorphProgressPacket.TYPE,

@@ -11,9 +11,9 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
-import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
-public final class LungeAction<E extends XenomorphEntity> implements Action<E> {
+public final class LungeAction<E extends AbstractAlienEntity> implements Action<E> {
 
     private enum Phase {
         WIND_UP,
@@ -45,7 +45,7 @@ public final class LungeAction<E extends XenomorphEntity> implements Action<E> {
         this.lungeAnimation = lungeAnimation;
     }
 
-    public static boolean canLunge(XenomorphEntity mob, LivingEntity target, Cooldowns cooldowns) {
+    public static boolean canLunge(AbstractAlienEntity mob, LivingEntity target, Cooldowns cooldowns) {
         if (cooldowns.isOnCooldown(AiKeys.LUNGE_COOLDOWN))
             return false;
 
@@ -66,7 +66,7 @@ public final class LungeAction<E extends XenomorphEntity> implements Action<E> {
      * positive dot product means the velocity vector points generally away from the mob — i.e., the target is
      * retreating or strafing away.
      */
-    private static boolean isTargetKiting(XenomorphEntity mob, LivingEntity target) {
+    private static boolean isTargetKiting(AbstractAlienEntity mob, LivingEntity target) {
         var targetVel = target.getDeltaMovement();
         var horizontal = new Vec3(targetVel.x, 0, targetVel.z);
 

@@ -11,7 +11,6 @@ import mod.azure.ovomorphosis.ai.actions.xenomorph.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
-import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
@@ -52,7 +51,7 @@ public final class TargetClassifier {
      * @param mob        the xenomorph performing the evaluation
      * @param blackboard the mob's blackboard
      */
-    public static void classify(XenomorphEntity mob, Blackboard blackboard) {
+    public static void classify(AbstractAlienEntity mob, Blackboard blackboard) {
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
 
         if (target == null || !target.isAlive()) {
@@ -89,7 +88,7 @@ public final class TargetClassifier {
         }
     }
 
-    private static boolean isRangedCombatant(XenomorphEntity mob, LivingEntity target) {
+    private static boolean isRangedCombatant(AbstractAlienEntity mob, LivingEntity target) {
         for (var slot : target.getHandSlots()) {
             var item = slot.getItem();
             if (
@@ -111,7 +110,7 @@ public final class TargetClassifier {
             .isEmpty();
     }
 
-    private static boolean isIsolated(XenomorphEntity mob, LivingEntity target) {
+    private static boolean isIsolated(AbstractAlienEntity mob, LivingEntity target) {
         var box = target.getBoundingBox().inflate(ISOLATION_RADIUS);
         var level = mob.level();
 
@@ -129,7 +128,7 @@ public final class TargetClassifier {
         return true;
     }
 
-    private static boolean isNearHive(XenomorphEntity mob, LivingEntity target, HiveMemory memory) {
+    private static boolean isNearHive(AbstractAlienEntity mob, LivingEntity target, HiveMemory memory) {
         if (memory == null)
             return false;
         return memory.findNearestWebCross(mob.level(), target.blockPosition(), 20.0D).isPresent();

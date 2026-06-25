@@ -12,6 +12,7 @@ import mod.azure.ovomorphosis.entities.SilencedEntityTypeBuilder;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
+import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.services.XenoServices;
 
@@ -51,6 +52,15 @@ public class EntityRegistry {
         0.9f,
         2.9f,
         false
+    );
+
+    public static final Supplier<EntityType<RunnerEntity>> RUNNER = registerEntity(
+        "runner",
+        RunnerEntity::new,
+        MobCategory.MONSTER,
+        0.9f,
+        1.75f,
+        true
     );
 
     public static final Supplier<EntityType<AcidEntity>> ACID = registerEntity(

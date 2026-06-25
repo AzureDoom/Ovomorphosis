@@ -1,4 +1,4 @@
-package mod.azure.ovomorphosis.client.xenomorph;
+package mod.azure.ovomorphosis.client.runner;
 
 import mod.azure.azurelib.common.render.entity.AzEntityRenderer;
 import mod.azure.azurelib.common.render.entity.AzEntityRendererConfig;
@@ -7,27 +7,25 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 
 import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.client.XenoModelRenderer;
-import mod.azure.ovomorphosis.client.layer.XenomorphGrowthOverlayLayer;
-import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.client.layer.BloodLayer;
+import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 
-public class XenomorphRenderer extends AzEntityRenderer<XenomorphEntity> {
+public class RunnerRenderer extends AzEntityRenderer<RunnerEntity> {
 
-    private static final ResourceLocation MODEL = CommonMod.modResource("geo/entity/xenomorph.geo.json");
+    private static final ResourceLocation MODEL = CommonMod.modResource("geo/entity/runner.geo.json");
 
-    private static final ResourceLocation TEXTURE = CommonMod.modResource("textures/entity/xenomorph.png");
+    private static final ResourceLocation TEXTURE = CommonMod.modResource("textures/entity/runner.png");
 
-    public XenomorphRenderer(EntityRendererProvider.Context context) {
+    public RunnerRenderer(EntityRendererProvider.Context context) {
         super(
-            AzEntityRendererConfig.<XenomorphEntity>builder(MODEL, TEXTURE)
+            AzEntityRendererConfig.<RunnerEntity>builder(MODEL, TEXTURE)
                 .setRenderEntry(contextPipeline -> {
                     contextPipeline.animatable().updateAnimations();
 
                     return contextPipeline;
                 })
-                .setAnimatorProvider(XenomorphAnimator::new)
-                .setModelRenderer(XenoModelRenderer::new)
-                .addRenderLayer(new XenomorphGrowthOverlayLayer<>())
+                .setAnimatorProvider(RunnerAnimator::new)
+                .addRenderLayer(new BloodLayer<>())
                 .setDeathMaxRotation(0F)
                 .setShadowRadius(0.75F)
                 .withLodConfig(

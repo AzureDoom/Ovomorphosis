@@ -6,6 +6,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Comparator;
@@ -18,7 +19,7 @@ import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 
-public final class DodgeProjectileAction<E extends Mob> implements Action<E> {
+public record DodgeProjectileAction<E extends Mob>(int priority) implements Action<E> {
 
     private static final double SCAN_RADIUS = 8.0D;
 
@@ -32,14 +33,7 @@ public final class DodgeProjectileAction<E extends Mob> implements Action<E> {
 
     private static final int DODGE_COOLDOWN_TICKS = 25;
 
-    // How far ahead along the dodge direction to probe for scoring
     private static final double PROBE_DISTANCE = 2.5D;
-
-    private final int priority;
-
-    public DodgeProjectileAction(int priority) {
-        this.priority = priority;
-    }
 
     public boolean hasIncomingProjectile(E mob) {
         return findIncomingProjectile(mob) != null;
@@ -71,11 +65,6 @@ public final class DodgeProjectileAction<E extends Mob> implements Action<E> {
     @Override
     public boolean isInterruptible() {
         return true;
-    }
-
-    @Override
-    public int priority() {
-        return priority;
     }
 
     private static <E extends Mob> Projectile findIncomingProjectile(E mob) {
@@ -219,7 +208,7 @@ public final class DodgeProjectileAction<E extends Mob> implements Action<E> {
         return score;
     }
 
-    private static boolean isFireOrDanger(net.minecraft.world.level.block.state.BlockState state) {
+    private static boolean isFireOrDanger(BlockState state) {
         return state.is(BlockTags.FIRE)
             || state.is(Blocks.LAVA)
             || state.is(Blocks.MAGMA_BLOCK)

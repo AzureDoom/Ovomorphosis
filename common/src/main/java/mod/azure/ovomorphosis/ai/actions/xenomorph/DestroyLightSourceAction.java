@@ -12,7 +12,7 @@ import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
-import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 /**
  * The xenomorph seeks out and destroys nearby light-emitting blocks, helping it keep the environment dark for hive
@@ -25,7 +25,7 @@ import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
  *
  * @param <E> xenomorph entity type
  */
-public class DestroyLightSourceAction<E extends XenomorphEntity> implements Action<E> {
+public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements Action<E> {
 
     private final int postBreakCooldownTicks;
 
@@ -177,7 +177,7 @@ public class DestroyLightSourceAction<E extends XenomorphEntity> implements Acti
         return 10;
     }
 
-    private static BlockPos findBrightestLightBlock(XenomorphEntity mob) {
+    private static BlockPos findBrightestLightBlock(AbstractAlienEntity mob) {
         var level = mob.level();
         var origin = mob.blockPosition();
         var fireHardened = mob.isFireHardened();
