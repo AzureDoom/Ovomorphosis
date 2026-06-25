@@ -123,7 +123,8 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             .add(Attributes.FOLLOW_RANGE, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoHostileRange)
             .add(Attributes.MOVEMENT_SPEED, 0.25)
             .add(Attributes.ATTACK_DAMAGE, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoAttackDamage)
-            .add(Attributes.SCALE, 1.0D);
+            .add(Attributes.SCALE, 1.0D)
+            .add(Attributes.ATTACK_KNOCKBACK, 1.0);
     }
 
     private boolean onGameEvent(Holder<GameEvent> eventHolder, GameEvent.Context context, Vec3 pos) {
