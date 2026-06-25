@@ -11,12 +11,10 @@ import java.util.UUID;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.util.Growable;
 
-public class XenomorphGrowthOverlayLayer<T extends AbstractAlienEntity & Growable> implements AzRenderLayer<UUID, T> {
-
-    private static final ResourceLocation textureLocation =
-        CommonMod.modResource("textures/entity/xenomorph_youth.png");
+public class TextureGrowthOverlayLayer<T extends AbstractAlienEntity & Growable> implements AzRenderLayer<UUID, T> {
 
     @Override
     public void preRender(AzRendererPipelineContext<UUID, T> context) {}
@@ -25,7 +23,7 @@ public class XenomorphGrowthOverlayLayer<T extends AbstractAlienEntity & Growabl
     public void render(AzRendererPipelineContext<UUID, T> context) {
         T animatable = context.animatable();
         AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
-        var rendertype = RenderType.entityTranslucentCull(textureLocation);
+        var rendertype = RenderType.entityTranslucentCull(getEntityTexture(animatable));
 
         if (animatable.getGrowth() < animatable.getMaxGrowth() && animatable.isAlive()) {
             context.setRenderType(rendertype);
@@ -42,4 +40,12 @@ public class XenomorphGrowthOverlayLayer<T extends AbstractAlienEntity & Growabl
 
     @Override
     public void renderForBone(AzRendererPipelineContext<UUID, T> context, AzBone bone) {}
+
+    private ResourceLocation getEntityTexture(AbstractAlienEntity entity) {
+        var name = "xenomorph";
+        if (entity instanceof RunnerEntity)
+            name = "runner";
+
+        return CommonMod.modResource("textures/entity/" + name + "_youth.png");
+    }
 }
