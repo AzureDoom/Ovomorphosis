@@ -91,8 +91,15 @@ This mod should work in both singleplayer and multiplayer as long as the correct
 
 Created by AzureDoom.
 
-Additional credits to SiliconianAuthor.
+Additional credits for Models/Animations to SiliconianAuthor.
 
-## License
 
-Ovomorphosis is licensed under the MIT License.
+## Hosting Partner
+
+Looking for a reliable server to run **Ovomorphosis** and other Minecraft mods?
+
+**BisectHosting** offers pre-configured game servers, fast setup, and solid performance for modded environments.
+
+Use code **azuredoom** for **25% off your first month**.
+
+[![BisectHosting](https://www.bisecthosting.com/images/CF/LEVELINGCORE/MP_LEVELINGCORE_Promo.webp)](https://url-shortener.curseforge.com/z2g8c)
