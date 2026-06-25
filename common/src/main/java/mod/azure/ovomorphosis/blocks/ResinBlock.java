@@ -168,6 +168,7 @@ public class ResinBlock extends AbstractResinBlock {
         @NotNull BlockPos pos,
         @NotNull RandomSource random
     ) {
+        super.randomTick(state, level, pos, random);
         if (
             !level
                 .getGameRules()
