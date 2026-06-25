@@ -34,7 +34,7 @@ public class BlockRegistry {
     public static final Supplier<Block> RESIN_BLOCK = registerBlock(
         "resin_block",
         () -> new AbstractResinBlock(
-            BlockBehaviour.Properties.of().sound(SoundType.MOSS).strength(5.0f, 8.0f)
+            BlockBehaviour.Properties.of().sound(SoundType.MOSS).strength(5.0f, 8.0f).randomTicks()
         ) {}
     );
 
@@ -46,7 +46,7 @@ public class BlockRegistry {
     public static final Supplier<Block> RESIN_WEB = registerBlock(
         "resin_web",
         () -> new ResinWebBlock(
-            BlockBehaviour.Properties.of().sound(SoundType.MOSS).strength(5.0f, 8.0f).noCollission()
+            BlockBehaviour.Properties.of().sound(SoundType.MOSS).strength(5.0f, 8.0f).noCollission().randomTicks()
         )
     );
 
