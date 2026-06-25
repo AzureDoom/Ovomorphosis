@@ -9,6 +9,7 @@
   },
   "mixins": [
     "AbstractHorseMixin",
+    "CatFacehuggerReactionMixin",
     "EntityMixin",
     "FlameBlockMixin",
     "FoxMixin",
@@ -18,7 +19,8 @@
     "PlayerEntityMixin",
     "ServerLevelMixin",
     "VillagerHostilesSensorMixin",
-    "WardenEntityMixin"
+    "WardenEntityMixin",
+    "WolfFacehuggerReactionMixin"
   ],
   "client": [
     "client.LivingEntityRendererMixin"
