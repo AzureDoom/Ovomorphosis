@@ -19,10 +19,10 @@ import mod.azure.ovomorphosis.client.layer.EggmorphResinLayer;
 public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extends EntityModel<T>> {
 
     @Shadow
-    protected abstract boolean addLayer(RenderLayer<T, M> feature);
+    protected abstract boolean addLayer(RenderLayer<T, M> layer);
 
     @Inject(method = "<init>", at = @At("TAIL"))
-    private void gigeresque$init(EntityRendererProvider.Context ctx, M model, float shadowRadius, CallbackInfo ci) {
+    private void gigeresque$init(EntityRendererProvider.Context context, M model, float shadowRadius, CallbackInfo ci) {
         this.addLayer(new EggmorphResinLayer<>((RenderLayerParent<T, M>) this));
     }
 }

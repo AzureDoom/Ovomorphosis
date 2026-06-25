@@ -1,8 +1,8 @@
 package mod.azure.ovomorphosis.client.runner;
 
-import mod.azure.azurelib.common.render.entity.AzEntityRenderer;
-import mod.azure.azurelib.common.render.entity.AzEntityRendererConfig;
-import mod.azure.azurelib.common.render.lod.AzLodConfig;
+import mod.azure.azurelib.render.entity.AzEntityRenderer;
+import mod.azure.azurelib.render.entity.AzEntityRendererConfig;
+import mod.azure.azurelib.render.lod.AzLodConfig;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 
@@ -30,6 +30,7 @@ public class RunnerRenderer extends AzEntityRenderer<RunnerEntity> {
                 .addRenderLayer(new BloodLayer<>())
                 .setDeathMaxRotation(0F)
                 .setShadowRadius(0.75F)
+                .setScale(RunnerEntity::getGrowthScale)
                 .withLodConfig(
                     AzLodConfig.builder()
                         .boneLod(1028, 3)

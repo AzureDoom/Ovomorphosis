@@ -1,10 +1,10 @@
 package mod.azure.ovomorphosis.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import mod.azure.azurelib.common.render.AzLayerRenderer;
-import mod.azure.azurelib.common.render.AzRendererPipeline;
-import mod.azure.azurelib.common.render.entity.AzEntityModelRenderer;
-import mod.azure.azurelib.common.render.entity.AzEntityRendererPipeline;
+import mod.azure.azurelib.render.AzLayerRenderer;
+import mod.azure.azurelib.render.AzRendererPipeline;
+import mod.azure.azurelib.render.entity.AzEntityModelRenderer;
+import mod.azure.azurelib.render.entity.AzEntityRendererPipeline;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;

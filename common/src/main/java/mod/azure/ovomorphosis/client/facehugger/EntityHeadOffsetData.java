@@ -91,16 +91,16 @@ public record EntityHeadOffsetData(
                     var obj = GsonHelper.convertToJsonObject(entry.getValue(), "head_offset");
                     ResourceLocation entityId;
                     if (obj.has("entity")) {
-                        entityId = ResourceLocation.parse(GsonHelper.getAsString(obj, "entity"));
+                        entityId = new ResourceLocation(GsonHelper.getAsString(obj, "entity"));
                     } else {
-                        entityId = ResourceLocation.fromNamespaceAndPath("minecraft", file.getPath());
+                        entityId = new ResourceLocation("minecraft", file.getPath());
                     }
 
                     var type = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId)
                         .orElseThrow(() -> new IllegalArgumentException("Unknown entity type: " + entityId));
 
                     var data = CODEC.parse(JsonOps.INSTANCE, entry.getValue())
-                        .getOrThrow(IllegalArgumentException::new);
+                        .getOrThrow(false, IllegalArgumentException::new);
 
                     map.put(type, data);
                 } catch (Exception e) {

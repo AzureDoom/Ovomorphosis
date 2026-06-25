@@ -31,7 +31,7 @@ public abstract class PlayerEntityMixin extends LivingEntity {
 
     @Inject(method = { "interactOn" }, at = { @At("HEAD") }, cancellable = true)
     protected void ovomorphosis$stopPlayerUsing(
-        Entity entity,
+        Entity entityToInteractOn,
         InteractionHand hand,
         CallbackInfoReturnable<InteractionResult> callbackInfo
     ) {

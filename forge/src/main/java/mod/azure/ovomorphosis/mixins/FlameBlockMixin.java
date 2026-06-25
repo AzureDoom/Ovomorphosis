@@ -4,14 +4,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.common.extensions.IBlockExtension;
+import net.minecraftforge.common.IPlantable;
+import net.minecraftforge.common.extensions.IForgeBlock;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Mixin;
 
 import mod.azure.ovomorphosis.blocks.AbstractResinBlock;
 
 @Mixin(AbstractResinBlock.class)
-public class FlameBlockMixin implements IBlockExtension {
+public class FlameBlockMixin implements IForgeBlock {
 
     @Override
     public int getFireSpreadSpeed(
@@ -24,6 +25,17 @@ public class FlameBlockMixin implements IBlockExtension {
     }
 
     @Override
+    public boolean canSustainPlant(
+        BlockState blockState,
+        BlockGetter blockGetter,
+        BlockPos blockPos,
+        Direction direction,
+        IPlantable iPlantable
+    ) {
+        return false;
+    }
+
+    @Override
     public int getFlammability(
         @NotNull BlockState state,
         @NotNull BlockGetter level,
@@ -31,5 +43,10 @@ public class FlameBlockMixin implements IBlockExtension {
         @NotNull Direction direction
     ) {
         return 5;
+    }
+
+    @Override
+    public boolean isFlammable(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+        return true;
     }
 }

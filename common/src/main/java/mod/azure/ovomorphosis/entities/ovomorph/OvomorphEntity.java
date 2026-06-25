@@ -75,10 +75,11 @@ public class OvomorphEntity extends AbstractAlienEntity {
     }
 
     @Override
-    public void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
-        super.defineSynchedData(builder);
-        builder.define(HAS_FACEHUGGER, true);
-        builder.define(EGG_STATE, 0);
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+
+        this.entityData.define(HAS_FACEHUGGER, true);
+        this.entityData.define(EGG_STATE, 0);
     }
 
     @Override
@@ -161,7 +162,8 @@ public class OvomorphEntity extends AbstractAlienEntity {
         @NotNull ServerLevelAccessor level,
         @NotNull DifficultyInstance difficulty,
         @NotNull MobSpawnType spawnType,
-        @Nullable SpawnGroupData spawnGroupData
+        @Nullable SpawnGroupData spawnData,
+        @Nullable CompoundTag dataTag
     ) {
         float yaw = this.getRandom().nextInt(4) * 90.0f;
         this.setYRot(yaw);
@@ -169,7 +171,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         this.yBodyRot = yaw;
         this.yBodyRotO = yaw;
         super.setYHeadRot(yaw);
-        return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
+        return super.finalizeSpawn(level, difficulty, spawnType, spawnData, dataTag);
     }
 
     @Override

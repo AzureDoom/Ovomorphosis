@@ -72,7 +72,7 @@ public final class TargetingUtils {
             e.getPassengers().stream().noneMatch(AbstractAlienEntity.class::isInstance) &&
             !e.hasControllingPassenger() &&
             (!e.isPassenger() || !(e.getVehicle() instanceof AbstractAlienEntity)) &&
-            e.getInBlockState() != BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState() &&
+            e.getFeetBlockState() != BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState() &&
             !InfectionManager.isInfected(e);
     }
 

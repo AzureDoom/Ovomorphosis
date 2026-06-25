@@ -7,7 +7,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -17,7 +16,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
-import mod.azure.ovomorphosis.client.facehugger.EntityHeadData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.infection.InfectionManager;
@@ -36,7 +34,7 @@ public abstract class LivingEntityMixin extends Entity {
     public abstract boolean hurt(@NotNull DamageSource source, float amount);
 
     @Inject(method = "die", at = @At("TAIL"))
-    public void ovomorphosis$onDie(DamageSource source, CallbackInfo ci) {
+    public void ovomorphosis$onDie(DamageSource damageSource, CallbackInfo ci) {
         InfectionManager.clearInfection(TargetingUtils.self(this));
     }
 
@@ -84,26 +82,5 @@ public abstract class LivingEntityMixin extends Entity {
     protected void ovomorphosis$isImmobile(CallbackInfoReturnable<Boolean> callbackInfo) {
         if (this.getPassengers().stream().anyMatch(FacehuggerEntity.class::isInstance))
             callbackInfo.setReturnValue(true);
-    }
-
-    @Inject(method = "getPassengerRidingPosition", at = @At("RETURN"), cancellable = true)
-    private void ovomorphosis$faceRidingPosition(Entity passenger, CallbackInfoReturnable<Vec3> cir) {
-        if (!(passenger instanceof FacehuggerEntity))
-            return;
-
-        var self = (LivingEntity) (Object) this;
-        var data = EntityHeadData.ENTITY_HEAD_DATA_BY_TYPE.get(self.getType());
-        if (data == null)
-            return;
-
-        var yaw = Math.toRadians(self.yBodyRot);
-        var px = data.pivot().x;
-        var py = data.pivot().y;
-        var pz = -data.pivot().z;
-
-        var worldX = px * Math.cos(yaw) - pz * Math.sin(yaw);
-        var worldZ = px * Math.sin(yaw) + pz * Math.cos(yaw);
-
-        cir.setReturnValue(self.position().add(worldX, py, worldZ));
     }
 }

@@ -1,7 +1,7 @@
 package mod.azure.ovomorphosis.config;
 
-import mod.azure.azurelib.common.config.Config;
-import mod.azure.azurelib.common.config.Configurable;
+import mod.azure.azurelib.config.Config;
+import mod.azure.azurelib.config.Configurable;
 
 import mod.azure.ovomorphosis.CommonMod;
 
@@ -149,8 +149,8 @@ public class OvomorphosisConfig {
 
             @Configurable
             @Configurable.Synchronized
-            @Configurable.DecimalRange(min = 1)
-            public float chestbursterFoodGrowthValue = 10;
+            @Configurable.Range(min = 1)
+            public int chestbursterFoodGrowthValue = 10;
         }
 
         @Configurable

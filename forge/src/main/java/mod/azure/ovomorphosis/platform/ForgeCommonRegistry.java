@@ -9,35 +9,35 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.neoforged.fml.loading.FMLLoader;
-import net.neoforged.neoforge.common.DeferredSpawnEggItem;
+import net.minecraftforge.common.ForgeSpawnEggItem;
+import net.minecraftforge.fml.loading.FMLLoader;
 
 import java.util.function.Supplier;
 
-import mod.azure.ovomorphosis.NeoForgeMod;
+import mod.azure.ovomorphosis.ForgeMod;
 import mod.azure.ovomorphosis.services.CommonRegistry;
 
-public class NeoForgeCommonRegistry implements CommonRegistry {
+public class ForgeCommonRegistry implements CommonRegistry {
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "deprecation" })
     @Override
     public <T> Supplier<T> register(Registry<? super T> registry, String registryName, Supplier<? extends T> supplier) {
         if (registry == BuiltInRegistries.BLOCK) {
-            return (Supplier<T>) NeoForgeMod.blockDeferredRegister.register(registryName, (Supplier<Block>) supplier);
+            return (Supplier<T>) ForgeMod.blockDeferredRegister.register(registryName, (Supplier<Block>) supplier);
         } else if (registry == BuiltInRegistries.ITEM) {
-            return (Supplier<T>) NeoForgeMod.itemDeferredRegister.register(registryName, (Supplier<Item>) supplier);
+            return (Supplier<T>) ForgeMod.itemDeferredRegister.register(registryName, (Supplier<Item>) supplier);
         } else if (registry == BuiltInRegistries.ENTITY_TYPE) {
-            return (Supplier<T>) NeoForgeMod.entityTypeDeferredRegister.register(
+            return (Supplier<T>) ForgeMod.entityTypeDeferredRegister.register(
                 registryName,
                 (Supplier<EntityType<?>>) supplier
             );
         } else if (registry == BuiltInRegistries.BLOCK_ENTITY_TYPE) {
-            return (Supplier<T>) NeoForgeMod.blockEntityDeferredRegister.register(
+            return (Supplier<T>) ForgeMod.blockEntityDeferredRegister.register(
                 registryName,
                 (Supplier<BlockEntityType<?>>) supplier
             );
         } else if (registry == BuiltInRegistries.SOUND_EVENT) {
-            return (Supplier<T>) NeoForgeMod.soundEventDeferredRegister.register(
+            return (Supplier<T>) ForgeMod.soundEventDeferredRegister.register(
                 registryName,
                 (Supplier<SoundEvent>) supplier
             );
@@ -55,7 +55,7 @@ public class NeoForgeCommonRegistry implements CommonRegistry {
         int secondaryEggColour,
         Item.Properties itemProperties
     ) {
-        return () -> new DeferredSpawnEggItem(entityType, primaryEggColour, secondaryEggColour, itemProperties);
+        return () -> new ForgeSpawnEggItem(entityType, primaryEggColour, secondaryEggColour, itemProperties);
     }
 
     @Override

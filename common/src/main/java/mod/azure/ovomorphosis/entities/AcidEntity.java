@@ -2,7 +2,6 @@ package mod.azure.ovomorphosis.entities;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -16,7 +15,6 @@ import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
-import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
@@ -33,7 +31,7 @@ public class AcidEntity extends Entity {
     }
 
     @Override
-    protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {}
+    protected void defineSynchedData() {}
 
     @Override
     protected void readAdditionalSaveData(CompoundTag compoundTag) {
@@ -50,11 +48,6 @@ public class AcidEntity extends Entity {
     @Override
     public boolean dampensVibrations() {
         return true;
-    }
-
-    @Override
-    protected double getDefaultGravity() {
-        return 0.04;
     }
 
     @Override
@@ -158,7 +151,9 @@ public class AcidEntity extends Entity {
     }
 
     private void applyCustomGravity() {
-        applyGravity();
+        if (!this.isNoGravity()) {
+            this.setDeltaMovement(this.getDeltaMovement().add(0.0D, -0.04D, 0.0D));
+        }
         move(MoverType.SELF, getDeltaMovement());
         setDeltaMovement(getDeltaMovement().scale(0.38));
     }

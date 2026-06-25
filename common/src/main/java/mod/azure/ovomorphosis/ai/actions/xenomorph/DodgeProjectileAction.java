@@ -126,7 +126,7 @@ public record DodgeProjectileAction<E extends Mob>(int priority) implements Acti
      * <li><b>Walkable safety</b> — whether the probe landing position has solid ground below it and open air at
      * foot/head level.</li>
      * <li><b>Darkness bonus</b> — xenomorphs prefer darker positions; low ambient light scores positively.</li>
-     * <li><b>Fire penalty</b> — probe landing near fire or lava is penalised heavily.</li>
+     * <li><b>Fire penalty</b> — probe landing near fire or lava is penalized heavily.</li>
      * <li><b>Light penalty</b> — bright positions score negatively (exposes the xenomorph).</li>
      * <li><b>Fall risk penalty</b> — no solid block below the probe landing position scores negatively.</li>
      * </ul>

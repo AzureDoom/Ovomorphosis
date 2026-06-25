@@ -1,27 +1,25 @@
 package mod.azure.ovomorphosis;
 
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.SpawnPlacementTypes;
+import net.minecraft.world.entity.SpawnPlacements;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.AddReloadListenerEvent;
-import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
-import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
-import net.neoforged.neoforge.event.entity.RegisterSpawnPlacementsEvent;
-import net.neoforged.neoforge.event.level.LevelEvent;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.registration.PayloadRegistrar;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
+import net.minecraftforge.event.entity.SpawnPlacementRegisterEvent;
+import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import mod.azure.ovomorphosis.client.facehugger.EntityHeadOffsetData;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
@@ -30,50 +28,52 @@ import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
-import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
+import mod.azure.ovomorphosis.network.ForgeNetworkHandler;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
 
+@Mod.EventBusSubscriber
 @Mod(CommonMod.MOD_ID)
-public final class NeoForgeMod {
+public final class ForgeMod {
 
     public static DeferredRegister<EntityType<?>> entityTypeDeferredRegister = DeferredRegister.create(
-        BuiltInRegistries.ENTITY_TYPE,
+        ForgeRegistries.ENTITY_TYPES,
         CommonMod.MOD_ID
     );
 
     public static DeferredRegister<Block> blockDeferredRegister = DeferredRegister.create(
-        BuiltInRegistries.BLOCK,
+        ForgeRegistries.BLOCKS,
         CommonMod.MOD_ID
     );
 
     public static DeferredRegister<BlockEntityType<?>> blockEntityDeferredRegister = DeferredRegister.create(
-        BuiltInRegistries.BLOCK_ENTITY_TYPE,
+        ForgeRegistries.BLOCK_ENTITY_TYPES,
         CommonMod.MOD_ID
     );
 
     public static DeferredRegister<Item> itemDeferredRegister = DeferredRegister.create(
-        BuiltInRegistries.ITEM,
+        ForgeRegistries.ITEMS,
         CommonMod.MOD_ID
     );
 
     public static DeferredRegister<SoundEvent> soundEventDeferredRegister = DeferredRegister.create(
-        BuiltInRegistries.SOUND_EVENT,
+        ForgeRegistries.SOUND_EVENTS,
         CommonMod.MOD_ID
     );
 
-    public NeoForgeMod(IEventBus modEventBus) {
+    public ForgeMod(FMLJavaModLoadingContext loadingContext) {
+        var modEventBus = loadingContext.getModEventBus();
         CommonMod.initRegistries();
         blockDeferredRegister.register(modEventBus);
         entityTypeDeferredRegister.register(modEventBus);
         blockEntityDeferredRegister.register(modEventBus);
         itemDeferredRegister.register(modEventBus);
         soundEventDeferredRegister.register(modEventBus);
-        NeoForge.EVENT_BUS.addListener(
+        MinecraftForge.EVENT_BUS.addListener(
             (AddReloadListenerEvent event) -> event.addListener(new EntityHeadOffsetData.ReloadListener())
         );
-        NeoForge.EVENT_BUS.addListener(
+        MinecraftForge.EVENT_BUS.addListener(
             (LevelEvent.Unload event) -> {
                 if (event.getLevel() instanceof ServerLevel serverLevel) {
                     ResinWebRegistry.clearDimension(serverLevel.dimension());
@@ -83,17 +83,8 @@ public final class NeoForgeMod {
         modEventBus.addListener(this::createEntityAttributes);
         modEventBus.addListener(this::addSpawnPlacements);
         modEventBus.addListener(this::addCreativeTabs);
-        modEventBus.addListener(this::registerMessages);
-    }
-
-    public void registerMessages(final RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(CommonMod.MOD_ID);
-
-        registrar.playToClient(
-            EggmorphProgressPacket.TYPE,
-            EggmorphProgressPacket.CODEC,
-            (msg, ctx) -> msg.handle()
-        );
+        ForgeNetworkHandler.registerMessages();
+        ModStructureModifierSerializers.STRUCTURE_MODIFIER_SERIALIZERS.register(modEventBus);
     }
 
     public void createEntityAttributes(final EntityAttributeCreationEvent event) {
@@ -119,41 +110,41 @@ public final class NeoForgeMod {
         }
     }
 
-    public void addSpawnPlacements(RegisterSpawnPlacementsEvent event) {
+    public void addSpawnPlacements(SpawnPlacementRegisterEvent event) {
         event.register(
             EntityRegistry.OVOMORPH.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             OvomorphEntity::canOvomorphSpawn,
-            RegisterSpawnPlacementsEvent.Operation.AND
+            SpawnPlacementRegisterEvent.Operation.AND
         );
         event.register(
             EntityRegistry.FACEHUGGER.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
-            RegisterSpawnPlacementsEvent.Operation.AND
+            SpawnPlacementRegisterEvent.Operation.AND
         );
         event.register(
             EntityRegistry.CHESTBURSTER.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
-            RegisterSpawnPlacementsEvent.Operation.AND
+            SpawnPlacementRegisterEvent.Operation.AND
         );
         event.register(
             EntityRegistry.XENOMORPH.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
-            RegisterSpawnPlacementsEvent.Operation.AND
+            SpawnPlacementRegisterEvent.Operation.AND
         );
         event.register(
             EntityRegistry.RUNNER.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             ((entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)),
-            RegisterSpawnPlacementsEvent.Operation.AND
+            SpawnPlacementRegisterEvent.Operation.AND
         );
     }
 }

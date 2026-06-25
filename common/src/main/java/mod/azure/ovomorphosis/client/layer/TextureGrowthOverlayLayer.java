@@ -1,9 +1,10 @@
 package mod.azure.ovomorphosis.client.layer;
 
-import mod.azure.azurelib.common.model.AzBone;
-import mod.azure.azurelib.common.render.AzRendererPipeline;
-import mod.azure.azurelib.common.render.AzRendererPipelineContext;
-import mod.azure.azurelib.common.render.layer.AzRenderLayer;
+import mod.azure.azurelib.core.object.Color;
+import mod.azure.azurelib.model.AzBone;
+import mod.azure.azurelib.render.AzRendererPipeline;
+import mod.azure.azurelib.render.AzRendererPipelineContext;
+import mod.azure.azurelib.render.layer.AzRenderLayer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
@@ -31,9 +32,9 @@ public class TextureGrowthOverlayLayer<T extends AbstractAlienEntity & Growable>
 
             var progress = (animatable.getMaxGrowth() - animatable.getGrowth()) / animatable.getMaxGrowth();
             var alpha = (int) (progress * 0xFF) << 24;
-            var color = (context.renderColor() & 0xFFFFFF) | alpha;
+            var color = 0x00FFFFFF | alpha;
 
-            context.setRenderColor(color);
+            context.setColor(Color.ofOpaque(color));
             renderPipeline.reRender(context);
         }
     }

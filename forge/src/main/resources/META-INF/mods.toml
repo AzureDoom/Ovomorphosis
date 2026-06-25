@@ -1,7 +1,7 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 # Only reenable if you have a issue tracker URL
-#issueTrackerURL="${mod_issues}"
+issueTrackerURL="${mod_issues}"
 license="${mod_license}"
 [[mods]]
 modId="${mod_id}"
@@ -13,22 +13,20 @@ credits="${mod_credits}"
 authors="${mod_author}"
 description='''${mod_description}'''
 [[dependencies.${mod_id}]]
-    modId="neoforge"
-    type="required"
+    modId="forge"
+    mandatory=true
     versionRange="${neo_version_range}"
     ordering="NONE"
     side="BOTH"
 [[dependencies.${mod_id}]]
     modId="minecraft"
-    type="required"
+    mandatory=true
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
 [[dependencies.${mod_id}]]
     modId="azurelib"
-    type="required"
+    mandatory=true
     versionRange="[${azurelib_version},)"
     ordering="BEFORE"
     side="BOTH"
-[[mixins]]
-    config = "${mod_id}.neoforge.mixins.json"

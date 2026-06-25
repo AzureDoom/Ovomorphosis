@@ -1,9 +1,10 @@
 package mod.azure.ovomorphosis.client.layer;
 
-import mod.azure.azurelib.common.model.AzBone;
-import mod.azure.azurelib.common.render.AzRendererPipeline;
-import mod.azure.azurelib.common.render.AzRendererPipelineContext;
-import mod.azure.azurelib.common.render.layer.AzRenderLayer;
+import mod.azure.azurelib.core.object.Color;
+import mod.azure.azurelib.model.AzBone;
+import mod.azure.azurelib.render.AzRendererPipeline;
+import mod.azure.azurelib.render.AzRendererPipelineContext;
+import mod.azure.azurelib.render.layer.AzRenderLayer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
@@ -15,7 +16,7 @@ import mod.azure.ovomorphosis.util.Growable;
 public class BloodLayer<T extends AbstractAlienEntity & Growable> implements AzRenderLayer<UUID, T> {
 
     private static final ResourceLocation textureLocation =
-        ResourceLocation.withDefaultNamespace("textures/block/crimson_nylium.png");
+        new ResourceLocation("textures/block/crimson_nylium.png");
 
     @Override
     public void preRender(AzRendererPipelineContext<UUID, T> context) {}
@@ -36,10 +37,9 @@ public class BloodLayer<T extends AbstractAlienEntity & Growable> implements AzR
             var maxAlpha = 80;
             var alpha = (int) (progress * maxAlpha) << 24;
 
-            var bloodTint = 0x5A0A0A;
-            var color = bloodTint | alpha;
+            var color = 0x00FFFFFF | alpha;
 
-            context.setRenderColor(color);
+            context.setColor(Color.ofOpaque(color));
             renderPipeline.reRender(context);
         }
     }

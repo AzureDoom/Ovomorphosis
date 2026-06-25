@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "mod.azure.ovomorphosis.mixins",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_17",
   "refmap": "ovomorphosis.refmap.json",
   "injectors": {
     "defaultRequire": 1

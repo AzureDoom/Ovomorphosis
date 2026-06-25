@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableSet;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.level.block.Block;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -14,11 +13,9 @@ import mod.azure.ovomorphosis.entities.SilencedEntityTypeBuilder;
 @Mixin(EntityType.Builder.class)
 public class MixinEntityTypeBuilder_SilenceDataFixerError implements SilencedEntityTypeBuilder {
 
-    @Final
     @Shadow
     private EntityType.EntityFactory<Entity> factory;
 
-    @Final
     @Shadow
     private MobCategory category;
 
@@ -47,12 +44,6 @@ public class MixinEntityTypeBuilder_SilenceDataFixerError implements SilencedEnt
     private EntityDimensions dimensions;
 
     @Shadow
-    private float spawnDimensionsScale;
-
-    @Shadow
-    private EntityAttachments.Builder attachments;
-
-    @Shadow
     private FeatureFlagSet requiredFeatures;
 
     @Unique
@@ -67,8 +58,7 @@ public class MixinEntityTypeBuilder_SilenceDataFixerError implements SilencedEnt
             this.fireImmune,
             this.canSpawnFarFromPlayer,
             this.immuneTo,
-            this.dimensions.withAttachments(this.attachments),
-            this.spawnDimensionsScale,
+            this.dimensions,
             this.clientTrackingRange,
             this.updateInterval,
             this.requiredFeatures

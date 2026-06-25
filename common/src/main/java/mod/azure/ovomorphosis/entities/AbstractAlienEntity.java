@@ -1,7 +1,8 @@
 package mod.azure.ovomorphosis.entities;
 
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -83,21 +84,21 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
     }
 
     @Override
-    protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
-        super.defineSynchedData(builder);
+    protected void defineSynchedData() {
+        super.defineSynchedData();
 
-        builder.define(DATA_WALL_CRAWLING, false);
+        this.entityData.define(DATA_WALL_CRAWLING, false);
 
-        builder.define(DATA_CRAWL_FORWARD_X, 0.0F);
-        builder.define(DATA_CRAWL_FORWARD_Y, 0.0F);
-        builder.define(DATA_CRAWL_FORWARD_Z, 1.0F);
+        this.entityData.define(DATA_CRAWL_FORWARD_X, 0.0F);
+        this.entityData.define(DATA_CRAWL_FORWARD_Y, 0.0F);
+        this.entityData.define(DATA_CRAWL_FORWARD_Z, 1.0F);
 
-        builder.define(DATA_CRAWL_UP_X, 0.0F);
-        builder.define(DATA_CRAWL_UP_Y, 1.0F);
-        builder.define(DATA_CRAWL_UP_Z, 0.0F);
+        this.entityData.define(DATA_CRAWL_UP_X, 0.0F);
+        this.entityData.define(DATA_CRAWL_UP_Y, 1.0F);
+        this.entityData.define(DATA_CRAWL_UP_Z, 0.0F);
 
-        builder.define(DATA_CRAWL_DIST_FROM_BLOCK, 0.0F);
-        builder.define(FIRE_TOLERANCE_NBT, 0.0F);
+        this.entityData.define(DATA_CRAWL_DIST_FROM_BLOCK, 0.0F);
+        this.entityData.define(FIRE_TOLERANCE_NBT, 0.0F);
     }
 
     @Override
@@ -232,7 +233,11 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
             this.getActiveEffects()
                 .stream()
                 .map(MobEffectInstance::getEffect)
-                .filter(effect -> effect.is(ModTags.REMOVABLE_EFFECTS))
+                .filter(
+                    effect -> BuiltInRegistries.MOB_EFFECT.getHolderOrThrow(
+                        BuiltInRegistries.MOB_EFFECT.getResourceKey(effect).orElseThrow()
+                    ).is(ModTags.REMOVABLE_EFFECTS)
+                )
                 .toList()
                 .forEach(this::removeEffect);
         }
@@ -256,7 +261,7 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
         ++this.deathTime;
         if (this.deathTime >= 40 && !this.level().isClientSide() && !this.isRemoved()) {
             this.level().broadcastEntityEvent(this, (byte) 60);
-            this.dropExperience(this);
+            this.dropExperience();
             this.remove(RemovalReason.KILLED);
         }
     }

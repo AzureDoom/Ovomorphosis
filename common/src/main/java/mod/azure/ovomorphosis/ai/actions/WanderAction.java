@@ -197,7 +197,7 @@ public final class WanderAction<E extends Mob> implements Action<E> {
             return null;
 
         candidates.sort((a, b) -> Double.compare(b.score, a.score));
-        return candidates.getFirst().pos;
+        return candidates.get(0).pos;
     }
 
     private static double scoreDarkPosition(BlockPos pos, BlockPos resinCentre, int totalLight) {

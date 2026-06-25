@@ -113,7 +113,7 @@ spotless {
         eclipse().configFile("$rootDir/eclipse-formatter.xml")
         endWithNewline()
         importOrder("", "java", group.toString(), "\\#")
-        indentWithSpaces(4)
+        leadingTabsToSpaces(4)
         removeUnusedImports()
         trimTrailingWhitespace()
     }

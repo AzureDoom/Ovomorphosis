@@ -1,34 +1,27 @@
 plugins {
     id 'multiloader-common'
-    id 'net.neoforged.moddev' version "${neo_moddev}"
+    id 'net.neoforged.moddev.legacyforge'
     id 'com.diffplug.spotless'
 }
 
-neoForge {
-    neoFormVersion = "${neoform_version}"
 
-    accessTransformers = ["../neoforge/src/main/resources/META-INF/accesstransformer.cfg"]
-
-    parchment {
-        minecraftVersion = "${parchment_minecraft}"
-        mappingsVersion = "${parchment_version}"
+legacyForge {
+    mcpVersion = minecraft_version
+    def at = project(':forge').file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
     }
-
-    runs {
-        client {
-            client()
-        }
-        server {
-            server()
-        }
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
     }
 }
 
 dependencies {
     compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
-    compileOnly "mod.azure.azurelib:azurelib-common-${minecraft_version}:${azurelib_version}"
-    compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
+	compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
     annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
+    modImplementation "mod.azure.azurelib:azurelib-common-${minecraft_version}:${azurelib_version}"
 }
 
 configurations {

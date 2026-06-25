@@ -14,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockEntityRegistry;
 
+@SuppressWarnings("deprecation")
 public class ResinWebFullBlock extends AbstractResinBlock implements EntityBlock {
 
     public ResinWebFullBlock(Properties settings) {
@@ -44,7 +45,7 @@ public class ResinWebFullBlock extends AbstractResinBlock implements EntityBlock
     }
 
     @Override
-    protected void onRemove(
+    public void onRemove(
         @NotNull BlockState state,
         @NotNull Level level,
         @NotNull BlockPos pos,
@@ -59,7 +60,7 @@ public class ResinWebFullBlock extends AbstractResinBlock implements EntityBlock
     }
 
     @Override
-    protected void onPlace(
+    public void onPlace(
         @NotNull BlockState state,
         @NotNull Level level,
         @NotNull BlockPos pos,

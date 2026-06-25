@@ -1,8 +1,7 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -69,6 +68,8 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
     public final XenomorphAnimationDispatcher animationDispatcher;
 
+    private float lastGrowthScale = 1.0F;
+
     public XenomorphEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
         super(entityType, level);
         this.animationDispatcher = new XenomorphAnimationDispatcher(this);
@@ -90,14 +91,13 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
                 return 32;
             }
 
-            @Override
             public boolean handleGameEvent(
                 @NotNull ServerLevel serverLevel,
-                @NotNull Holder<GameEvent> eventHolder,
+                @NotNull GameEvent gameEvent,
                 GameEvent.@NotNull Context context,
                 @NotNull Vec3 pos
             ) {
-                return XenomorphEntity.this.onGameEvent(eventHolder, context, pos);
+                return XenomorphEntity.this.onGameEvent(gameEvent, context, pos);
             }
         });
 
@@ -123,15 +123,15 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             .add(Attributes.FOLLOW_RANGE, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoHostileRange)
             .add(Attributes.MOVEMENT_SPEED, 0.25)
             .add(Attributes.ATTACK_DAMAGE, CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoAttackDamage)
-            .add(Attributes.SCALE, 1.0D);
+            .add(Attributes.ATTACK_KNOCKBACK, 1.0);
     }
 
-    private boolean onGameEvent(Holder<GameEvent> eventHolder, GameEvent.Context context, Vec3 pos) {
+    private boolean onGameEvent(GameEvent gameEvent, GameEvent.Context context, Vec3 pos) {
         if (this.isDeadOrDying()) {
             return false;
         }
 
-        if (!isSignificantEvent(eventHolder)) {
+        if (!isSignificantEvent(gameEvent)) {
             return false;
         }
 
@@ -150,29 +150,24 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         return true;
     }
 
-    private static boolean isSignificantEvent(Holder<GameEvent> event) {
-        return event.unwrapKey()
-            .map(
-                key -> key == GameEvent.STEP.key()
-                    || key == GameEvent.HIT_GROUND.key()
-                    || key == GameEvent.SWIM.key()
-                    || key == GameEvent.SPLASH.key()
-                    || key == GameEvent.ELYTRA_GLIDE.key()
-                    || key == GameEvent.FLAP.key()
-                    || key == GameEvent.ENTITY_INTERACT.key()
-                    || key == GameEvent.ENTITY_DAMAGE.key()
-                    || key == GameEvent.ENTITY_DIE.key()
-                    || key == GameEvent.ENTITY_ACTION.key()
-                    || key == GameEvent.BLOCK_CHANGE.key()
-                    || key == GameEvent.BLOCK_DESTROY.key()
-                    || key == GameEvent.BLOCK_PLACE.key()
-                    || key == GameEvent.PROJECTILE_SHOOT.key()
-                    || key == GameEvent.PROJECTILE_LAND.key()
-                    || key == GameEvent.EXPLODE.key()
-                    || key == GameEvent.EAT.key()
-                    || key == GameEvent.DRINK.key()
-            )
-            .orElse(false);
+    private static boolean isSignificantEvent(GameEvent event) {
+        return event == GameEvent.STEP
+            || event == GameEvent.HIT_GROUND
+            || event == GameEvent.SWIM
+            || event == GameEvent.SPLASH
+            || event == GameEvent.ELYTRA_GLIDE
+            || event == GameEvent.FLAP
+            || event == GameEvent.ENTITY_INTERACT
+            || event == GameEvent.ENTITY_DAMAGE
+            || event == GameEvent.ENTITY_DIE
+            || event == GameEvent.BLOCK_CHANGE
+            || event == GameEvent.BLOCK_DESTROY
+            || event == GameEvent.BLOCK_PLACE
+            || event == GameEvent.PROJECTILE_SHOOT
+            || event == GameEvent.PROJECTILE_LAND
+            || event == GameEvent.EXPLODE
+            || event == GameEvent.EAT
+            || event == GameEvent.DRINK;
     }
 
     @Override
@@ -201,23 +196,15 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             }
             if (this.isAlive()) {
                 grow(this, 1);
-                updateScaleFromGrowth();
             }
         }
     }
 
-    private void updateScaleFromGrowth() {
-        var scaleAttribute = this.getAttribute(Attributes.SCALE);
+    public void updateScaleFromGrowth() {
+        float newScale = this.getGrowthScale();
 
-        if (scaleAttribute == null) {
-            return;
-        }
-
-        var newScale = this.getGrowthScale();
-        var oldScale = scaleAttribute.getBaseValue();
-
-        if (Math.abs(oldScale - newScale) > 0.001D) {
-            scaleAttribute.setBaseValue(newScale);
+        if (Math.abs(this.lastGrowthScale - newScale) > 0.001F) {
+            this.lastGrowthScale = newScale;
             this.refreshDimensions();
         }
     }
@@ -284,7 +271,8 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         @NotNull ServerLevelAccessor level,
         @NotNull DifficultyInstance difficulty,
         @NotNull MobSpawnType spawnType,
-        @Nullable SpawnGroupData spawnGroupData
+        @Nullable SpawnGroupData spawnData,
+        @Nullable CompoundTag dataTag
     ) {
         if (spawnType == MobSpawnType.SPAWN_EGG || spawnType == MobSpawnType.COMMAND)
             setGrowth(1200);
@@ -295,7 +283,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
                     OvomorphosisSavedData.getHiveMemory(serverLevel)
                 );
         }
-        return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
+        return super.finalizeSpawn(level, difficulty, spawnType, spawnData, dataTag);
     }
 
     @Override
@@ -306,6 +294,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     @Override
     public void setGrowth(float growth) {
         entityData.set(GROWTH, growth);
+        this.updateScaleFromGrowth();
     }
 
     @Override
@@ -319,10 +308,10 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
-    protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
-        super.defineSynchedData(builder);
-        builder.define(GROWTH, 0.0F);
-        builder.define(IS_EXECUTION, false);
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+        this.entityData.define(GROWTH, 0.0F);
+        this.entityData.define(IS_EXECUTION, false);
     }
 
     @Override
@@ -337,6 +326,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         super.readAdditionalSaveData(tag);
         this.setGrowth(tag.getFloat("growth"));
         this.setIsExecuting(tag.getBoolean("isExecuting"));
+
         if (this.level() instanceof ServerLevel serverLevel) {
             brainRuntime.getBlackboard()
                 .set(
@@ -386,11 +376,19 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
-    @NotNull
-    public EntityDimensions getDefaultDimensions(@NotNull Pose pose) {
-        if (this.ovomorphosis$isWallCrawling())
-            return EntityDimensions.scalable(0.9F, 0.9F);
-        return super.getDefaultDimensions(pose);
+    public @NotNull EntityDimensions getDimensions(@NotNull Pose pose) {
+        var growthScale = this.getGrowthScale();
+
+        if (this.ovomorphosis$isWallCrawling()) {
+            return EntityDimensions.scalable(0.9F * growthScale, 0.9F * growthScale);
+        }
+
+        var base = super.getDimensions(pose);
+
+        return EntityDimensions.scalable(
+            base.width * growthScale,
+            base.height * growthScale
+        );
     }
 
     @Override

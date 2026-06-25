@@ -1,6 +1,6 @@
 package mod.azure.ovomorphosis.entities.facehugger;
 
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.game.ClientboundSetPassengersPacket;
@@ -167,9 +167,10 @@ public class FacehuggerEntity extends AbstractAlienEntity {
     }
 
     @Override
-    public void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
-        super.defineSynchedData(builder);
-        builder.define(IS_INFERTILE, false);
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+
+        this.entityData.define(IS_INFERTILE, false);
     }
 
     @Override

@@ -174,7 +174,7 @@ public final class CrawlingManager {
             var intoSurface = Vec3.atLowerCornerOf(direction.getNormal());
             var movedBox = box.move(intoSurface.scale(detectionProbe));
 
-            if (!level.noBlockCollision(mob, movedBox)) {
+            if (!level.noCollision(mob, movedBox)) {
                 var distance = distanceToSurface(mob, intoSurface);
                 var candidateUp = intoSurface.scale(-1.0D);
 
@@ -215,23 +215,23 @@ public final class CrawlingManager {
 
         var probe = (mob.getBbWidth() / 2.0D) + 0.5D;
 
-        if (!level.noBlockCollision(mob, box.move(probe, 0, 0)))
+        if (!level.noCollision(mob, box.move(probe, 0, 0)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(-probe, 0, 0)))
+        if (!level.noCollision(mob, box.move(-probe, 0, 0)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(0, 0, probe)))
+        if (!level.noCollision(mob, box.move(0, 0, probe)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(0, 0, -probe)))
+        if (!level.noCollision(mob, box.move(0, 0, -probe)))
             return true;
 
         var standingBox = box.move(0.0D, 1.0D, 0.0D);
-        if (!level.noBlockCollision(mob, standingBox.move(probe, 0, 0)))
+        if (!level.noCollision(mob, standingBox.move(probe, 0, 0)))
             return true;
-        if (!level.noBlockCollision(mob, standingBox.move(-probe, 0, 0)))
+        if (!level.noCollision(mob, standingBox.move(-probe, 0, 0)))
             return true;
-        if (!level.noBlockCollision(mob, standingBox.move(0, 0, probe)))
+        if (!level.noCollision(mob, standingBox.move(0, 0, probe)))
             return true;
-        return !level.noBlockCollision(mob, standingBox.move(0, 0, -probe));
+        return !level.noCollision(mob, standingBox.move(0, 0, -probe));
     }
 
     private static double distanceToSurface(Mob mob, Vec3 normal) {
@@ -241,7 +241,7 @@ public final class CrawlingManager {
         for (var distance = 0.0D; distance <= 1.5D; distance += 0.05D) {
             var movedBox = box.move(normal.scale(distance));
 
-            if (!level.noBlockCollision(mob, movedBox)) {
+            if (!level.noCollision(mob, movedBox)) {
                 return distance;
             }
         }

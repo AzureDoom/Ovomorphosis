@@ -63,7 +63,7 @@ public final class InfectionManager {
             );
         if (host instanceof ServerPlayer serverPlayer) {
             var advancement = serverPlayer.server.getAdvancements()
-                .get(CommonMod.modResource("facehugged"));
+                .getAdvancement(CommonMod.modResource("facehugged"));
             if (
                 advancement != null
                     && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
@@ -203,7 +203,7 @@ public final class InfectionManager {
 
             if (host instanceof ServerPlayer serverPlayer) {
                 var advancement = serverPlayer.server.getAdvancements()
-                    .get(CommonMod.modResource("chest_burst"));
+                    .getAdvancement(CommonMod.modResource("chest_burst"));
                 if (
                     advancement != null
                         && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()

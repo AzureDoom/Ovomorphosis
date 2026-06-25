@@ -30,6 +30,7 @@ import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
+@SuppressWarnings("deprecation")
 public class ResinBlock extends AbstractResinBlock {
 
     public static final IntegerProperty LAYERS = BlockStateProperties.LAYERS;

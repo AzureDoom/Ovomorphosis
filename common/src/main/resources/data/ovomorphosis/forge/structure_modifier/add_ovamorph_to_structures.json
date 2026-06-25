@@ -1,5 +1,5 @@
 {
-  "type": "neoforge:add_spawns",
+  "type": "ovomorphosis:add_structure_spawns",
   "structures": "#ovomorphosis:infestable_structures",
   "spawners": [
     {

@@ -9,7 +9,6 @@ import net.fabricmc.fabric.api.registry.FlammableBlockRegistry;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.tags.BiomeTags;
-import net.minecraft.world.entity.SpawnPlacementTypes;
 import net.minecraft.world.entity.SpawnPlacements;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -74,31 +73,31 @@ public final class FabricLibMod implements ModInitializer {
         });
         SpawnPlacements.register(
             EntityRegistry.FACEHUGGER.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
         );
         SpawnPlacements.register(
             EntityRegistry.OVOMORPH.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             OvomorphEntity::canOvomorphSpawn
         );
         SpawnPlacements.register(
             EntityRegistry.CHESTBURSTER.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
         );
         SpawnPlacements.register(
             EntityRegistry.XENOMORPH.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
         );
         SpawnPlacements.register(
             EntityRegistry.RUNNER.get(),
-            SpawnPlacementTypes.ON_GROUND,
+            SpawnPlacements.Type.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
         );

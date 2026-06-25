@@ -24,6 +24,7 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("deprecation")
 public class ResinWebBlock extends AbstractResinBlock {
 
     public static final BooleanProperty UP = PipeBlock.UP;

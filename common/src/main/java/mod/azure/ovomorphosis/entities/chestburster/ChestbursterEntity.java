@@ -1,6 +1,6 @@
 package mod.azure.ovomorphosis.entities.chestburster;
 
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -169,9 +169,10 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
     }
 
     @Override
-    protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
-        super.defineSynchedData(builder);
-        builder.define(GROWTH, 0.0F);
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+
+        this.entityData.define(GROWTH, 0.0F);
     }
 
     @Override

@@ -1,8 +1,8 @@
 package mod.azure.ovomorphosis;
 
-import mod.azure.azurelib.fabric.platform.FabricAzureLibNetwork;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.renderer.RenderType;
 
@@ -28,9 +28,12 @@ public class FabricLibClientMod implements ClientModInitializer {
         EntityRendererRegistry.register(EntityRegistry.XENOMORPH.get(), XenomorphRenderer::new);
         EntityRendererRegistry.register(EntityRegistry.RUNNER.get(), RunnerRenderer::new);
         EntityRendererRegistry.register(EntityRegistry.ACID.get(), AcidEntityRender::new);
-        FabricAzureLibNetwork.registerPacket(
-            EggmorphProgressPacket.TYPE,
-            EggmorphProgressPacket.CODEC
+        ClientPlayNetworking.registerGlobalReceiver(
+            EggmorphProgressPacket.ID,
+            (client, handler, buf, responseSender) -> {
+                EggmorphProgressPacket packet = new EggmorphProgressPacket(buf);
+                client.execute(packet::handle);
+            }
         );
     }
 }

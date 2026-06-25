@@ -18,21 +18,21 @@ public abstract class VillagerHostilesSensorMixin extends NearestVisibleLivingEn
 
     @Inject(at = @At("HEAD"), method = "isClose", cancellable = true)
     void ovomorphosis$isClose(
-        LivingEntity livingEntity,
-        LivingEntity livingEntity2,
+        LivingEntity attacker,
+        LivingEntity target,
         CallbackInfoReturnable<Boolean> callbackInfoReturnable
     ) {
-        if (!(livingEntity2 instanceof XenomorphEntity))
+        if (!(target instanceof XenomorphEntity))
             return;
 
         var distance = 12F;
-        var returnValue = livingEntity2.distanceToSqr(livingEntity) <= (distance * distance);
+        var returnValue = target.distanceToSqr(attacker) <= (distance * distance);
         callbackInfoReturnable.setReturnValue(returnValue);
     }
 
     @Inject(at = @At("HEAD"), method = "isHostile", cancellable = true)
-    void ovomorphosis$isHostile(LivingEntity livingEntity, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        if (livingEntity instanceof XenomorphEntity) {
+    void ovomorphosis$isHostile(LivingEntity entity, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
+        if (entity instanceof XenomorphEntity) {
             callbackInfoReturnable.setReturnValue(true);
         }
     }

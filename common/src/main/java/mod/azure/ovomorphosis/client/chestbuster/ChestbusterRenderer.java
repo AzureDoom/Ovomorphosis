@@ -1,7 +1,7 @@
 package mod.azure.ovomorphosis.client.chestbuster;
 
-import mod.azure.azurelib.common.render.entity.AzEntityRenderer;
-import mod.azure.azurelib.common.render.entity.AzEntityRendererConfig;
+import mod.azure.azurelib.render.entity.AzEntityRenderer;
+import mod.azure.azurelib.render.entity.AzEntityRendererConfig;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 

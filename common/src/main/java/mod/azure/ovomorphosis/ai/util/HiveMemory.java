@@ -166,7 +166,7 @@ public final class HiveMemory {
             return memory;
         var list = tag.getList("blocks", Tag.TAG_COMPOUND);
         for (var i = 0; i < list.size(); i++) {
-            NbtUtils.readBlockPos(list.getCompound(i), NBT_KEY).ifPresent(memory::trackBlock);
+            memory.trackBlock(NbtUtils.readBlockPos(list.getCompound(i)));
         }
         return memory;
     }

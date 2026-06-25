@@ -1,19 +1,30 @@
 plugins {
     id 'multiloader-loader'
-    id 'net.neoforged.moddev' version "${neo_moddev}"
+    id 'net.neoforged.moddev.legacyforge'
     id 'me.modmuss50.mod-publish-plugin' version "${modmuss50_mod_publish_version}"
     id 'com.diffplug.spotless'
 }
 
-neoForge {
-    version = "${neo_version}"
-    accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
+mixin {
+    add(sourceSets.main, "${mod_id}.refmap.json")
 
-    parchment {
-        minecraftVersion = "${parchment_minecraft}"
-        mappingsVersion = "${parchment_version}"
+    config("${mod_id}.forge.mixins.json")
+}
+
+legacyForge {
+    version = "${minecraft_version}-${neo_version}"
+
+    validateAccessTransformers = true
+
+    def at = project(':forge').file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
     }
 
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
+    }
     runs {
         client {
             client()
@@ -21,19 +32,17 @@ neoForge {
         }
         server {
             server()
-            programArgument '--nogui'
             gameDirectory = this.mkdir(this.file('runs/server'))
         }
         configureEach {
-            systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
-            ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
+            ideName = "Forge ${it.name.capitalize()} (${project.path})"
             logLevel = org.slf4j.event.Level.DEBUG
         }
     }
 
     mods {
         "${mod_id}" {
-            sourceSet(sourceSets.main)
+            sourceSet sourceSets.main
         }
     }
 }
@@ -49,7 +58,22 @@ repositories {
 }
 
 dependencies {
-    implementation "mod.azure.azurelib:azurelib-neo-${minecraft_version}:${azurelib_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:0.4.1"))
+    implementation(jarJar("io.github.llamalad7:mixinextras-forge:0.4.1")) {
+        version {
+            strictly '[0.1, 1.0)'
+            prefer '0.4.1'
+        }
+    }
+    modImplementation "mod.azure.azurelib:azurelib-neo-${minecraft_version}:${azurelib_version}"
+}
+
+jar {
+    finalizedBy('reobfJar')
+    manifest.attributes([
+        "MixinConfigs": "${mod_id}.forge.mixins.json"
+    ])
 }
 
 def keyPropsFile = new File(rootProject.projectDir, "key.properties")
@@ -60,7 +84,7 @@ if (keyPropsFile.exists()) {
         file = jar.archiveFile
         changelog = rootProject.file("changelog.md").text
         type = STABLE
-        modLoaders.add("neoforge")
+        modLoaders.add("forge")
 
         curseforge {
             projectId = project.curseforgeID

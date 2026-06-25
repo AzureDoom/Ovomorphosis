@@ -104,7 +104,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
         if (filtered.isEmpty() && !path.isEmpty()) {
-            filtered.add(path.getLast());
+            filtered.add(path.get(path.size() - 1));
         }
         return filtered;
     }
@@ -317,7 +317,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             feet.getY() + crawlHeight,
             feet.getZ() + 0.5D + testHalfW
         );
-        return level.noBlockCollision(mob, mobBox);
+        return level.noCollision(mob, mobBox);
     }
 
     public static double heuristic(BlockPos a, BlockPos b) {
@@ -360,7 +360,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             bottomY + testHeight,
             feet.getZ() + 0.5D + testHalfW
         );
-        return level.noBlockCollision(mob, mobBox);
+        return level.noCollision(mob, mobBox);
     }
 
     /**
@@ -427,7 +427,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                 bottomY + testHeight,
                 to.getZ() + 0.5D + testHalfW
             );
-            if (!level.noBlockCollision(mob, mobBox)) {
+            if (!level.noCollision(mob, mobBox)) {
                 return 9999.0D;
             }
         }
@@ -517,7 +517,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             feet.getZ() + 0.5D + testHalfW
         );
 
-        return level.noBlockCollision(mob, mobBox);
+        return level.noCollision(mob, mobBox);
     }
 
     public static boolean canStandAtCrawlSize(Level level, Mob mob, BlockPos feet) {
@@ -582,7 +582,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                 p.z + halfW
             );
 
-            if (!level.noBlockCollision(mob, box)) {
+            if (!level.noCollision(mob, box)) {
                 return false;
             }
         }

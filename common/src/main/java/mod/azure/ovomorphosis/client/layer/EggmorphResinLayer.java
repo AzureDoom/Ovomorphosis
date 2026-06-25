@@ -55,13 +55,11 @@ public class EggmorphResinLayer<T extends LivingEntity, M extends EntityModel<T>
             consumer,
             packedLight,
             OverlayTexture.NO_OVERLAY,
-            toArgb(alpha)
+            1.0F,
+            1.0F,
+            1.0F,
+            alpha
         );
         poseStack.popPose();
-    }
-
-    private static int toArgb(float a) {
-        return ((int) (a * 255) << 24) | ((int) ((float) 1.0 * 255) << 16) | ((int) ((float) 1.0
-            * 255) << 8) | (int) ((float) 1.0 * 255);
     }
 }
