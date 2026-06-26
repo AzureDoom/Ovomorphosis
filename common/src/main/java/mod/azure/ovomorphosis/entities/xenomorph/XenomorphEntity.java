@@ -380,7 +380,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         var growthScale = this.getGrowthScale();
 
         if (this.ovomorphosis$isWallCrawling()) {
-            return EntityDimensions.scalable(0.9F * growthScale, 0.9F * growthScale);
+            return EntityDimensions.scalable(0.6F * growthScale, 0.6F * growthScale);
         }
 
         var base = super.getDimensions(pose);
