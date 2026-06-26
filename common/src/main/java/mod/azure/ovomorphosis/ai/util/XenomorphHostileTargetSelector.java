@@ -44,11 +44,11 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
         var current = blackboard.get(AiKeys.TARGET, LivingEntity.class);
 
         var nearby = mob.level()
-                .getEntitiesOfClass(
-                        LivingEntity.class,
-                        mob.getBoundingBox().inflate(range),
-                        candidate -> isValidCandidate(mob, candidate)
-                );
+            .getEntitiesOfClass(
+                LivingEntity.class,
+                mob.getBoundingBox().inflate(range),
+                candidate -> isValidCandidate(mob, candidate)
+            );
 
         LivingEntity closest = null;
         double closestDistSq = Double.MAX_VALUE;
@@ -60,9 +60,11 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
             }
         }
 
-        if (current != null && current.isAlive()
+        if (
+            current != null && current.isAlive()
                 && TargetingUtils.validTarget(mob).test(current)
-                && (mob.distanceToSqr(current) <= 32 * 32 || mob.hasLineOfSight(current))) {
+                && (mob.distanceToSqr(current) <= 32 * 32 || mob.hasLineOfSight(current))
+        ) {
 
             double currentDistSq = mob.distanceToSqr(current);
             if (closest == null || currentDistSq * 0.6 <= closestDistSq) {

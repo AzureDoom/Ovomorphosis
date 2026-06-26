@@ -1,14 +1,14 @@
 package mod.azure.ovomorphosis.registry;
 
-import mod.azure.ovomorphosis.items.FlamethrowerLiteItem;
-import mod.azure.ovomorphosis.items.InfectionScannerItem;
-import mod.azure.ovomorphosis.items.MotionTrackerItem;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
 
 import java.util.function.Supplier;
 
+import mod.azure.ovomorphosis.items.FlamethrowerLiteItem;
+import mod.azure.ovomorphosis.items.InfectionScannerItem;
+import mod.azure.ovomorphosis.items.MotionTrackerItem;
 import mod.azure.ovomorphosis.services.XenoServices;
 
 public class ItemRegistry {

@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.items;
 
-import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -23,6 +22,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 public class FlamethrowerLiteItem extends Item {
 
@@ -128,7 +129,7 @@ public class FlamethrowerLiteItem extends Item {
         stack.hurtAndBreak(
             1,
             player,
-                s -> player.broadcastBreakEvent(player.getUsedItemHand())
+            s -> player.broadcastBreakEvent(player.getUsedItemHand())
         );
     }
 
@@ -181,15 +182,20 @@ public class FlamethrowerLiteItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> components, @NotNull TooltipFlag isAdvanced) {
+    public void appendHoverText(
+        ItemStack stack,
+        @Nullable Level level,
+        List<Component> components,
+        @NotNull TooltipFlag isAdvanced
+    ) {
         components.add(
-                Component.translatable("item.ovomorphosis.flamethrower_lite.tooltip")
-                        .withStyle(ChatFormatting.GRAY)
+            Component.translatable("item.ovomorphosis.flamethrower_lite.tooltip")
+                .withStyle(ChatFormatting.GRAY)
         );
         var fuel = stack.getMaxDamage() - stack.getDamageValue();
         components.add(
-                Component.literal("Fuel: " + fuel + "/" + stack.getMaxDamage())
-                        .withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
+            Component.literal("Fuel: " + fuel + "/" + stack.getMaxDamage())
+                .withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
         );
         super.appendHoverText(stack, level, components, isAdvanced);
     }

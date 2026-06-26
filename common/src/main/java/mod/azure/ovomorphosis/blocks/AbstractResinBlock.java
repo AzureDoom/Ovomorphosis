@@ -27,12 +27,12 @@ public abstract class AbstractResinBlock extends Block {
 
     @Override
     public void neighborChanged(
-            @NotNull BlockState state,
-            @NotNull Level level,
-            @NotNull BlockPos pos,
-            @NotNull Block neighborBlock,
-            @NotNull BlockPos neighborPos,
-            boolean movedByPiston
+        @NotNull BlockState state,
+        @NotNull Level level,
+        @NotNull BlockPos pos,
+        @NotNull Block neighborBlock,
+        @NotNull BlockPos neighborPos,
+        boolean movedByPiston
     ) {
         super.neighborChanged(state, level, pos, neighborBlock, neighborPos, movedByPiston);
         if (level.isClientSide())
@@ -48,8 +48,8 @@ public abstract class AbstractResinBlock extends Block {
 
         if (level instanceof ServerLevel serverLevel) {
             boolean cloudExists = !serverLevel.getEntitiesOfClass(
-                    AreaEffectCloud.class,
-                    new AABB(pos).inflate(4.0)
+                AreaEffectCloud.class,
+                new AABB(pos).inflate(4.0)
             ).isEmpty();
             if (!cloudExists) {
                 spawnToxicCloud(serverLevel, pos);
@@ -59,23 +59,23 @@ public abstract class AbstractResinBlock extends Block {
 
     @Override
     public void randomTick(
-            @NotNull BlockState state,
-            @NotNull ServerLevel level,
-            @NotNull BlockPos pos,
-            @NotNull RandomSource random
+        @NotNull BlockState state,
+        @NotNull ServerLevel level,
+        @NotNull BlockPos pos,
+        @NotNull RandomSource random
     ) {
         var onFire = Direction.stream()
-                .anyMatch(
-                        dir -> level.getBlockState(pos.relative(dir)).is(Blocks.FIRE)
-                                || level.getBlockState(pos.relative(dir)).is(Blocks.SOUL_FIRE)
-                );
+            .anyMatch(
+                dir -> level.getBlockState(pos.relative(dir)).is(Blocks.FIRE)
+                    || level.getBlockState(pos.relative(dir)).is(Blocks.SOUL_FIRE)
+            );
         if (!onFire)
             return;
 
         level.getEntitiesOfClass(
-                LivingEntity.class,
-                new AABB(pos).inflate(3.5),
-                e -> !(e instanceof AbstractAlienEntity)
+            LivingEntity.class,
+            new AABB(pos).inflate(3.5),
+            e -> !(e instanceof AbstractAlienEntity)
         ).forEach(e -> {
             e.addEffect(new MobEffectInstance(MobEffects.POISON, 80, 0));
             e.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60, 0));

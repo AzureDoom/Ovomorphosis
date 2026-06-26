@@ -1,7 +1,5 @@
 package mod.azure.ovomorphosis.items;
 
-import mod.azure.ovomorphosis.infection.InfectionManager;
-import mod.azure.ovomorphosis.infection.InfectionState;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
@@ -20,6 +18,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
+
+import mod.azure.ovomorphosis.infection.InfectionManager;
+import mod.azure.ovomorphosis.infection.InfectionState;
 
 public class InfectionScannerItem extends Item {
 
@@ -79,7 +80,7 @@ public class InfectionScannerItem extends Item {
             scanner.displayClientMessage(
                 Component.literal("► [" + who + "] INFECTED — Stage: " + phaseStr)
                     .withStyle(ChatFormatting.RED),
-                    true
+                true
             );
 
             scanner.displayClientMessage(
@@ -105,7 +106,7 @@ public class InfectionScannerItem extends Item {
             scanner.displayClientMessage(
                 Component.literal("► [" + who + "] CLEAR")
                     .withStyle(ChatFormatting.GREEN),
-                    true
+                true
             );
 
             level.playSound(
@@ -146,10 +147,15 @@ public class InfectionScannerItem extends Item {
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, List<Component> components, @NotNull TooltipFlag isAdvanced) {
+    public void appendHoverText(
+        @NotNull ItemStack stack,
+        @Nullable Level level,
+        List<Component> components,
+        @NotNull TooltipFlag isAdvanced
+    ) {
         components.add(
-                Component.translatable("item.ovomorphosis.infection_scanner.tooltip")
-                        .withStyle(ChatFormatting.GRAY)
+            Component.translatable("item.ovomorphosis.infection_scanner.tooltip")
+                .withStyle(ChatFormatting.GRAY)
         );
         super.appendHoverText(stack, level, components, isAdvanced);
     }
