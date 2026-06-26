@@ -15,7 +15,6 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
     private enum Phase {
         STALK,
-        LUNGE_APPROACH,
         STRIKE,
         CIRCLE_OUT,
         THREAT_RESPONSE
@@ -32,8 +31,6 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     private Phase phase = Phase.STALK;
 
     private int phaseAge = 0;
-
-    private int losConfirmTicks = 0;
 
     private boolean didStrike = false;
 
@@ -60,7 +57,6 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
         phase = Phase.STALK;
         phaseAge = 0;
-        losConfirmTicks = 0;
         didStrike = false;
         stalkLateralBias = mob.getRandom().nextBoolean() ? 1 : -1;
         wasCrawlingOnStart = CrawlingManager.wasRecentlyWallCrawling(mob);
@@ -87,7 +83,6 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
         return switch (phase) {
             case STALK -> tickStalk(mob, target);
-            case LUNGE_APPROACH -> tickLungeApproach(mob, target, cooldowns);
             case STRIKE -> tickStrike(mob, target, blackboard, cooldowns);
             case CIRCLE_OUT -> tickCircleOut(mob, target, cooldowns, false);
             case THREAT_RESPONSE -> tickThreatResponse(mob, target, cooldowns);
@@ -120,12 +115,12 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         }
 
         if (distSq <= 5D * 5D) {
-            enterPhase(mob, Phase.LUNGE_APPROACH);
+            enterPhase(mob, Phase.STRIKE);
             return ActionStatus.RUNNING;
         }
 
         if (phaseAge > 140) {
-            enterPhase(mob, Phase.LUNGE_APPROACH);
+            enterPhase(mob, Phase.STRIKE);
             return ActionStatus.RUNNING;
         }
 
@@ -138,38 +133,6 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         var desired = toTarget.scale(0.38D).add(lateral);
         applyDangerSteering(mob, desired);
 
-        return ActionStatus.RUNNING;
-    }
-
-    private ActionStatus tickLungeApproach(E mob, LivingEntity target, Cooldowns cooldowns) {
-        mob.setAggressive(true);
-
-        var distSq = mob.distanceToSqr(target);
-
-        if (TargetingUtils.hasMeleeLineOfSight(mob, target)) {
-            losConfirmTicks++;
-        } else {
-            losConfirmTicks = 0;
-            if (phaseAge > 8) {
-                mob.setAggressive(false);
-                enterPhase(mob, Phase.STALK);
-                return ActionStatus.RUNNING;
-            }
-        }
-
-        if (distSq <= 2.8D * 2.8D && losConfirmTicks >= 6) {
-            enterPhase(mob, Phase.STRIKE);
-            return ActionStatus.RUNNING;
-        }
-
-        if (phaseAge > 40) {
-            mob.setAggressive(false);
-            cooldowns.set(cooldownKey, cooldownTicks / 2);
-            return ActionStatus.FAILURE;
-        }
-
-        var desired = target.position().subtract(mob.position()).normalize().scale(0.72D);
-        applyDangerSteering(mob, desired);
         return ActionStatus.RUNNING;
     }
 
@@ -263,7 +226,6 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     private void enterPhase(E mob, Phase next) {
         phase = next;
         phaseAge = 0;
-        losConfirmTicks = 0;
         mob.hasImpulse = true;
     }
 
