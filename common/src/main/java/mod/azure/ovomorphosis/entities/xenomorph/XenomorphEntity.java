@@ -390,7 +390,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     @NotNull
     public EntityDimensions getDefaultDimensions(@NotNull Pose pose) {
         if (this.ovomorphosis$isWallCrawling())
-            return EntityDimensions.scalable(0.9F, 0.9F);
+            return EntityDimensions.scalable(0.6F, 0.6F);
         return super.getDefaultDimensions(pose);
     }
 
