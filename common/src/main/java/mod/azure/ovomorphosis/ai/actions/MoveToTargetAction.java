@@ -177,7 +177,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var shouldUseCrawlingNow = canCrawl && (isCrawlingNow
             || mobIsInOrAtTunnel
             || (nearbyTunnelEntry != null)
-            || (!mobOnSolidGround && CrawlingMovementManager.shouldUseWallCrawlingToTarget(mob, target)));
+            || CrawlingMovementManager.shouldUseWallCrawlingToTarget(mob, target));
 
         var tunnelBiasedGoal = (shouldUseCrawlingNow && (!mobOnSolidGround || mobIsInOrAtTunnel
             || nearbyTunnelEntry != null))
@@ -618,7 +618,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         var waypointIsGroundOnly = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
-            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock);
+            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
+            && waypointBlock.getY() <= mobFeet.getY();
         var canAttachToWall = shouldUseCrawlingNow
             && !waypointIsGroundOnly
             && canAttachToClimbSurface(mob, waypoint);
