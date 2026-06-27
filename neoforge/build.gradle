@@ -40,14 +40,6 @@ neoForge {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
-repositories {
-    maven { url 'https://libs.azuredoom.com:4443/mods' }
-    maven { url "https://minecraft.curseforge.com/api/maven/" }
-    maven { url "https://cfa2.cursemaven.com" }
-    maven { url 'https://api.modrinth.com/maven' }
-    mavenCentral()
-}
-
 dependencies {
     implementation "mod.azure.azurelib:azurelib-neo-${minecraft_version}:${azurelib_version}"
 }
