@@ -14,6 +14,7 @@ import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.*;
+import mod.azure.ovomorphosis.util.ModTags;
 
 public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
@@ -45,6 +46,14 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
     private int repathCooldown = 0;
 
+    /**
+     * Tracks how many ticks the mob has been moving without closing distance to the target. Unlike stuckTicks, this
+     * fires even when the mob is sliding laterally along a wall — the key signal for proactive wall-breaking.
+     */
+    private double lastDistSqToTarget = Double.MAX_VALUE;
+
+    private int noProgressTicks = 0;
+
     public MoveToTargetAction(
         double stopDistance,
         double speed,
@@ -70,6 +79,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         path = Collections.emptyList();
         pathIndex = 0;
         repathCooldown = 0;
+        lastDistSqToTarget = Double.MAX_VALUE;
+        noProgressTicks = 0;
     }
 
     @Override
@@ -201,6 +212,10 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     pathIndex++;
                 }
             }
+
+            if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER) && !path.isEmpty()) {
+                checkPathForBreakableWall(mob, blackboard, path, pathIndex);
+            }
         }
 
         if (!path.isEmpty()) {
@@ -286,6 +301,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
                 if (direction.lengthSqr() > 0.0001D) {
                     applyPathMovement(
+                        blackboard,
                         mob,
                         target,
                         waypointBlock,
@@ -301,7 +317,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var directDirection = target.position().subtract(mob.position());
 
         if (directDirection.lengthSqr() > 0.0001D) {
-            applyFlatFallback(mob, target, directDirection);
+            applyFlatFallback(mob, blackboard, target, directDirection);
             return ActionStatus.RUNNING;
         }
 
@@ -349,6 +365,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     }
 
     private void applyPathMovement(
+        Blackboard blackboard,
         E mob,
         LivingEntity target,
         BlockPos waypointBlock,
@@ -368,6 +385,28 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             stuckTicks++;
         else
             stuckTicks = 0;
+
+        var currentDistSq = mob.distanceToSqr(target);
+        if (currentDistSq < lastDistSqToTarget - 0.1D) {
+            lastDistSqToTarget = currentDistSq;
+            noProgressTicks = 0;
+        } else {
+            noProgressTicks++;
+        }
+
+        if (noProgressTicks > 40 && blockBreakCooldown <= 0) {
+            var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
+            if (forwardDir.lengthSqr() > 0.01D) {
+                forwardDir = forwardDir.normalize();
+                if (tryBreakBlockingPathBlock(mob, blackboard, target, forwardDir)) {
+                    blockBreakCooldown = 10;
+                    noProgressTicks = 0;
+                    stuckTicks = 0;
+                    repathCooldown = 0;
+                    faceTarget(mob, target);
+                }
+            }
+        }
 
         var waypointIsVerticalShaft =
             CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock);
@@ -416,7 +455,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 );
 
                 if (corrected.horizontalDistanceSqr() < 0.0001D) {
-                    corrected = findCornerEscapeStepUpVelocity(mob, horizontalToClimb);
+                    var raisedBox = mob.getBoundingBox().move(horiz.x, 1.05D, horiz.z);
+                    if (mob.level().noBlockCollision(mob, raisedBox)) {
+                        corrected = new Vec3(0.0D, Math.max(mob.getDeltaMovement().y, speed * 0.95D), 0.0D);
+                    } else {
+                        corrected = findCornerEscapeStepUpVelocity(mob, horizontalToClimb);
+                    }
                 }
 
                 move = corrected;
@@ -735,7 +779,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             }
 
             if (targetBelow && blockBreakCooldown <= 0) {
-                if (tryBreakBlockingPathBlock(mob, target, forward)) {
+                if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
                     blockBreakCooldown = 10;
                     stuckTicks = 0;
                     repathCooldown = 0;
@@ -765,7 +809,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             var right = new Vec3(forward.z, 0.0D, -forward.x);
 
             if (!targetBelow && stuckTicks > 20 && blockBreakCooldown <= 0) {
-                if (tryBreakBlockingPathBlock(mob, target, forward)) {
+                if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
                     blockBreakCooldown = 10;
                     stuckTicks = 0;
                     repathCooldown = 0;
@@ -843,11 +887,40 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         faceTarget(mob, target);
     }
 
-    private void applyFlatFallback(E mob, LivingEntity target, Vec3 direction) {
-        var horizontal = new Vec3(direction.x, 0.0D, direction.z);
+    private void applyFlatFallback(E mob, Blackboard blackboard, LivingEntity target, Vec3 direction) {
+        var movedSqr = mob.position().distanceToSqr(lastPos);
+        lastPos = mob.position();
+        if (movedSqr < 0.0025D)
+            stuckTicks++;
+        else
+            stuckTicks = 0;
 
-        if (horizontal.lengthSqr() > 0.01D) {
-            var movement = MovementUtils.steerAwayFromDangerEntities(mob, horizontal.normalize().scale(speed));
+        if (blockBreakCooldown > 0)
+            blockBreakCooldown--;
+
+        var horizontal = new Vec3(direction.x, 0.0D, direction.z);
+        var forward = horizontal.lengthSqr() > 0.01D ? horizontal.normalize() : Vec3.ZERO;
+
+        var currentDistSqFlat = mob.distanceToSqr(target);
+        if (currentDistSqFlat < lastDistSqToTarget - 0.1D) {
+            lastDistSqToTarget = currentDistSqFlat;
+            noProgressTicks = 0;
+        } else {
+            noProgressTicks++;
+        }
+
+        if ((stuckTicks > 10 || noProgressTicks > 40) && blockBreakCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
+            if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
+                blockBreakCooldown = 10;
+                stuckTicks = 0;
+                noProgressTicks = 0;
+                faceTarget(mob, target);
+                return;
+            }
+        }
+
+        if (!forward.equals(Vec3.ZERO)) {
+            var movement = MovementUtils.steerAwayFromDangerEntities(mob, forward.scale(speed));
             var safe = MovementUtils.findSafeMovement(mob, movement, steerBias);
 
             if (!safe.equals(Vec3.ZERO)) {
@@ -1045,32 +1118,36 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         return false;
     }
 
-    private boolean tryBreakBlockingPathBlock(E mob, LivingEntity target, Vec3 forward) {
-        var level = mob.level();
+    private boolean tryBreakBlockingPathBlock(E mob, Blackboard blackboard, LivingEntity target, Vec3 forward) {
         var checkPos = mob.position().add(forward.scale(0.9D));
         var feet = BlockPos.containing(checkPos.x, mob.getBoundingBox().minY, checkPos.z);
         var head = feet.above();
         var targetBelow = target.getY() < mob.getY() - 1.0D;
 
+        BlockPos toBreak = null;
+
         if (targetBelow) {
             var downForward = feet.below();
-            if (canBreakDownPathBlock(mob, downForward)) {
-                level.destroyBlock(downForward, true, mob);
-                return true;
-            }
-            var downCurrent = mob.blockPosition().below();
-            if (canBreakDownPathBlock(mob, downCurrent)) {
-                level.destroyBlock(downCurrent, true, mob);
-                return true;
+            if (canBreakPathBlock(mob, downForward)) {
+                toBreak = downForward;
+            } else {
+                var downCurrent = mob.blockPosition().below();
+                if (canBreakDownPathBlock(mob, downCurrent)) {
+                    toBreak = downCurrent;
+                }
             }
         }
 
-        if (canBreakPathBlock(mob, feet)) {
-            level.destroyBlock(feet, true, mob);
-            return true;
+        if (toBreak == null && canBreakPathBlock(mob, feet)) {
+            toBreak = feet;
         }
-        if (canBreakPathBlock(mob, head)) {
-            level.destroyBlock(head, true, mob);
+        if (toBreak == null && canBreakPathBlock(mob, head)) {
+            toBreak = head;
+        }
+
+        if (toBreak != null) {
+            blackboard.set(AiKeys.BREAK_TO_TARGET_SCAN, toBreak);
+            blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
             return true;
         }
         return false;
@@ -1080,6 +1157,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var level = mob.level();
         var state = level.getBlockState(pos);
         if (state.isAir())
+            return false;
+        if (!state.is(ModTags.WEAK_BLOCKS))
             return false;
         if (state.getDestroySpeed(level, pos) < 0.0F)
             return false;
@@ -1094,6 +1173,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var level = mob.level();
         var state = level.getBlockState(pos);
         if (state.isAir())
+            return false;
+        if (!state.is(ModTags.WEAK_BLOCKS))
             return false;
         if (state.getDestroySpeed(level, pos) < 0.0F)
             return false;
@@ -1312,6 +1393,38 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         return new Vec3(x, desired.y, z);
     }
 
+    /**
+     * Scans upcoming path nodes for a wall that A* routed over (consecutive nodes with a Y step of 2+). If the bottom
+     * block of that wall face is a breakable weak block, sets BREAK_TO_TARGET_SCAN + BREAK_TO_TARGET_TRIGGER so
+     * BreakToTargetAction will chip it out on the next tree tick, letting the mob walk through at ground level instead
+     * of climbing over.
+     * <p>
+     * Only called on a fresh repath and only when no break is already pending, so it won't thrash. The 2-block
+     * threshold means normal step-ups and hills are never considered.
+     */
+    private void checkPathForBreakableWall(E mob, Blackboard blackboard, List<BlockPos> path, int fromIndex) {
+        var scanLimit = Math.min(path.size(), fromIndex + 8);
+
+        for (var i = fromIndex; i < scanLimit - 1; i++) {
+            var from = path.get(i);
+            var to = path.get(i + 1);
+            var dy = to.getY() - from.getY();
+
+            if (dy < 2) {
+                continue; // normal step or flat — ignore
+            }
+
+            for (var wallY = from.getY() + 1; wallY < to.getY(); wallY++) {
+                var candidate = new BlockPos(to.getX(), wallY, to.getZ());
+                if (canBreakPathBlock(mob, candidate)) {
+                    blackboard.set(AiKeys.BREAK_TO_TARGET_SCAN, candidate);
+                    blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
+                    return; // only queue one block at a time
+                }
+            }
+        }
+    }
+
     private Vec3 findCornerEscapeStepUpVelocity(E mob, Vec3 desiredHorizontal) {
         var level = mob.level();
         var box = mob.getBoundingBox();
@@ -1338,6 +1451,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         Vec3 best = Vec3.ZERO;
         double bestScore = -Double.MAX_VALUE;
 
+        var stepClearY = 1.05D;
+
         for (var candidate : candidates) {
             if (candidate.lengthSqr() < 0.0001D) {
                 continue;
@@ -1345,7 +1460,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
             var dir = candidate.normalize();
             var testMove = dir.scale(speed * 0.55D);
-            var probeBox = box.move(testMove.x, 0.05D, testMove.z);
+            var probeBox = box.move(testMove.x, stepClearY, testMove.z);
 
             if (!level.noBlockCollision(mob, probeBox)) {
                 continue;
