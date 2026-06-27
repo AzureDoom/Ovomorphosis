@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.blocks;
 
 import mod.azure.azurelib.common.platform.Services;
+import mod.azure.ovomorphosis.util.AdvancementUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -277,20 +278,7 @@ public final class EggmorphTracker {
         }
 
         if (entry.entity instanceof ServerPlayer serverPlayer) {
-            var advancement = serverPlayer.server.getAdvancements()
-                .get(CommonMod.modResource("eggmorphed"));
-            if (
-                advancement != null
-                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
-            ) {
-                for (
-                    var s : serverPlayer.getAdvancements()
-                        .getOrStartProgress(advancement)
-                        .getRemainingCriteria()
-                ) {
-                    serverPlayer.getAdvancements().award(advancement, s);
-                }
-            }
+            AdvancementUtils.triggerAdvancement(serverPlayer, "eggmorphed");
         }
 
         entry.entity.hurt(DamageTypeRegistry.of(entry.entity.level(), DamageTypeRegistry.EGGMORPH), Float.MAX_VALUE);

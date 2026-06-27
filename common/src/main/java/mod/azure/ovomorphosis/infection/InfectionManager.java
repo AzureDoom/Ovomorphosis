@@ -24,9 +24,12 @@ import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
+import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.registry.DamageTypeRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
+import mod.azure.ovomorphosis.util.AdvancementUtils;
+import mod.azure.ovomorphosis.util.ModTags;
 
 public final class InfectionManager {
 
@@ -63,20 +66,7 @@ public final class InfectionManager {
                 1.0F
             );
         if (host instanceof ServerPlayer serverPlayer) {
-            var advancement = serverPlayer.server.getAdvancements()
-                .get(CommonMod.modResource("facehugged"));
-            if (
-                advancement != null
-                    && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
-            ) {
-                for (
-                    var s : serverPlayer.getAdvancements()
-                        .getOrStartProgress(advancement)
-                        .getRemainingCriteria()
-                ) {
-                    serverPlayer.getAdvancements().award(advancement, s);
-                }
-            }
+            AdvancementUtils.triggerAdvancement(serverPlayer, "facehugged");
         }
     }
 
@@ -195,47 +185,34 @@ public final class InfectionManager {
 
         level.playSound(host, host.blockPosition(), SoundRegistry.CHEST_BURST.get(), SoundSource.HOSTILE, 1.0F, 1.0F);
         spawnBloodParticles(host, level, true);
-        // AbstractAlienEntity burster = null;
-        // if (host.getType().is(ModTags.XENOMORPH_HOST)) {
-        // burster = new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level);
-        // } else if (host.getType().is(ModTags.RUNNER_HOST)) {
-        // burster = new RunnerEntity(EntityRegistry.RUNNER.get(), level);
-        // }
-        AbstractAlienEntity burster = new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level);
-        if (burster != null) {
-            var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);
-            burster.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
+        if (host.getType().is(ModTags.XENOMORPH_HOST)) {
+            spawnMob(host, level, new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level));
+        } else if (host.getType().is(ModTags.RUNNER_HOST)) {
+            spawnMob(host, level, new RunnerEntity(EntityRegistry.RUNNER.get(), level));
+        }
 
-            var angle = host.getRandom().nextFloat() * (float) (Math.PI * 2);
-            burster.setDeltaMovement(
-                Mth.cos(angle) * 0.4f,
-                0.6f,
-                Mth.sin(angle) * 0.4f
-            );
-            level.addFreshEntity(burster);
+        if (host instanceof ServerPlayer serverPlayer) {
+            AdvancementUtils.triggerAdvancement(serverPlayer, "chest_burst");
+        }
 
-            for (var effect : host.getActiveEffects()) {
-                burster.addEffect(new MobEffectInstance(effect));
-            }
+        host.hurt(DamageTypeRegistry.of(level, DamageTypeRegistry.XENOMORPH_INFECTION), Float.MAX_VALUE);
+    }
 
-            if (host instanceof ServerPlayer serverPlayer) {
-                var advancement = serverPlayer.server.getAdvancements()
-                    .get(CommonMod.modResource("chest_burst"));
-                if (
-                    advancement != null
-                        && !serverPlayer.getAdvancements().getOrStartProgress(advancement).isDone()
-                ) {
-                    for (
-                        var s : serverPlayer.getAdvancements()
-                            .getOrStartProgress(advancement)
-                            .getRemainingCriteria()
-                    ) {
-                        serverPlayer.getAdvancements().award(advancement, s);
-                    }
-                }
-            }
+    private static void spawnMob(LivingEntity host, ServerLevel level, AbstractAlienEntity alien) {
+        var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);
+        alien.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
 
-            host.hurt(DamageTypeRegistry.of(level, DamageTypeRegistry.XENOMORPH_INFECTION), Float.MAX_VALUE);
+        var angle = host.getRandom().nextFloat() * (float) (Math.PI * 2);
+        alien.setDeltaMovement(
+            Mth.cos(angle) * 0.4f,
+            0.6f,
+            Mth.sin(angle) * 0.4f
+        );
+        level.addFreshEntity(alien);
+        if (host.hasCustomName())
+            alien.setCustomName(host.getCustomName());
+        for (var effect : host.getActiveEffects()) {
+            alien.addEffect(new MobEffectInstance(effect));
         }
     }
 

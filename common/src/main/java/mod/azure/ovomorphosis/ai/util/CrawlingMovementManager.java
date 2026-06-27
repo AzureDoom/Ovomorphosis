@@ -13,9 +13,9 @@ import net.minecraft.world.phys.Vec3;
  * Call {@link #updateWallCrawlingPhysics} and {@link #updateCrawlOrientation} each tick from the mob's tick method to
  * keep gravity suppression and surface alignment current.
  */
-public final class CrawlingManager {
+public final class CrawlingMovementManager {
 
-    private CrawlingManager() {}
+    private CrawlingMovementManager() {}
 
     /**
      * Returns {@code true} if {@code mob} implements {@link WallCrawlingMob} and is in a state where wall-crawling is
