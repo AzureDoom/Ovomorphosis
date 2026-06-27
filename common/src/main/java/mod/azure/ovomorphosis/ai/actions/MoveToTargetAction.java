@@ -394,7 +394,26 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             noProgressTicks++;
         }
 
-        if (noProgressTicks > 40 && blockBreakCooldown <= 0) {
+        if (mob.horizontalCollision && blockBreakCooldown <= 0) {
+            var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
+            if (forwardDir.lengthSqr() > 0.01D) {
+                forwardDir = forwardDir.normalize();
+                var toTarget = target.position().subtract(mob.position());
+                var toTargetH = new Vec3(toTarget.x, 0.0D, toTarget.z);
+                if (toTargetH.lengthSqr() > 0.01D && forwardDir.dot(toTargetH.normalize()) > 0.5D) {
+                    if (tryBreakBlockingPathBlock(mob, blackboard, target, forwardDir)) {
+                        blockBreakCooldown = 10;
+                        noProgressTicks = 0;
+                        stuckTicks = 0;
+                        repathCooldown = 0;
+                        faceTarget(mob, target);
+                        return;
+                    }
+                }
+            }
+        }
+
+        if (noProgressTicks > 5 && blockBreakCooldown <= 0) {
             var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
             if (forwardDir.lengthSqr() > 0.01D) {
                 forwardDir = forwardDir.normalize();
@@ -404,6 +423,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     stuckTicks = 0;
                     repathCooldown = 0;
                     faceTarget(mob, target);
+                    return;
                 }
             }
         }
@@ -808,13 +828,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             var left = new Vec3(-forward.z, 0.0D, forward.x);
             var right = new Vec3(forward.z, 0.0D, -forward.x);
 
-            if (!targetBelow && stuckTicks > 20 && blockBreakCooldown <= 0) {
+            if (!targetBelow && blockBreakCooldown <= 0) {
                 if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
                     blockBreakCooldown = 10;
                     stuckTicks = 0;
                     repathCooldown = 0;
                     faceTarget(mob, target);
-                    return;
+                    return; // skip detours — let BreakToTargetAction handle it
                 }
             }
 
@@ -909,7 +929,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             noProgressTicks++;
         }
 
-        if ((stuckTicks > 10 || noProgressTicks > 40) && blockBreakCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
+        if ((stuckTicks > 10 || noProgressTicks > 20) && blockBreakCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
             if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
                 blockBreakCooldown = 10;
                 stuckTicks = 0;
