@@ -17,6 +17,7 @@
     "PlayerEntityMixin",
     "ServerLevelMixin",
     "StructureAccessor",
+    "VillagerMixin",
     "VillagerHostilesSensorMixin",
     "WardenEntityMixin",
     "WolfFacehuggerReactionMixin"
