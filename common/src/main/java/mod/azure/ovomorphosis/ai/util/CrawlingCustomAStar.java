@@ -563,11 +563,53 @@ public class CrawlingCustomAStar extends CustomAStar {
         var fromCenter = Vec3.atBottomCenterOf(from);
         var toCenter = Vec3.atBottomCenterOf(to);
 
-        var delta = toCenter.subtract(fromCenter);
-        var steps = Math.max(2, Mth.ceil(delta.length() * 4.0D));
-
         var halfW = Math.min(mob.getBbWidth() / 2.0D, 0.35D);
         var height = getEffectiveCrawlHeight(mob);
+        var dy = to.getY() - from.getY();
+
+        if (dy > 0) {
+            var vertSteps = Math.max(2, dy * 4);
+            for (var i = 1; i <= vertSteps; i++) {
+                var t = i / (double) vertSteps;
+                var p = new Vec3(fromCenter.x, fromCenter.y + dy * t, fromCenter.z);
+                var box = new AABB(
+                    p.x - halfW,
+                    p.y,
+                    p.z - halfW,
+                    p.x + halfW,
+                    p.y + height,
+                    p.z + halfW
+                );
+                if (!level.noCollision(mob, box)) {
+                    return false;
+                }
+            }
+            var horizDelta = new Vec3(toCenter.x - fromCenter.x, 0.0D, toCenter.z - fromCenter.z);
+            var horizSteps = Math.max(2, Mth.ceil(horizDelta.length() * 4.0D));
+            for (var i = 1; i <= horizSteps; i++) {
+                var t = i / (double) horizSteps;
+                var p = new Vec3(
+                    fromCenter.x + horizDelta.x * t,
+                    toCenter.y,
+                    fromCenter.z + horizDelta.z * t
+                );
+                var box = new AABB(
+                    p.x - halfW,
+                    p.y,
+                    p.z - halfW,
+                    p.x + halfW,
+                    p.y + height,
+                    p.z + halfW
+                );
+                if (!level.noCollision(mob, box)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        var delta = toCenter.subtract(fromCenter);
+        var steps = Math.max(2, Mth.ceil(delta.length() * 4.0D));
 
         for (var i = 1; i <= steps; i++) {
             var t = i / (double) steps;

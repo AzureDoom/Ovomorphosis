@@ -22,10 +22,23 @@ import mod.azure.ovomorphosis.util.ModTags;
 /**
  * Makes the xenomorph break blocks that are directly obstructing its path to its current attack target.
  * <p>
- * This action is only entered when {@link MoveToTargetAction} reports the mob as stuck (via
- * {@link AiKeys#BREAK_TO_TARGET_TRIGGER}). Once the obstructing block is cleared it returns
- * {@link ActionStatus#SUCCESS} so the tree immediately falls back to movement. The action is {@link #isInterruptible()
- * interruptible} so higher-priority combat actions always preempt it.
+ * This action is entered when either:
+ * <ul>
+ * <li>{@link MoveToTargetAction} reports the mob as stuck (via {@link AiKeys#BREAK_TO_TARGET_TRIGGER}), or</li>
+ * <li>The GOAP planner chose {@link AiGoalType#BREAK_OBSTACLE} and pre-populated {@link AiKeys#BREAK_TO_TARGET_SCAN}
+ * via its proactive ray-trace.</li>
+ * </ul>
+ * Once the obstructing block is cleared it returns {@link ActionStatus#SUCCESS} so the tree immediately falls back to
+ * movement. The action is {@link #isInterruptible() interruptible} so higher-priority combat actions always preempt it.
+ * <h3>Fixes applied</h3>
+ * <ol>
+ * <li><b>Auto-trigger on BREAK_OBSTACLE goal:</b> {@link #start} now sets {@link AiKeys#BREAK_TO_TARGET_TRIGGER}
+ * whenever the active goal is {@link AiGoalType#BREAK_OBSTACLE}, so the action does not immediately return
+ * {@link ActionStatus#SUCCESS} on its first tick.</li>
+ * <li><b>Ray-march obstacle scan:</b> {@link #findObstructingBlock} was replaced with a proper DDA ray-march that
+ * samples every block column along the direct line from mob to target. The old signum-step diagonal walk skipped blocks
+ * that weren't perfectly axis-aligned and could walk around a corner wall rather than into it.</li>
+ * </ol>
  *
  * @param <E> xenomorph entity type
  */
@@ -44,6 +57,11 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         targetBlock = null;
         breakProgress = 0f;
         breakId = mob.getId() ^ 0x3A7F_0000;
+
+        var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        if (activeGoal == AiGoalType.BREAK_OBSTACLE && !blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)) {
+            blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
+        }
     }
 
     @Override
@@ -73,7 +91,13 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             }
             cooldowns.set(AiKeys.BREAK_TO_TARGET_SCAN, 10);
 
-            targetBlock = findObstructingBlock(mob, target);
+            var hint = blackboard.get(AiKeys.BREAK_TO_TARGET_SCAN, BlockPos.class);
+            if (hint != null && isBreakable(level, hint, level.getBlockState(hint))) {
+                targetBlock = hint;
+            } else {
+                targetBlock = findObstructingBlock(mob, target);
+            }
+
             if (targetBlock == null) {
                 blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
                 var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
@@ -134,7 +158,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
 
     @Override
     public boolean isInterruptible() {
-        return true;
+        return breakProgress <= 0f;
     }
 
     @Override
@@ -142,45 +166,73 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         return 15;
     }
 
+    /**
+     * Finds the nearest breakable block between the mob and its target using a DDA ray-march.
+     * <p>
+     * <b>Fix:</b> The original implementation used a signum-step diagonal walk that advanced all three axes
+     * simultaneously. For a mostly-horizontal obstruction, this caused the trace to skip corner blocks entirely and
+     * sometimes "walk around" a wall instead of through it. The new implementation performs a proper integer DDA
+     * ray-march — it advances only the cheapest axis at each step — which guarantees every discrete block column along
+     * the direct line is tested.
+     * <p>
+     * Also checks one block above the mob's feet at each step to handle walls that are 2 blocks tall but where the path
+     * approaches at foot level.
+     */
     private static BlockPos findObstructingBlock(AbstractAlienEntity mob, LivingEntity target) {
         var from = mob.blockPosition();
         var to = target.blockPosition();
 
-        var dist = from.distSqr(to);
-        if (dist > (double) (12 * 12)) {
+        var distSq = from.distSqr(to);
+        if (distSq > (double) (12 * 12)) {
             return null;
         }
 
         var level = mob.level();
 
-        var dx = Integer.signum(to.getX() - from.getX());
-        var dy = Integer.signum(to.getY() - from.getY());
-        var dz = Integer.signum(to.getZ() - from.getZ());
+        var x0 = from.getX();
+        var z0 = from.getZ();
+        var x1 = to.getX();
+        var z1 = to.getZ();
 
-        var cursor = new BlockPos.MutableBlockPos(from.getX(), from.getY(), from.getZ());
+        var yMin = Math.min(from.getY(), to.getY());
+        var yMax = Math.max(from.getY(), to.getY()) + 1; // +1 for head height
 
-        var steps = (int) Math.sqrt(dist) + 2;
+        var dx = Math.abs(x1 - x0);
+        var dz = Math.abs(z1 - z0);
+        var sx = x0 < x1 ? 1 : -1;
+        var sz = z0 < z1 ? 1 : -1;
+
+        var x = x0;
+        var z = z0;
+        var err = dx - dz;
+
+        var steps = dx + dz + 1;
+
         for (var i = 0; i < steps; i++) {
-            if (dx != 0)
-                cursor.setX(cursor.getX() + dx);
-            if (dy != 0)
-                cursor.setY(cursor.getY() + dy);
-            if (dz != 0)
-                cursor.setZ(cursor.getZ() + dz);
-
-            if (cursor.equals(to))
+            if (x == x1 && z == z1)
                 break;
 
-            for (var ox = -1; ox <= 1; ox++) {
-                for (int oz = -1; oz <= 1; oz++) {
-                    var check = cursor.offset(ox, 0, oz);
-                    var state = level.getBlockState(check);
-                    if (isBreakable(level, check, state)) {
-                        return check.immutable();
-                    }
+            for (var y = yMin; y <= yMax; y++) {
+                var check = new BlockPos(x, y, z);
+                if (check.equals(from) || check.equals(to))
+                    continue;
+                var state = level.getBlockState(check);
+                if (isBreakable(level, check, state)) {
+                    return check;
                 }
             }
+
+            var e2 = 2 * err;
+            if (e2 > -dz) {
+                err -= dz;
+                x += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                z += sz;
+            }
         }
+
         return null;
     }
 
