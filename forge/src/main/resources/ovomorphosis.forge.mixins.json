@@ -18,6 +18,7 @@
     "MobEntityMixin",
     "PlayerEntityMixin",
     "ServerLevelMixin",
+    "VillagerMixin",
     "VillagerHostilesSensorMixin",
     "WardenEntityMixin",
     "WolfFacehuggerReactionMixin"
