@@ -91,7 +91,7 @@ public class FlamethrowerLiteItem extends Item {
         ).forEach(e -> {
             var toEntity = e.getEyePosition().subtract(eyePos).normalize();
             if (toEntity.dot(lookVec) >= CONE_DOT) {
-                e.setRemainingFireTicks(FIRE_TICKS / 20);
+                e.setRemainingFireTicks(120);
 
                 if (e instanceof XenomorphEntity || e instanceof RunnerEntity) {
                     var push = lookVec.scale(0.6).add(0, 0.2, 0);
