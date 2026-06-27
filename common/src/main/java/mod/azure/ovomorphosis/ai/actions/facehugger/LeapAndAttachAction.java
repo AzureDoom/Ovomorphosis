@@ -95,8 +95,6 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
             windUpTicks = -1;
             leapCooldown = 10;
             blackboard.set(AiKeys.TARGET, target);
-            // If target is still within leap range, stay in the action and try again after cooldown.
-            // If they moved away, exit so the tree re-dispatches moveToDestination to close in.
             return mob.distanceToSqr(target) <= 1.5D * 1.5D
                 ? ActionStatus.RUNNING
                 : ActionStatus.INTERRUPTED;

@@ -73,8 +73,6 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         if (mob.getHealth() <= 0)
             return ActionStatus.INTERRUPTED;
 
-        // If the xenomorph has accumulated enough lifetime fire exposure it is hardened
-        // and will no longer flee and pathfinding routes around fire naturally via danger blocks.
         if (
             mob instanceof XenomorphEntity xeno
                 && xeno.isFireHardened()
@@ -132,9 +130,6 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             return ActionStatus.FAILURE;
         }
 
-        // Accumulate persistent (NBT) fire tolerance each tick we are actively fleeing.
-        // This is separate from the per-session blackboard tolerance that gates the flee trigger —
-        // the NBT value persists across deaths and sessions until the cap is reached.
         if (mob instanceof XenomorphEntity xeno) {
             var gain = mob.isOnFire() ? ON_FIRE_GAIN_RATE : TOLERANCE_GAIN_RATE;
             xeno.setFireToleranceNbt(xeno.getFireToleranceNbt() + gain);
