@@ -19,6 +19,8 @@ import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
+import mod.azure.ovomorphosis.network.FabricNetworkDispatcher;
+import mod.azure.ovomorphosis.network.NetworkDispatcher;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
@@ -29,6 +31,7 @@ public final class FabricLibMod implements ModInitializer {
     @Override
     public void onInitialize() {
         CommonMod.initRegistries();
+        NetworkDispatcher.Holder.INSTANCE = new FabricNetworkDispatcher();
         ResourceManagerHelper.get(PackType.SERVER_DATA)
             .registerReloadListener(new FabricHeadOffsetReloadListener());
         ServerLifecycleEvents.SERVER_STARTED.register(FabricStructureSpawnPatcher::patch);

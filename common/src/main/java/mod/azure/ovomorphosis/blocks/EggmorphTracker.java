@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.blocks;
 
-import mod.azure.azurelib.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -19,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
-import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
+import mod.azure.ovomorphosis.network.NetworkDispatcher;
 import mod.azure.ovomorphosis.registry.DamageTypeRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.util.AdvancementUtils;
@@ -246,20 +245,14 @@ public final class EggmorphTracker {
 
     private static void sendClear(Entry entry) {
         if (entry.entity.level() instanceof ServerLevel) {
-            Services.NETWORK.sendToTrackingEntityAndSelf(
-                new EggmorphProgressPacket(entry.entity.getId(), 0f),
-                entry.entity
-            );
+            NetworkDispatcher.send(entry.entity.getId(), 0f, entry.entity);
         }
     }
 
     private void syncProgress(Entry entry) {
         var progress = entry.phase == Phase.TRAPPED ? entry.ticks / CommonMod.getConfig().eggmorphTotalTicks : 0f;
         if (entry.entity.level() instanceof ServerLevel) {
-            Services.NETWORK.sendToTrackingEntityAndSelf(
-                new EggmorphProgressPacket(entry.entity.getId(), progress),
-                entry.entity
-            );
+            NetworkDispatcher.send(entry.entity.getId(), progress, entry.entity);
         }
     }
 

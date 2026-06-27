@@ -28,7 +28,9 @@ import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
+import mod.azure.ovomorphosis.network.ForgeNetworkDispatcher;
 import mod.azure.ovomorphosis.network.ForgeNetworkHandler;
+import mod.azure.ovomorphosis.network.NetworkDispatcher;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
@@ -84,6 +86,7 @@ public final class ForgeMod {
         modEventBus.addListener(this::addSpawnPlacements);
         modEventBus.addListener(this::addCreativeTabs);
         ForgeNetworkHandler.registerMessages();
+        NetworkDispatcher.Holder.INSTANCE = new ForgeNetworkDispatcher();
         ModStructureModifierSerializers.STRUCTURE_MODIFIER_SERIALIZERS.register(modEventBus);
     }
 
