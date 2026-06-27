@@ -38,7 +38,7 @@ public class FlamethrowerLiteItem extends Item {
     private static final double CONE_DOT = 0.75;
 
     public FlamethrowerLiteItem() {
-        super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
+        super(new Item.Properties().durability(MAX_DAMAGE));
     }
 
     @Override

@@ -31,7 +31,7 @@ public class InfectionScannerItem extends Item {
     private static final double SCAN_RANGE = 4.0;
 
     public InfectionScannerItem() {
-        super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
+        super(new Item.Properties().durability(MAX_DAMAGE));
     }
 
     @Override

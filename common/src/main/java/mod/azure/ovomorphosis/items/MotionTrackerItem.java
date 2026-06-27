@@ -36,7 +36,7 @@ public class MotionTrackerItem extends Item {
     private static final int MAX_DAMAGE = 64;
 
     public MotionTrackerItem() {
-        super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
+        super(new Item.Properties().durability(MAX_DAMAGE));
     }
 
     @Override
