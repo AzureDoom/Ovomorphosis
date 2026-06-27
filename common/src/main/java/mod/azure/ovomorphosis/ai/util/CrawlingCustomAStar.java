@@ -228,6 +228,17 @@ public class CrawlingCustomAStar extends CustomAStar {
             int[][] hDirs = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
 
             if (!posIsTunnel && !goalIsBelow) {
+                for (var rise = 1; rise <= 4; rise++) {
+                    var candidate = pos.above(rise);
+                    if (
+                        MovementUtils.isSafeClimbNode(level, candidate)
+                            && hasClimbClearance(level, mob, candidate)
+                    ) {
+                        result.add(candidate);
+                        break;
+                    }
+                }
+
                 for (var dir : hDirs) {
                     var side = pos.offset(dir[0], 0, dir[1]);
                     for (var rise = 1; rise <= 4; rise++) {
@@ -324,7 +335,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         var dx = Math.abs(a.getX() - b.getX());
         var dz = Math.abs(a.getZ() - b.getZ());
         var rawDy = b.getY() - a.getY();
-        var yPenalty = rawDy < 0 ? Math.abs(rawDy) * 1.0D : rawDy * 1.5D;
+        var yPenalty = rawDy < 0 ? Math.abs(rawDy) * 1.0D : rawDy * 3.0D;
         var tieBreak = Math.min(dx, dz) * 0.001;
         return dx + dz + yPenalty + tieBreak;
     }
@@ -349,7 +360,7 @@ public class CrawlingCustomAStar extends CustomAStar {
 
         var tight = isTightTunnel(level, feet);
         var fullHalfW = mob.getBbWidth() / 2.0D;
-        var testHalfW = tight ? Math.min(fullHalfW, 0.35D) : fullHalfW;
+        var testHalfW = tight ? Math.min(fullHalfW, 0.35D) : Math.min(fullHalfW, 0.3D);
         var testHeight = tight ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
 
         var mobBox = new AABB(
@@ -413,7 +424,7 @@ public class CrawlingCustomAStar extends CustomAStar {
 
         if (toIsClimbable && !toIsWalkable && !toIsTunnelWalk) {
             var halfW = mob.getBbWidth() / 2.0D;
-            var testHalfW = isTightTunnel(level, to) ? Math.min(halfW, 0.35D) : halfW;
+            var testHalfW = Math.min(halfW, 0.3D);
             var testHeight = isTightTunnel(level, to) ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
             var belowTo = to.below();
             var belowShape = level.getBlockState(belowTo).getCollisionShape(level, belowTo);
@@ -446,7 +457,7 @@ public class CrawlingCustomAStar extends CustomAStar {
 
         if (toIsClimbable && !toIsWalkable) {
             if (dy > 0) {
-                cost += 8.0D;
+                cost += 2.0D;
             } else if (dy < 0) {
                 cost += 2.0D;
             } else {
@@ -568,10 +579,15 @@ public class CrawlingCustomAStar extends CustomAStar {
         var dy = to.getY() - from.getY();
 
         if (dy > 0) {
+            var toIsClimb = MovementUtils.isSafeClimbNode(level, to);
+            var fromIsClimb = MovementUtils.isSafeClimbNode(level, from);
+            var sweepOriginX = (toIsClimb && !fromIsClimb) ? toCenter.x : fromCenter.x;
+            var sweepOriginZ = (toIsClimb && !fromIsClimb) ? toCenter.z : fromCenter.z;
+
             var vertSteps = Math.max(2, dy * 4);
             for (var i = 1; i <= vertSteps; i++) {
                 var t = i / (double) vertSteps;
-                var p = new Vec3(fromCenter.x, fromCenter.y + dy * t, fromCenter.z);
+                var p = new Vec3(sweepOriginX, fromCenter.y + dy * t, sweepOriginZ);
                 var box = new AABB(
                     p.x - halfW,
                     p.y,
@@ -584,25 +600,28 @@ public class CrawlingCustomAStar extends CustomAStar {
                     return false;
                 }
             }
-            var horizDelta = new Vec3(toCenter.x - fromCenter.x, 0.0D, toCenter.z - fromCenter.z);
-            var horizSteps = Math.max(2, Mth.ceil(horizDelta.length() * 4.0D));
-            for (var i = 1; i <= horizSteps; i++) {
-                var t = i / (double) horizSteps;
-                var p = new Vec3(
-                    fromCenter.x + horizDelta.x * t,
-                    toCenter.y,
-                    fromCenter.z + horizDelta.z * t
-                );
-                var box = new AABB(
-                    p.x - halfW,
-                    p.y,
-                    p.z - halfW,
-                    p.x + halfW,
-                    p.y + height,
-                    p.z + halfW
-                );
-                if (!level.noBlockCollision(mob, box)) {
-                    return false;
+
+            if (!toIsClimb) {
+                var horizDelta = new Vec3(toCenter.x - fromCenter.x, 0.0D, toCenter.z - fromCenter.z);
+                var horizSteps = Math.max(2, Mth.ceil(horizDelta.length() * 4.0D));
+                for (var i = 1; i <= horizSteps; i++) {
+                    var t = i / (double) horizSteps;
+                    var p = new Vec3(
+                        fromCenter.x + horizDelta.x * t,
+                        toCenter.y,
+                        fromCenter.z + horizDelta.z * t
+                    );
+                    var box = new AABB(
+                        p.x - halfW,
+                        p.y,
+                        p.z - halfW,
+                        p.x + halfW,
+                        p.y + height,
+                        p.z + halfW
+                    );
+                    if (!level.noBlockCollision(mob, box)) {
+                        return false;
+                    }
                 }
             }
             return true;

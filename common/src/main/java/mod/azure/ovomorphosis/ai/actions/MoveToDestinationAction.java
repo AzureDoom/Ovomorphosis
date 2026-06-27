@@ -129,7 +129,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         var shouldUseCrawlingNow = canCrawl && (isCrawlingNow
             || mobIsInOrAtTunnel
-            || (!mobOnSolidGround && CrawlingMovementManager.isWallCrawling(mob)));
+            || CrawlingMovementManager.isWallCrawling(mob));
 
         var repathInterval = isCrawlingNow ? 60 : 30;
 
@@ -435,7 +435,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         var waypointIsGroundOnly = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
-            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock);
+            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
+            && waypointBlock.getY() <= mobFeet.getY();
         var canAttachToWall = shouldUseCrawlingNow
             && !waypointIsGroundOnly
             && canAttachToClimbSurface(mob, waypoint);
