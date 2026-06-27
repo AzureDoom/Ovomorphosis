@@ -26,6 +26,10 @@
     {
       "id": "#avp_predator:predators",
       "required": false
+    },
+    {
+      "id": "guardvillagers:guard",
+      "required": false
     }
   ]
 }

@@ -23,6 +23,7 @@
     "minecraft:spawner",
     "minecraft:structure_void",
     "minecraft:pink_petals",
+    "#ovomorphosis:resin",
     {
       "id": "#avp_alien:resin",
       "required": false
