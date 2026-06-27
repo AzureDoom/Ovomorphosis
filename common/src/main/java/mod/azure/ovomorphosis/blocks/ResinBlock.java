@@ -184,6 +184,9 @@ public class ResinBlock extends AbstractResinBlock {
         ) {
             return;
         }
+        if (level.getBlockState(pos.above()).is(Blocks.FIRE))
+            return;
+
         var directions = Direction.values();
         var start = random.nextInt(directions.length);
         for (var i = 0; i < directions.length; i++) {
@@ -196,6 +199,9 @@ public class ResinBlock extends AbstractResinBlock {
             var neighborState = level.getBlockState(neighbor);
 
             if (neighborState.is(ModTags.RESIN) || neighborState.is(ModTags.ACID_RESISTANT_BLOCKS))
+                continue;
+
+            if (neighborState.is(Blocks.FIRE) || level.getBlockState(neighbor.above()).is(Blocks.FIRE))
                 continue;
 
             if (!neighborState.getFluidState().isEmpty())
