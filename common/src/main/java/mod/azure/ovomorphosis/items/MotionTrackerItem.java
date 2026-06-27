@@ -60,7 +60,7 @@ public class MotionTrackerItem extends Item {
 
         var nearby = serverLevel.getEntitiesOfClass(
             AbstractAlienEntity.class,
-            new AABB(player.blockPosition()).inflate(RANGE),
+            new AABB(player.blockPosition()).inflate(24),
             e -> e.isAlive() && !e.isInvisible()
         );
 
@@ -116,7 +116,7 @@ public class MotionTrackerItem extends Item {
             level.playSound(
                 null,
                 player.blockPosition(),
-                SoundEvents.NOTE_BLOCK_HAT.value(),
+                SoundEvents.ANVIL_PLACE,
                 SoundSource.PLAYERS,
                 0.6F,
                 2.0F
