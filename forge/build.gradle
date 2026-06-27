@@ -49,14 +49,6 @@ legacyForge {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
-repositories {
-    maven { url 'https://libs.azuredoom.com:4443/mods' }
-    maven { url "https://minecraft.curseforge.com/api/maven/" }
-    maven { url "https://cfa2.cursemaven.com" }
-    maven { url 'https://api.modrinth.com/maven' }
-    mavenCentral()
-}
-
 dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:0.4.1"))
