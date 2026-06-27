@@ -12,7 +12,7 @@ import mod.azure.ovomorphosis.ai.core.BehaviorResult;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.XenoRole;
-import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.util.ModTags;
@@ -259,7 +259,7 @@ public class XenomorphTree {
                 return BehaviorResult.run(swim, 200);
             }
 
-            if (CrawlingManager.wasRecentlyWallCrawling(xenomorph)) {
+            if (CrawlingMovementManager.wasRecentlyWallCrawling(xenomorph)) {
                 if (blackboard.get(AiKeys.DESTINATION, BlockPos.class) == null) {
                     var groundPos = TargetingUtils.findNearbyGroundPos(xenomorph);
                     if (groundPos != null)
@@ -280,7 +280,7 @@ public class XenomorphTree {
                 goalType == AiGoalType.EXPAND_HIVE
                     || (cooldowns.ready(AiKeys.RESIN_PLACE_COOLDOWN)
                         && xenomorph.getRandom().nextFloat() < 0.4F
-                        && !CrawlingManager.wasRecentlyWallCrawling(xenomorph))
+                        && !CrawlingMovementManager.wasRecentlyWallCrawling(xenomorph))
             ) {
                 return BehaviorResult.run(placeResin, 9);
             }

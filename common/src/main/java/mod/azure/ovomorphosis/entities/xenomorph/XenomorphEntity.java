@@ -37,7 +37,7 @@ import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
 import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
-import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.ai.util.XenomorphHostileTargetSelector;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
@@ -192,7 +192,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             if (!this.isNoAi()) {
                 tickGoalPlanner();
                 brainRuntime.tick();
-                CrawlingManager.updateWallCrawlingPhysics(this);
+                CrawlingMovementManager.updateWallCrawlingPhysics(this);
             }
             if (this.isAlive()) {
                 grow(this, 1);

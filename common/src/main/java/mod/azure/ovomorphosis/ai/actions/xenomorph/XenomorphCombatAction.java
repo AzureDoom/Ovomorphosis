@@ -7,7 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
@@ -59,12 +59,12 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         phaseAge = 0;
         didStrike = false;
         stalkLateralBias = mob.getRandom().nextBoolean() ? 1 : -1;
-        wasCrawlingOnStart = CrawlingManager.wasRecentlyWallCrawling(mob);
+        wasCrawlingOnStart = CrawlingMovementManager.wasRecentlyWallCrawling(mob);
         mob.hasImpulse = true;
 
         if (wasCrawlingOnStart) {
-            CrawlingManager.setWallCrawling(mob, true);
-            CrawlingManager.updateWallCrawlingPhysics(mob);
+            CrawlingMovementManager.setWallCrawling(mob, true);
+            CrawlingMovementManager.updateWallCrawlingPhysics(mob);
         }
     }
 
@@ -231,8 +231,8 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
     private void maintainCrawl(E mob) {
         if (wasCrawlingOnStart) {
-            CrawlingManager.setWallCrawling(mob, true);
-            CrawlingManager.updateWallCrawlingPhysics(mob);
+            CrawlingMovementManager.setWallCrawling(mob, true);
+            CrawlingMovementManager.updateWallCrawlingPhysics(mob);
         }
     }
 

@@ -118,7 +118,7 @@ public class AcidEntity extends Entity {
                 BlockBreakProgressManager.damage(
                     level(),
                     blockPosition().below(),
-                    blockHardness * CommonMod.config.acidDestroySpeedMultiplier
+                    blockHardness * CommonMod.getConfig().acidDestroySpeedMultiplier
                 );
             }
         }
@@ -138,7 +138,7 @@ public class AcidEntity extends Entity {
                     new MobEffectInstance(MobEffects.POISON, 60, random.nextIntBetweenInclusive(0, 4))
                 );
             } else if (
-                e instanceof ItemEntity item && CommonMod.config.enableAcidItemBreaking
+                e instanceof ItemEntity item && CommonMod.getConfig().enableAcidItemBreaking
             ) {
                 var itemStack = item.getItem();
                 if (itemStack.getMaxDamage() < 2) {
