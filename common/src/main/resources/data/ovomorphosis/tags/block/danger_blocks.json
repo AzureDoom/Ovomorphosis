@@ -8,6 +8,14 @@
     "minecraft:water",
     "minecraft:cactus",
     "minecraft:magma_block",
-    "#minecraft:fences"
+    "#minecraft:fences",
+    {
+      "id": "#avp_alien:resin",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:nest_blocks",
+      "required": false
+    }
   ]
 }
