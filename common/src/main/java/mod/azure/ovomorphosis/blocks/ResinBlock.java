@@ -14,6 +14,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -34,12 +35,16 @@ public class ResinBlock extends AbstractResinBlock {
 
     public static final IntegerProperty LAYERS = BlockStateProperties.LAYERS;
 
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+
     protected static final List<VoxelShape> LAYERS_TO_SHAPE = buildLayerShapes();
 
     public ResinBlock(Properties settings) {
         super(settings);
 
-        registerDefaultState(getStateDefinition().any().setValue(BlockStateProperties.LAYERS, 1));
+        registerDefaultState(
+            getStateDefinition().any().setValue(BlockStateProperties.LAYERS, 1).setValue(FACING, Direction.NORTH)
+        );
     }
 
     private static List<VoxelShape> buildLayerShapes() {
@@ -152,8 +157,11 @@ public class ResinBlock extends AbstractResinBlock {
         var blockState = ctx.getLevel().getBlockState(ctx.getClickedPos());
         if (blockState.is(this))
             return blockState.setValue(LAYERS, Math.min(8, blockState.getValue(LAYERS) + 1));
-        else
-            return super.getStateForPlacement(ctx);
+        else {
+            var directions = new Direction[] { Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST };
+            var facing = directions[ctx.getLevel().getRandom().nextInt(directions.length)];
+            return super.getStateForPlacement(ctx).setValue(FACING, facing);
+        }
     }
 
     @Override
@@ -197,7 +205,7 @@ public class ResinBlock extends AbstractResinBlock {
                 !neighborState.isAir() && !neighborState.isFaceSturdy(level, neighbor, Direction.UP)
                     && neighborState.canBeReplaced()
             ) {
-                level.setBlockAndUpdate(neighbor, defaultBlockState().setValue(LAYERS, 8));
+                level.setBlockAndUpdate(neighbor, randomFacingState(random));
                 return;
             }
 
@@ -212,12 +220,12 @@ public class ResinBlock extends AbstractResinBlock {
                     var beyondState = level.getBlockState(neighbor.relative(dir));
                     if (!beyondState.isAir())
                         continue;
-                    level.setBlockAndUpdate(neighbor, defaultBlockState().setValue(LAYERS, 8));
+                    level.setBlockAndUpdate(neighbor, randomFacingState(random));
                     return;
                 }
 
                 if (aboveIsPassable) {
-                    level.setBlockAndUpdate(neighbor, defaultBlockState().setValue(LAYERS, 8));
+                    level.setBlockAndUpdate(neighbor, randomFacingState(random));
                     if (random.nextFloat() < 0.3F && aboveNeighbor.isAir())
                         placeOvomorphOrCross(level, neighbor.above(), random);
                     return;
@@ -245,7 +253,7 @@ public class ResinBlock extends AbstractResinBlock {
                             Direction.UP
                         ) && aboveNeighborForDrop.canBeReplaced())
                     ) {
-                        level.setBlockAndUpdate(stepDown, defaultBlockState().setValue(LAYERS, 8));
+                        level.setBlockAndUpdate(stepDown, randomFacingState(random));
                         if (random.nextFloat() < 0.3F)
                             placeOvomorphOrCross(level, neighbor, random);
                         return;
@@ -268,7 +276,7 @@ public class ResinBlock extends AbstractResinBlock {
                                 && !aboveStepUp.isFaceSturdy(level, stepUp.above(), Direction.UP)
                                 && aboveStepUp.canBeReplaced());
                         if (abovePassable) {
-                            level.setBlockAndUpdate(stepUp, defaultBlockState().setValue(LAYERS, 8));
+                            level.setBlockAndUpdate(stepUp, randomFacingState(random));
                             if (random.nextFloat() < 0.3F && aboveStepUp.isAir())
                                 placeOvomorphOrCross(level, stepUp.above(), random);
                             return;
@@ -277,6 +285,11 @@ public class ResinBlock extends AbstractResinBlock {
                 }
             }
         }
+    }
+
+    private BlockState randomFacingState(RandomSource random) {
+        var directions = new Direction[] { Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST };
+        return defaultBlockState().setValue(LAYERS, 8).setValue(FACING, directions[random.nextInt(directions.length)]);
     }
 
     private void placeOvomorphOrCross(ServerLevel level, BlockPos pos, RandomSource random) {
@@ -291,6 +304,6 @@ public class ResinBlock extends AbstractResinBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(LAYERS);
+        builder.add(LAYERS, FACING);
     }
 }

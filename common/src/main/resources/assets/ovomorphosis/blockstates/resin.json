@@ -1,28 +1,43 @@
 {
   "variants": {
-    "layers=1": {
-      "model": "ovomorphosis:block/resin_height2"
-    },
-    "layers=2": {
-      "model": "ovomorphosis:block/resin_height4"
-    },
-    "layers=3": {
-      "model": "ovomorphosis:block/resin_height6"
-    },
-    "layers=4": {
-      "model": "ovomorphosis:block/resin_height8"
-    },
-    "layers=5": {
-      "model": "ovomorphosis:block/resin_height10"
-    },
-    "layers=6": {
-      "model": "ovomorphosis:block/resin_height12"
-    },
-    "layers=7": {
-      "model": "ovomorphosis:block/resin_height14"
-    },
-    "layers=8": {
-      "model": "ovomorphosis:block/resin_block"
-    }
+    "facing=north,layers=1": { "model": "ovomorphosis:block/resin_height2" },
+    "facing=east,layers=1":  { "model": "ovomorphosis:block/resin_height2", "y": 90 },
+    "facing=south,layers=1": { "model": "ovomorphosis:block/resin_height2", "y": 180 },
+    "facing=west,layers=1":  { "model": "ovomorphosis:block/resin_height2", "y": 270 },
+
+    "facing=north,layers=2": { "model": "ovomorphosis:block/resin_height4" },
+    "facing=east,layers=2":  { "model": "ovomorphosis:block/resin_height4", "y": 90 },
+    "facing=south,layers=2": { "model": "ovomorphosis:block/resin_height4", "y": 180 },
+    "facing=west,layers=2":  { "model": "ovomorphosis:block/resin_height4", "y": 270 },
+
+    "facing=north,layers=3": { "model": "ovomorphosis:block/resin_height6" },
+    "facing=east,layers=3":  { "model": "ovomorphosis:block/resin_height6", "y": 90 },
+    "facing=south,layers=3": { "model": "ovomorphosis:block/resin_height6", "y": 180 },
+    "facing=west,layers=3":  { "model": "ovomorphosis:block/resin_height6", "y": 270 },
+
+    "facing=north,layers=4": { "model": "ovomorphosis:block/resin_height8" },
+    "facing=east,layers=4":  { "model": "ovomorphosis:block/resin_height8", "y": 90 },
+    "facing=south,layers=4": { "model": "ovomorphosis:block/resin_height8", "y": 180 },
+    "facing=west,layers=4":  { "model": "ovomorphosis:block/resin_height8", "y": 270 },
+
+    "facing=north,layers=5": { "model": "ovomorphosis:block/resin_height10" },
+    "facing=east,layers=5":  { "model": "ovomorphosis:block/resin_height10", "y": 90 },
+    "facing=south,layers=5": { "model": "ovomorphosis:block/resin_height10", "y": 180 },
+    "facing=west,layers=5":  { "model": "ovomorphosis:block/resin_height10", "y": 270 },
+
+    "facing=north,layers=6": { "model": "ovomorphosis:block/resin_height12" },
+    "facing=east,layers=6":  { "model": "ovomorphosis:block/resin_height12", "y": 90 },
+    "facing=south,layers=6": { "model": "ovomorphosis:block/resin_height12", "y": 180 },
+    "facing=west,layers=6":  { "model": "ovomorphosis:block/resin_height12", "y": 270 },
+
+    "facing=north,layers=7": { "model": "ovomorphosis:block/resin_height14" },
+    "facing=east,layers=7":  { "model": "ovomorphosis:block/resin_height14", "y": 90 },
+    "facing=south,layers=7": { "model": "ovomorphosis:block/resin_height14", "y": 180 },
+    "facing=west,layers=7":  { "model": "ovomorphosis:block/resin_height14", "y": 270 },
+
+    "facing=north,layers=8": { "model": "ovomorphosis:block/resin_block" },
+    "facing=east,layers=8":  { "model": "ovomorphosis:block/resin_block", "y": 90 },
+    "facing=south,layers=8": { "model": "ovomorphosis:block/resin_block", "y": 180 },
+    "facing=west,layers=8":  { "model": "ovomorphosis:block/resin_block", "y": 270 }
   }
 }
