@@ -23,7 +23,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
+import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 public class FlamethrowerLiteItem extends Item {
 
@@ -33,7 +34,7 @@ public class FlamethrowerLiteItem extends Item {
 
     private static final int TICK_INTERVAL = 4;
 
-    private static final int FIRE_TICKS = 60;
+    private static final int FIRE_TICKS = 600;
 
     private static final double CONE_DOT = 0.75;
 
@@ -93,7 +94,7 @@ public class FlamethrowerLiteItem extends Item {
             if (toEntity.dot(lookVec) >= CONE_DOT) {
                 e.setRemainingFireTicks(FIRE_TICKS / 20);
 
-                if (e instanceof AbstractAlienEntity) {
+                if (e instanceof XenomorphEntity || e instanceof RunnerEntity) {
                     var push = lookVec.scale(0.6).add(0, 0.2, 0);
                     e.setDeltaMovement(e.getDeltaMovement().add(push));
                     e.hurtMarked = true;
