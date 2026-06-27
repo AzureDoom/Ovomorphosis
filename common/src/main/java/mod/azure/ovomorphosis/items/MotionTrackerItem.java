@@ -27,11 +27,9 @@ import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 public class MotionTrackerItem extends Item {
 
-    private static final int RANGE = 24;
-
     private static final int WALL_THRESHOLD = 3;
 
-    private static final int COOLDOWN_TICKS = 40;
+    private static final int COOLDOWN_TICKS = 20;
 
     private static final int MAX_DAMAGE = 64;
 
@@ -60,7 +58,7 @@ public class MotionTrackerItem extends Item {
 
         var nearby = serverLevel.getEntitiesOfClass(
             AbstractAlienEntity.class,
-            new AABB(player.blockPosition()).inflate(RANGE),
+            new AABB(player.blockPosition()).inflate(24),
             e -> e.isAlive() && !e.isInvisible()
         );
 
@@ -116,7 +114,7 @@ public class MotionTrackerItem extends Item {
             level.playSound(
                 null,
                 player.blockPosition(),
-                SoundEvents.NOTE_BLOCK_HAT.value(),
+                SoundEvents.ANVIL_PLACE,
                 SoundSource.PLAYERS,
                 0.6F,
                 2.0F

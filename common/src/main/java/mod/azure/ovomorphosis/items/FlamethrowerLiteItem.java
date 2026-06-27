@@ -33,8 +33,6 @@ public class FlamethrowerLiteItem extends Item {
 
     private static final int TICK_INTERVAL = 4;
 
-    private static final int FIRE_TICKS = 600;
-
     private static final double CONE_DOT = 0.75;
 
     public FlamethrowerLiteItem() {
