@@ -6,7 +6,8 @@ import net.minecraft.world.phys.Vec3;
  * Mixin interface implemented by mobs capable of crawling along walls, ceilings, and floors.
  * <p>
  * Methods are prefixed with {@code ovomorphosis$} to avoid collisions with other mixins. Physics and orientation are
- * managed by {@link CrawlingMovementManager}; this interface is the data contract that the mixin injects into the mob's class.
+ * managed by {@link CrawlingMovementManager}; this interface is the data contract that the mixin injects into the mob's
+ * class.
  */
 public interface WallCrawlingMob {
 

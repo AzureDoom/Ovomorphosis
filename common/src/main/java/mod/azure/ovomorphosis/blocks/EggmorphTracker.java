@@ -1,7 +1,6 @@
 package mod.azure.ovomorphosis.blocks;
 
 import mod.azure.azurelib.platform.Services;
-import mod.azure.ovomorphosis.util.AdvancementUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -23,6 +22,7 @@ import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
 import mod.azure.ovomorphosis.registry.DamageTypeRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
+import mod.azure.ovomorphosis.util.AdvancementUtils;
 
 public final class EggmorphTracker {
 
