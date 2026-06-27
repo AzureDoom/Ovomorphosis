@@ -30,7 +30,7 @@ import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
 import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
-import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.FacehuggerHostileTargetSelector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
@@ -76,7 +76,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             tickGoalPlanner();
             brainRuntime.tick();
             tickLeapRecovery();
-            CrawlingManager.updateWallCrawlingPhysics(this);
+            CrawlingMovementManager.updateWallCrawlingPhysics(this);
         }
 
         this.handleAttachmentToHost();

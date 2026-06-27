@@ -10,7 +10,7 @@ import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.XenoRole;
-import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -213,7 +213,7 @@ public class RunnerTree {
                 return BehaviorResult.run(swim, 200);
             }
 
-            if (CrawlingManager.wasRecentlyWallCrawling(runner)) {
+            if (CrawlingMovementManager.wasRecentlyWallCrawling(runner)) {
                 if (blackboard.get(AiKeys.DESTINATION, BlockPos.class) == null) {
                     var groundPos = TargetingUtils.findNearbyGroundPos(runner);
                     if (groundPos != null)

@@ -122,14 +122,14 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         if (mobOnSolidGround && !mobIsInOrAtTunnel && !nextWaypointIsTunnel) {
-            CrawlingManager.setWallCrawling(mob, false);
+            CrawlingMovementManager.setWallCrawling(mob, false);
         }
 
-        var isCrawlingNow = canCrawl && CrawlingManager.isWallCrawling(mob);
+        var isCrawlingNow = canCrawl && CrawlingMovementManager.isWallCrawling(mob);
 
         var shouldUseCrawlingNow = canCrawl && (isCrawlingNow
             || mobIsInOrAtTunnel
-            || (!mobOnSolidGround && CrawlingManager.isWallCrawling(mob)));
+            || (!mobOnSolidGround && CrawlingMovementManager.isWallCrawling(mob)));
 
         var repathInterval = isCrawlingNow ? 60 : 30;
 
@@ -221,8 +221,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                         var move = getTunnelEntryMove(mob, toEntrance, tunnelCenter);
                         if (canCrawl) {
                             if (horiz.lengthSqr() < 2.25D) {
-                                CrawlingManager.setWallCrawling(mob, true);
-                                CrawlingManager.updateCrawlOrientation(mob, move);
+                                CrawlingMovementManager.setWallCrawling(mob, true);
+                                CrawlingMovementManager.updateCrawlOrientation(mob, move);
                             } else if (mob instanceof WallCrawlingMob wc) {
                                 wc.ovomorphosis$setWallCrawlGraceTicks(0);
                             }
@@ -265,7 +265,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             blackboard.remove(AiKeys.DESTINATION);
         }
         if (canCrawl) {
-            CrawlingManager.setWallCrawling(mob, false);
+            CrawlingMovementManager.setWallCrawling(mob, false);
         }
         mob.setDeltaMovement(
             mob.getDeltaMovement().x * 0.25D,
@@ -335,8 +335,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 move = new Vec3(intoWall.x, Math.max(mob.getDeltaMovement().y, speed * 0.85D), intoWall.z);
             }
 
-            CrawlingManager.setWallCrawling(mob, true);
-            CrawlingManager.updateCrawlOrientation(mob, move);
+            CrawlingMovementManager.setWallCrawling(mob, true);
+            CrawlingMovementManager.updateCrawlOrientation(mob, move);
             mob.setDeltaMovement(move);
             mob.hasImpulse = true;
             faceMovementDirection(mob, move);
@@ -362,12 +362,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             } else {
                 if (mob instanceof WallCrawlingMob wc)
                     wc.ovomorphosis$setWallCrawlGraceTicks(0);
-                CrawlingManager.setWallCrawling(mob, false);
+                CrawlingMovementManager.setWallCrawling(mob, false);
                 shaftVelocity = new Vec3(centerError.x * 0.35D, -speed * 0.85D, centerError.z * 0.35D);
             }
 
-            CrawlingManager.setWallCrawling(mob, true);
-            CrawlingManager.updateCrawlOrientation(mob, shaftVelocity);
+            CrawlingMovementManager.setWallCrawling(mob, true);
+            CrawlingMovementManager.updateCrawlOrientation(mob, shaftVelocity);
             mob.setDeltaMovement(shaftVelocity);
             mob.hasImpulse = true;
             faceMovementDirection(mob, shaftVelocity);
@@ -400,7 +400,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 }
 
                 var descendingInTunnel = yError < -0.20D;
-                CrawlingManager.setWallCrawling(mob, !descendingInTunnel);
+                CrawlingMovementManager.setWallCrawling(mob, !descendingInTunnel);
 
                 var tunnelSpeed = waypointIsTunnel ? speed : speed * 1.25D;
                 var tunnelVelocity = new Vec3(
@@ -410,7 +410,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 );
 
                 if (!descendingInTunnel)
-                    CrawlingManager.updateCrawlOrientation(mob, tunnelVelocity);
+                    CrawlingMovementManager.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
                 mob.hasImpulse = true;
                 faceMovementDirection(mob, tunnelVelocity);
@@ -421,13 +421,13 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 var vertical = Mth.clamp(yError * 0.35D, -0.32D, 0.32D);
                 var tunnelVelocity = new Vec3(0.0D, vertical, 0.0D);
                 var descending = yError < -0.20D;
-                CrawlingManager.setWallCrawling(mob, !descending);
+                CrawlingMovementManager.setWallCrawling(mob, !descending);
                 if (descending && mob instanceof WallCrawlingMob wc) {
                     wc.ovomorphosis$setWallCrawlGraceTicks(0);
                     vertical = Math.min(vertical, -speed * 0.6D);
                     tunnelVelocity = new Vec3(0.0D, vertical, 0.0D);
                 }
-                CrawlingManager.updateCrawlOrientation(mob, tunnelVelocity);
+                CrawlingMovementManager.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
                 mob.hasImpulse = true;
                 return;
@@ -459,7 +459,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 } else {
                     crawlVelocity = new Vec3(intoWall.x, verticalSpeed, intoWall.z);
                     if (crawlVelocity.horizontalDistanceSqr() < 0.0001D) {
-                        CrawlingManager.setWallCrawling(mob, false);
+                        CrawlingMovementManager.setWallCrawling(mob, false);
                         faceDestination(mob, destination);
                         return;
                     }
@@ -482,8 +482,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             if (crawlVelocity.lengthSqr() < 1e-6D)
                 crawlVelocity = Vec3.ZERO;
 
-            CrawlingManager.setWallCrawling(mob, true);
-            CrawlingManager.updateCrawlOrientation(mob, crawlVelocity);
+            CrawlingMovementManager.setWallCrawling(mob, true);
+            CrawlingMovementManager.updateCrawlOrientation(mob, crawlVelocity);
             mob.setDeltaMovement(crawlVelocity);
             mob.hasImpulse = true;
             faceMovementDirection(mob, crawlVelocity);
@@ -491,12 +491,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         if (canCrawl)
-            CrawlingManager.setWallCrawling(mob, false);
+            CrawlingMovementManager.setWallCrawling(mob, false);
 
         if (shouldUseCrawlingNow) {
             var toWaypoint = new Vec3(direction.x, 0.0D, direction.z);
             if (toWaypoint.lengthSqr() > 0.01D) {
-                CrawlingManager.setWallCrawling(mob, false);
+                CrawlingMovementManager.setWallCrawling(mob, false);
                 if (mob instanceof WallCrawlingMob wc)
                     wc.ovomorphosis$setWallCrawlGraceTicks(0);
                 var move = toWaypoint.normalize().scale(speed);
@@ -514,9 +514,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             if (shouldUseCrawlingNow && direction.y > 0.1D) {
                 var wallDir = findNearestWallDirection(mob);
                 if (wallDir != null) {
-                    CrawlingManager.setWallCrawling(mob, true);
+                    CrawlingMovementManager.setWallCrawling(mob, true);
                     var pushVelocity = new Vec3(wallDir.x * speed * 0.3D, speed * 0.6D, wallDir.z * speed * 0.3D);
-                    CrawlingManager.updateCrawlOrientation(mob, pushVelocity);
+                    CrawlingMovementManager.updateCrawlOrientation(mob, pushVelocity);
                     mob.setDeltaMovement(pushVelocity);
                     mob.hasImpulse = true;
                     return;
@@ -558,11 +558,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if (stuckTicks > 10) {
             if (
                 shouldUseCrawlingNow
-                    && CrawlingManager.isWallCrawling(mob)
+                    && CrawlingMovementManager.isWallCrawling(mob)
                     && destination.getY() < mob.getY() - 1.0D
                     && waypointBlock.getY() < mob.blockPosition().getY()
             ) {
-                CrawlingManager.setWallCrawling(mob, false);
+                CrawlingMovementManager.setWallCrawling(mob, false);
                 var downForward = new Vec3(direction.x, 0.0D, direction.z);
                 if (downForward.lengthSqr() > 0.0001D)
                     downForward = downForward.normalize().scale(speed * 0.6D);

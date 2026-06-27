@@ -7,7 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
@@ -49,13 +49,13 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
         this.age = 0;
-        this.wasCrawlingOnStart = CrawlingManager.wasRecentlyWallCrawling(mob);
+        this.wasCrawlingOnStart = CrawlingMovementManager.wasRecentlyWallCrawling(mob);
         mob.hasImpulse = true;
         animationTrigger.accept(mob);
 
         if (wasCrawlingOnStart) {
-            CrawlingManager.setWallCrawling(mob, true);
-            CrawlingManager.updateWallCrawlingPhysics(mob);
+            CrawlingMovementManager.setWallCrawling(mob, true);
+            CrawlingMovementManager.updateWallCrawlingPhysics(mob);
         }
     }
 
@@ -76,8 +76,8 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
         mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
 
         if (wasCrawlingOnStart) {
-            CrawlingManager.setWallCrawling(mob, true);
-            CrawlingManager.updateWallCrawlingPhysics(mob);
+            CrawlingMovementManager.setWallCrawling(mob, true);
+            CrawlingMovementManager.updateWallCrawlingPhysics(mob);
         }
 
         var dangerMove = MovementUtils.steerAwayFromDangerEntities(mob, Vec3.ZERO);
