@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class VillagerMixin {
 
     @Inject(at = @At("RETURN"), method = "mobInteract", cancellable = true)
-    private void azexamples$killVillager(
+    private void ovomorphosis$killVillager(
         Player player,
         InteractionHand hand,
         CallbackInfoReturnable<InteractionResult> cir
