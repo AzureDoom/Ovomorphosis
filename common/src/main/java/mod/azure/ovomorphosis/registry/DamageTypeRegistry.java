@@ -17,9 +17,14 @@ public final class DamageTypeRegistry {
         CommonMod.modResource("xenomorph_infection")
     );
 
-    public static DamageSource of(Level level) {
+    public static final ResourceKey<DamageType> EGGMORPH = ResourceKey.create(
+        Registries.DAMAGE_TYPE,
+        CommonMod.modResource("eggmorph")
+    );
+
+    public static DamageSource of(Level level, ResourceKey<DamageType> source) {
         return new DamageSource(
-            level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(XENOMORPH_INFECTION)
+            level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(source)
         );
     }
 }

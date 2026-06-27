@@ -292,7 +292,7 @@ public final class EggmorphTracker {
             }
         }
 
-        entry.entity.hurt(DamageTypeRegistry.of(entry.entity.level()), Float.MAX_VALUE);
+        entry.entity.hurt(DamageTypeRegistry.of(entry.entity.level(), DamageTypeRegistry.EGGMORPH), Float.MAX_VALUE);
     }
 
     private boolean isInsideBlock(LivingEntity entity) {
