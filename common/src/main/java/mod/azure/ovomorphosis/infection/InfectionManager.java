@@ -186,7 +186,7 @@ public final class InfectionManager {
     }
 
     private static void applyInfectionDamage(LivingEntity host, ServerLevel level) {
-        host.hurt(DamageTypeRegistry.of(level), 1F);
+        host.hurt(DamageTypeRegistry.of(level, DamageTypeRegistry.XENOMORPH_INFECTION), 1F);
     }
 
     private static void triggerBurst(LivingEntity host, ServerLevel level) {
@@ -235,7 +235,7 @@ public final class InfectionManager {
                 }
             }
 
-            host.hurt(DamageTypeRegistry.of(level), Float.MAX_VALUE);
+            host.hurt(DamageTypeRegistry.of(level, DamageTypeRegistry.XENOMORPH_INFECTION), Float.MAX_VALUE);
         }
     }
 
