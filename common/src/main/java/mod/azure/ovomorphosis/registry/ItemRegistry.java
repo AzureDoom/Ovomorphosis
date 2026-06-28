@@ -6,8 +6,8 @@ import net.minecraft.world.item.SpawnEggItem;
 
 import java.util.function.Supplier;
 
-import mod.azure.ovomorphosis.items.FlamethrowerLiteItem;
 import mod.azure.ovomorphosis.items.InfectionScannerItem;
+import mod.azure.ovomorphosis.items.MagmaSprayerItem;
 import mod.azure.ovomorphosis.items.MotionTrackerItem;
 import mod.azure.ovomorphosis.services.XenoServices;
 
@@ -63,7 +63,7 @@ public class ItemRegistry {
         )
     );
 
-    public static final Supplier<Item> FLAMETHROWER = registerItem("flamethrower", FlamethrowerLiteItem::new);
+    public static final Supplier<Item> FLAMETHROWER = registerItem("magma_sprayer", MagmaSprayerItem::new);
 
     public static final Supplier<Item> SCANNER = registerItem("infection_scanner", InfectionScannerItem::new);
 

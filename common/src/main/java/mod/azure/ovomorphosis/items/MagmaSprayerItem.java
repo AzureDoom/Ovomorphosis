@@ -2,6 +2,8 @@ package mod.azure.ovomorphosis.items;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -11,10 +13,8 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.UseAnim;
+import net.minecraft.world.item.*;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.phys.AABB;
@@ -25,7 +25,9 @@ import java.util.List;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
-public class FlamethrowerLiteItem extends Item {
+public class MagmaSprayerItem extends Item {
+
+    private static final String FUEL_TAG = "Fuel";
 
     private static final int RANGE = 6;
 
@@ -35,7 +37,7 @@ public class FlamethrowerLiteItem extends Item {
 
     private static final double CONE_DOT = 0.75;
 
-    public FlamethrowerLiteItem() {
+    public MagmaSprayerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
     }
 
@@ -45,8 +47,67 @@ public class FlamethrowerLiteItem extends Item {
         @NotNull Player player,
         @NotNull InteractionHand hand
     ) {
+        var stack = player.getItemInHand(hand);
+
+        if (player.isShiftKeyDown()) {
+            return tryRefill(level, player, stack);
+        }
+
+        if (noFuel(stack)) {
+            return InteractionResultHolder.fail(stack);
+        }
+
         player.startUsingItem(hand);
-        return InteractionResultHolder.consume(player.getItemInHand(hand));
+        return InteractionResultHolder.consume(stack);
+    }
+
+    private InteractionResultHolder<ItemStack> tryRefill(
+        Level level,
+        Player player,
+        ItemStack incinerator
+    ) {
+        var currentFuel = getFuel(incinerator);
+
+        if (currentFuel >= 100) {
+            return InteractionResultHolder.fail(incinerator);
+        }
+
+        var fuelStack = findFuel(player);
+
+        if (fuelStack.isEmpty()) {
+            return InteractionResultHolder.fail(incinerator);
+        }
+
+        if (!level.isClientSide()) {
+            if (!player.getAbilities().instabuild) {
+                fuelStack.shrink(1);
+            }
+
+            setFuel(incinerator, currentFuel + 25);
+
+            level.playSound(
+                null,
+                player.blockPosition(),
+                SoundEvents.BOTTLE_FILL,
+                SoundSource.PLAYERS,
+                0.7F,
+                0.8F + level.random.nextFloat() * 0.3F
+            );
+        }
+
+        return InteractionResultHolder.sidedSuccess(incinerator, level.isClientSide());
+    }
+
+    private ItemStack findFuel(Player player) {
+        for (var i = 0; i < player.getInventory().getContainerSize(); i++) {
+            var stack = player.getInventory().getItem(i);
+
+            if (stack.is(Items.MAGMA_CREAM)) {
+                return stack;
+            }
+        }
+
+        return ItemStack.EMPTY;
     }
 
     @Override
@@ -58,6 +119,11 @@ public class FlamethrowerLiteItem extends Item {
     ) {
         if (!(entity instanceof Player player))
             return;
+
+        if (noFuel(stack)) {
+            player.stopUsingItem();
+            return;
+        }
 
         int elapsed = getUseDuration(stack, entity) - remainingUseDuration;
         if (elapsed % TICK_INTERVAL != 0)
@@ -105,7 +171,7 @@ public class FlamethrowerLiteItem extends Item {
 
             if (!bs.isAir()) {
                 var facePos = checkPos.relative(
-                    net.minecraft.core.Direction.getNearest(
+                    Direction.getNearest(
                         (float) -lookVec.x,
                         (float) -lookVec.y,
                         (float) -lookVec.z
@@ -124,11 +190,15 @@ public class FlamethrowerLiteItem extends Item {
             }
         }
 
-        stack.hurtAndBreak(
-            1,
-            player,
-            player.getEquipmentSlotForItem(stack)
-        );
+        consumeFuel(stack);
+
+        if (player.getRandom().nextFloat() < 0.25F) {
+            stack.hurtAndBreak(
+                1,
+                player,
+                player.getEquipmentSlotForItem(stack)
+            );
+        }
     }
 
     private void spawnFlameParticles(Level level, Player player) {
@@ -187,18 +257,59 @@ public class FlamethrowerLiteItem extends Item {
         @NotNull TooltipFlag flag
     ) {
         components.add(
-            Component.translatable("item.ovomorphosis.flamethrower_lite.tooltip")
+            Component.translatable("item.ovomorphosis.magma_sprayer.tooltip")
                 .withStyle(ChatFormatting.GRAY)
         );
-        var fuel = stack.getMaxDamage() - stack.getDamageValue();
         components.add(
-            Component.literal("Fuel: " + fuel + "/" + stack.getMaxDamage())
+            Component.translatable("item.ovomorphosis.magma_sprayer.tooltip.refill")
+                .withStyle(ChatFormatting.GRAY)
+        );
+        var fuel = getFuel(stack);
+        components.add(
+            Component.literal("Fuel: " + fuel + "/" + 100)
                 .withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
+        );
+        var durability = stack.getMaxDamage() - stack.getDamageValue();
+        components.add(
+            Component.literal("Condition: " + durability + "/" + stack.getMaxDamage())
+                .withStyle(ChatFormatting.DARK_GRAY)
         );
     }
 
     @Override
     public boolean isEnchantable(@NotNull ItemStack stack) {
         return false;
+    }
+
+    @Override
+    public void verifyComponentsAfterLoad(@NotNull ItemStack stack) {
+        super.verifyComponentsAfterLoad(stack);
+
+        var customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+        var tag = customData.copyTag();
+
+        if (!tag.contains(FUEL_TAG)) {
+            tag.putInt(FUEL_TAG, 100);
+            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        }
+    }
+
+    private int getFuel(ItemStack stack) {
+        var customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+        return Math.clamp(customData.copyTag().getInt(FUEL_TAG), 0, 100);
+    }
+
+    private void setFuel(ItemStack stack, int fuel) {
+        var tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        tag.putInt(FUEL_TAG, Math.clamp(fuel, 0, 100));
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+    }
+
+    private boolean noFuel(ItemStack stack) {
+        return getFuel(stack) <= 0;
+    }
+
+    private void consumeFuel(ItemStack stack) {
+        setFuel(stack, getFuel(stack) - 1);
     }
 }
