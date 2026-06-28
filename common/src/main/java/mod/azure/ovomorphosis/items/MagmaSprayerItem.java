@@ -280,4 +280,27 @@ public class MagmaSprayerItem extends Item {
     public boolean isEnchantable(@NotNull ItemStack stack) {
         return false;
     }
+
+    private int getFuel(ItemStack stack) {
+        var tag = stack.getTag();
+
+        if (tag == null || !tag.contains(FUEL_TAG)) {
+            return 100;
+        }
+
+        return Mth.clamp(tag.getInt(FUEL_TAG), 0, 100);
+    }
+
+    private void setFuel(ItemStack stack, int fuel) {
+        var tag = stack.getOrCreateTag();
+        tag.putInt(FUEL_TAG, Mth.clamp(fuel, 0, 100));
+    }
+
+    private boolean noFuel(ItemStack stack) {
+        return getFuel(stack) <= 0;
+    }
+
+    private void consumeFuel(ItemStack stack) {
+        setFuel(stack, getFuel(stack) - 1);
+    }
 }
