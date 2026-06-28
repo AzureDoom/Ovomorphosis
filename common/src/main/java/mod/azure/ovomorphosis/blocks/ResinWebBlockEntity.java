@@ -8,6 +8,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
+import mod.azure.ovomorphosis.infection.EggmorphTracker;
 import mod.azure.ovomorphosis.registry.BlockEntityRegistry;
 
 public class ResinWebBlockEntity extends BlockEntity {

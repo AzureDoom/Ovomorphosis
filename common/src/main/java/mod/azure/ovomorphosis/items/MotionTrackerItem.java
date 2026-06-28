@@ -8,10 +8,12 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -35,6 +37,8 @@ public class MotionTrackerItem extends Item {
 
     private static final int MAX_DAMAGE = 64;
 
+    private static final int LIT_MODEL_DATA = 1;
+
     public MotionTrackerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE));
     }
@@ -52,7 +56,7 @@ public class MotionTrackerItem extends Item {
         }
 
         if (level.isClientSide()) {
-            return InteractionResultHolder.success(stack);
+            return InteractionResultHolder.consume(stack);
         }
 
         var serverLevel = (ServerLevel) level;
@@ -116,7 +120,7 @@ public class MotionTrackerItem extends Item {
             level.playSound(
                 null,
                 player.blockPosition(),
-                SoundEvents.ANVIL_PLACE,
+                SoundEvents.SCULK_CLICKING,
                 SoundSource.PLAYERS,
                 0.6F,
                 2.0F
@@ -124,9 +128,37 @@ public class MotionTrackerItem extends Item {
         }
 
         stack.hurtAndBreak(1, serverPlayer, s -> player.broadcastBreakEvent(player.getUsedItemHand()));
+
+        var tag = stack.getOrCreateTag();
+        tag.putBoolean("lit", true);
+        stack.getOrCreateTag().putInt("CustomModelData", LIT_MODEL_DATA);
         player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
 
-        return InteractionResultHolder.success(stack);
+        return InteractionResultHolder.consume(stack);
+    }
+
+    @Override
+    public @NotNull UseAnim getUseAnimation(@NotNull ItemStack stack) {
+        return UseAnim.NONE;
+    }
+
+    @Override
+    public int getUseDuration(@NotNull ItemStack stack) {
+        return 72000;
+    }
+
+    @Override
+    public void inventoryTick(@NotNull ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+        if (level.isClientSide())
+            return;
+
+        var tag = stack.getOrCreateTag();
+        if (tag.getBoolean("lit") && entity instanceof Player player) {
+            if (!player.getCooldowns().isOnCooldown(this)) {
+                tag.putBoolean("lit", false);
+                stack.getOrCreateTag().putInt("CustomModelData", 0);
+            }
+        }
     }
 
     /**

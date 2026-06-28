@@ -10,6 +10,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameRules;
@@ -61,6 +62,14 @@ public class MobUtils {
                 level.sendParticles(ParticleTypes.SMOKE, x, y, z, 1, 0.02D, 0.03D, 0.02D, 0.0D);
             }
         }
+    }
+
+    public static void applyCustomGravity(Entity entity) {
+        if (!entity.isNoGravity()) {
+            entity.setDeltaMovement(entity.getDeltaMovement().add(0.0D, -0.04D, 0.0D));
+        }
+        entity.move(MoverType.SELF, entity.getDeltaMovement());
+        entity.setDeltaMovement(entity.getDeltaMovement().scale(0.38));
     }
 
     public static void applyParticles(RandomSource random, Entity entity) {

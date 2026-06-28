@@ -189,6 +189,9 @@ public class OvomorphEntity extends AbstractAlienEntity {
         if (!this.level().isClientSide()) {
             brainRuntime.tick();
         }
+        if (tickCount == 1) {
+            moveTo(blockPosition().offset(0, 0, 0), getYRot(), getXRot());
+        }
 
         var yaw = 90.0f;
         this.setYRot(yaw);

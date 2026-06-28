@@ -1,4 +1,4 @@
-package mod.azure.ovomorphosis.blocks;
+package mod.azure.ovomorphosis.infection;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;

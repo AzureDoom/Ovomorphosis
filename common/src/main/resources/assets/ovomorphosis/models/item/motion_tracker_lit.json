@@ -1,0 +1,6 @@
+{
+  "parent": "item/crossbow",
+  "textures": {
+    "layer0": "ovomorphosis:item/motion_tracker_lit"
+  }
+}

@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Locale;
 
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
-import mod.azure.ovomorphosis.blocks.EggmorphTracker;
+import mod.azure.ovomorphosis.infection.EggmorphTracker;
 import mod.azure.ovomorphosis.infection.InfectionManager;
 import mod.azure.ovomorphosis.infection.InfectionState;
 
