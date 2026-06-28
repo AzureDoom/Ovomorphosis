@@ -9,8 +9,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.function.BooleanSupplier;
 
-import mod.azure.ovomorphosis.blocks.EggmorphTracker;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
+import mod.azure.ovomorphosis.infection.EggmorphTracker;
 import mod.azure.ovomorphosis.infection.InfectionManager;
 import mod.azure.ovomorphosis.util.BlockBreakProgressManager;
 

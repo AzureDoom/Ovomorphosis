@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.entities;
 
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
@@ -52,13 +51,13 @@ public class AcidEntity extends Entity {
         super.tick();
         age++;
         if (level().isClientSide()) {
-            this.applyParticles();
+            MobUtils.applyParticles(random, this);
             return;
         }
         if (age == 1) {
             moveTo(blockPosition().offset(0, 0, 0), getYRot(), getXRot());
         }
-        this.applyCustomGravity();
+        MobUtils.applyCustomGravity(this);
         MobUtils.applyBlockBreaking(age, this);
         MobUtils.applyContactEffects(age, random, this);
         MobUtils.applySounds(age, random, this);
@@ -68,20 +67,6 @@ public class AcidEntity extends Entity {
                 .is(Blocks.LAVA)
         ) {
             kill();
-        }
-    }
-
-    private void applyParticles() {
-        for (var i = 0; i < random.nextIntBetweenInclusive(0, 4); i++) {
-            level().addAlwaysVisibleParticle(
-                ParticleTypes.COMPOSTER,
-                blockPosition().getX() + random.nextDouble(),
-                blockPosition().getY() + 0.09,
-                blockPosition().getZ() + random.nextDouble(),
-                0.0,
-                0.0,
-                0.0
-            );
         }
     }
 

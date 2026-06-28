@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.items;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -8,10 +9,14 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.UseAnim;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -33,6 +38,8 @@ public class MotionTrackerItem extends Item {
 
     private static final int MAX_DAMAGE = 64;
 
+    private static final int LIT_MODEL_DATA = 1;
+
     public MotionTrackerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
     }
@@ -50,7 +57,7 @@ public class MotionTrackerItem extends Item {
         }
 
         if (level.isClientSide()) {
-            return InteractionResultHolder.success(stack);
+            return InteractionResultHolder.consume(stack);
         }
 
         var serverLevel = (ServerLevel) level;
@@ -114,7 +121,7 @@ public class MotionTrackerItem extends Item {
             level.playSound(
                 null,
                 player.blockPosition(),
-                SoundEvents.ANVIL_PLACE,
+                SoundEvents.SCULK_CLICKING,
                 SoundSource.PLAYERS,
                 0.6F,
                 2.0F
@@ -122,9 +129,38 @@ public class MotionTrackerItem extends Item {
         }
 
         stack.hurtAndBreak(1, serverPlayer, player.getEquipmentSlotForItem(stack));
+        stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(LIT_MODEL_DATA));
         player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
 
-        return InteractionResultHolder.success(stack);
+        return InteractionResultHolder.consume(stack);
+    }
+
+    @Override
+    public @NotNull UseAnim getUseAnimation(@NotNull ItemStack stack) {
+        return UseAnim.NONE;
+    }
+
+    @Override
+    public int getUseDuration(@NotNull ItemStack stack, @NotNull LivingEntity entity) {
+        return 72000;
+    }
+
+    @Override
+    public void inventoryTick(
+        @NotNull ItemStack stack,
+        @NotNull Level level,
+        @NotNull Entity entity,
+        int slot,
+        boolean selected
+    ) {
+        if (level.isClientSide())
+            return;
+
+        if (stack.has(DataComponents.CUSTOM_MODEL_DATA) && entity instanceof Player player) {
+            if (!player.getCooldowns().isOnCooldown(this)) {
+                stack.remove(DataComponents.CUSTOM_MODEL_DATA);
+            }
+        }
     }
 
     /**

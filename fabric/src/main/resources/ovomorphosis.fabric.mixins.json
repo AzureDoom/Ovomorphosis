@@ -23,6 +23,8 @@
     "WolfFacehuggerReactionMixin"
   ],
   "client": [
-    "client.LivingEntityRendererMixin"
+    "client.HeldItemRendererMixin",
+    "client.LivingEntityRendererMixin",
+    "client.PlayerRendererMixin"
   ]
 }

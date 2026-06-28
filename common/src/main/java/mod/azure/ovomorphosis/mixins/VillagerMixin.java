@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.mixins;
 
-import mod.azure.ovomorphosis.items.InfectionScannerItem;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.npc.Villager;
@@ -10,6 +9,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import mod.azure.ovomorphosis.items.InfectionScannerItem;
 
 @Mixin(Villager.class)
 public class VillagerMixin {

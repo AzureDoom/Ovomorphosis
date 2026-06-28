@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " A ",
+    "PSP",
+    " P "
+  ],
+  "key": {
+    "A": {
+      "item": "minecraft:amethyst_shard"
+    },
+    "S": {
+      "item": "minecraft:sculk_sensor"
+    },
+    "P": {
+      "item": "minecraft:copper_ingot"
+    }
+  },
+  "result": {
+    "id": "ovomorphosis:motion_tracker",
+    "count": 1
+  }
+}

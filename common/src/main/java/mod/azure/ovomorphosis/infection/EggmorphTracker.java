@@ -1,4 +1,4 @@
-package mod.azure.ovomorphosis.blocks;
+package mod.azure.ovomorphosis.infection;
 
 import mod.azure.azurelib.common.platform.Services;
 import net.minecraft.core.BlockPos;
