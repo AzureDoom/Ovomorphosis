@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CIC",
+    "CLC",
+    "CMG"
+  ],
+  "key": {
+    "C": {
+      "item": "minecraft:copper_ingot"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "L": {
+      "item": "minecraft:lever"
+    },
+    "M": {
+      "item": "minecraft:magma_cream"
+    },
+    "G": {
+      "item": "minecraft:glass_bottle"
+    }
+  },
+  "result": {
+    "item": "ovomorphosis:magma_sprayer",
+    "count": 1
+  }
+}
