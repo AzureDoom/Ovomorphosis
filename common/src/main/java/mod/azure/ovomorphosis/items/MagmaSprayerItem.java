@@ -281,6 +281,11 @@ public class MagmaSprayerItem extends Item {
         return false;
     }
 
+    @Override
+    public boolean isValidRepairItem(@NotNull ItemStack stack, ItemStack repairCandidate) {
+        return repairCandidate.is(Items.IRON_INGOT) || super.isValidRepairItem(stack, repairCandidate);
+    }
+
     private int getFuel(ItemStack stack) {
         var tag = stack.getTag();
 
