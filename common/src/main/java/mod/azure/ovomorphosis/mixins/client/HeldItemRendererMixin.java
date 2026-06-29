@@ -14,6 +14,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import mod.azure.ovomorphosis.items.InfectionScannerItem;
+import mod.azure.ovomorphosis.items.MagmaSprayerItem;
 import mod.azure.ovomorphosis.items.MotionTrackerItem;
 
 @Mixin(ItemInHandRenderer.class)
@@ -39,24 +41,20 @@ public class HeldItemRendererMixin {
     @Inject(method = "tick", at = @At("TAIL"))
     private void ovomorphosis$cancelReequipAnimation(CallbackInfo ci) {
         var player = minecraft.player;
-        if (player == null)
+        if (player == null) {
             return;
+        }
 
         var main = player.getMainHandItem();
         var off = player.getOffhandItem();
 
-        if (
-            mainHandItem.getItem() instanceof MotionTrackerItem
-                && ItemStack.isSameItem(mainHandItem, main)
-        ) {
-            mainHandHeight = 1.0f;
+        if (ovomorphosis$shouldCancelReequip(mainHandItem, main)) {
+            mainHandHeight = 1.0F;
             mainHandItem = main;
         }
-        if (
-            offHandItem.getItem() instanceof MotionTrackerItem
-                && ItemStack.isSameItem(offHandItem, off)
-        ) {
-            offHandHeight = 1.0f;
+
+        if (ovomorphosis$shouldCancelReequip(offHandItem, off)) {
+            offHandHeight = 1.0F;
             offHandItem = off;
         }
     }
@@ -84,5 +82,18 @@ public class HeldItemRendererMixin {
 
         poseStack.translate(i * -0.5F, -0.2F, -0.3F);
         poseStack.mulPose(Axis.YP.rotationDegrees(i * 10.0F));
+    }
+
+    @Unique
+    private static boolean ovomorphosis$shouldCancelReequip(ItemStack renderedStack, ItemStack currentStack) {
+        return ItemStack.isSameItem(renderedStack, currentStack)
+            && ovomorphosis$hasNoReequipAnimation(currentStack);
+    }
+
+    @Unique
+    private static boolean ovomorphosis$hasNoReequipAnimation(ItemStack stack) {
+        return stack.getItem() instanceof MotionTrackerItem
+            || stack.getItem() instanceof InfectionScannerItem
+            || stack.getItem() instanceof MagmaSprayerItem;
     }
 }

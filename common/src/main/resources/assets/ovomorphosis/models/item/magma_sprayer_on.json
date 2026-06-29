@@ -3,8 +3,8 @@
 	"credit": "Made with Blockbench",
 	"texture_size": [32, 32],
 	"textures": {
-		"0": "ovomorphosis:item/propane_torch_off",
-		"particle": "ovomorphosis:item/propane_torch_off"
+		"0": "ovomorphosis:item/propane_torch_on",
+		"particle": "ovomorphosis:item/propane_torch_on"
 	},
 	"elements": [
 		{
@@ -186,7 +186,7 @@
 			"name": "copper_pipe",
 			"from": [6.5, 8, 6.5],
 			"to": [9.5, 10, 9.5],
-			"rotation": {"angle": 0, "axis": "y", "origin": [8, 9, 8]},
+			"rotation": {"angle": 0, "axis": "y", "origin": [9.5, 8, 9.5]},
 			"faces": {
 				"north": {"uv": [11, 6.5, 12.5, 7.5], "texture": "#0"},
 				"east": {"uv": [11, 7.5, 12.5, 8.5], "texture": "#0"},
@@ -326,7 +326,7 @@
 			"name": "tank",
 			"from": [6, 0, 6],
 			"to": [10, 8, 10],
-			"rotation": {"angle": 0, "axis": "y", "origin": [8, 4, 8]},
+			"rotation": {"angle": 0, "axis": "y", "origin": [9, 0, 9]},
 			"faces": {
 				"north": {"uv": [0, 0, 2, 4], "texture": "#0"},
 				"east": {"uv": [0, 0, 2, 4], "texture": "#0"},
@@ -446,14 +446,6 @@
 					"children": [23, 24]
 				}
 			]
-		}
-	],
-	"overrides": [
-		{
-			"predicate": {
-				"custom_model_data": 1
-			},
-			"model": "ovomorphosis:item/magma_sprayer_on"
 		}
 	]
 }
