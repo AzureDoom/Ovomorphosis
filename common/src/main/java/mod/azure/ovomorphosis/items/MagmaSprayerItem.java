@@ -11,13 +11,17 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -37,6 +41,10 @@ public class MagmaSprayerItem extends Item {
 
     private static final double CONE_DOT = 0.75;
 
+    private static final int MODEL_NORMAL = 0;
+
+    private static final int MODEL_ON = 1;
+
     public MagmaSprayerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
     }
@@ -54,11 +62,44 @@ public class MagmaSprayerItem extends Item {
         }
 
         if (noFuel(stack)) {
+            setSprayerModel(stack, MODEL_NORMAL);
             return InteractionResultHolder.fail(stack);
         }
 
+        setSprayerModel(stack, MODEL_ON);
         player.startUsingItem(hand);
         return InteractionResultHolder.consume(stack);
+    }
+
+    @Override
+    public void releaseUsing(
+        @NotNull ItemStack stack,
+        @NotNull Level level,
+        @NotNull LivingEntity entity,
+        int timeLeft
+    ) {
+        setSprayerModel(stack, MODEL_NORMAL);
+        super.releaseUsing(stack, level, entity, timeLeft);
+    }
+
+    @Override
+    public void inventoryTick(
+        @NotNull ItemStack stack,
+        @NotNull Level level,
+        @NotNull Entity entity,
+        int slotId,
+        boolean isSelected
+    ) {
+        if (
+            !level.isClientSide()
+                && entity instanceof LivingEntity livingEntity
+                && stack.has(DataComponents.CUSTOM_MODEL_DATA)
+                && livingEntity.getUseItem() != stack
+        ) {
+            setSprayerModel(stack, MODEL_NORMAL);
+        }
+
+        super.inventoryTick(stack, level, entity, slotId, isSelected);
     }
 
     private InteractionResultHolder<ItemStack> tryRefill(
@@ -190,7 +231,9 @@ public class MagmaSprayerItem extends Item {
             }
         }
 
-        consumeFuel(stack);
+        if (!player.getAbilities().instabuild) {
+            consumeFuel(stack);
+        }
 
         if (player.getRandom().nextFloat() < 0.25F) {
             stack.hurtAndBreak(
@@ -202,17 +245,20 @@ public class MagmaSprayerItem extends Item {
     }
 
     private void spawnFlameParticles(Level level, Player player) {
-        var eyePos = player.getEyePosition();
         var lookVec = player.getLookAngle();
         var rng = level.random;
 
-        for (var i = 1; i <= RANGE; i++) {
-            var spread = i * 0.08;
-            var pos = eyePos.add(lookVec.scale(i))
+        var muzzlePos = getMuzzlePos(player, lookVec);
+
+        for (var i = 0; i <= RANGE * 3; i++) {
+            var distance = i / 3.0D;
+            var spread = distance * 0.08D;
+
+            var pos = muzzlePos.add(lookVec.scale(distance))
                 .add(
-                    (rng.nextDouble() - 0.5) * spread,
-                    (rng.nextDouble() - 0.5) * spread,
-                    (rng.nextDouble() - 0.5) * spread
+                    (rng.nextDouble() - 0.5D) * spread,
+                    (rng.nextDouble() - 0.5D) * spread,
+                    (rng.nextDouble() - 0.5D) * spread
                 );
 
             level.addParticle(
@@ -220,28 +266,53 @@ public class MagmaSprayerItem extends Item {
                 pos.x,
                 pos.y,
                 pos.z,
-                lookVec.x * 0.15,
-                lookVec.y * 0.15,
-                lookVec.z * 0.15
+                lookVec.x * 0.15D,
+                lookVec.y * 0.15D,
+                lookVec.z * 0.15D
             );
 
-            if (rng.nextFloat() < 0.3f) {
+            if (rng.nextFloat() < 0.3F) {
                 level.addParticle(
                     ParticleTypes.SMOKE,
                     pos.x,
                     pos.y,
                     pos.z,
-                    lookVec.x * 0.05,
-                    lookVec.y * 0.05 + 0.02,
-                    lookVec.z * 0.05
+                    lookVec.x * 0.05D,
+                    lookVec.y * 0.05D + 0.02D,
+                    lookVec.z * 0.05D
                 );
             }
         }
     }
 
+    private Vec3 getMuzzlePos(Player player, Vec3 lookVec) {
+        var eyePos = player.getEyePosition();
+
+        var upVec = new Vec3(0.0D, 1.0D, 0.0D);
+        var rightVec = lookVec.cross(upVec);
+
+        if (rightVec.lengthSqr() < 1.0E-6D) {
+            rightVec = Vec3.directionFromRotation(0.0F, player.getYRot() + 90.0F);
+        } else {
+            rightVec = rightVec.normalize();
+        }
+
+        var hand = player.getUsedItemHand();
+        var arm = hand == InteractionHand.MAIN_HAND
+            ? player.getMainArm()
+            : player.getMainArm().getOpposite();
+
+        var side = arm == HumanoidArm.RIGHT ? 1.0D : -1.0D;
+
+        return eyePos
+            .add(lookVec.scale(0.95D))
+            .add(rightVec.scale(0.55D * side))
+            .add(0.0D, -0.30D, 0.3D);
+    }
+
     @Override
     public @NotNull UseAnim getUseAnimation(@NotNull ItemStack stack) {
-        return UseAnim.BOW;
+        return UseAnim.NONE;
     }
 
     @Override
@@ -266,13 +337,19 @@ public class MagmaSprayerItem extends Item {
         );
         var fuel = getFuel(stack);
         components.add(
-            Component.literal("Fuel: " + fuel + "/" + 100)
-                .withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
+                Component.translatable(
+                        "item.ovomorphosis.magma_sprayer.tooltip.fuel",
+                        fuel,
+                        100
+                ).withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
         );
         var durability = stack.getMaxDamage() - stack.getDamageValue();
         components.add(
-            Component.literal("Condition: " + durability + "/" + stack.getMaxDamage())
-                .withStyle(ChatFormatting.DARK_GRAY)
+                Component.translatable(
+                        "item.ovomorphosis.magma_sprayer.tooltip.condition",
+                        durability,
+                        stack.getMaxDamage()
+                ).withStyle(ChatFormatting.DARK_GRAY)
         );
     }
 
@@ -316,5 +393,14 @@ public class MagmaSprayerItem extends Item {
 
     private void consumeFuel(ItemStack stack) {
         setFuel(stack, getFuel(stack) - 1);
+    }
+
+    private static void setSprayerModel(ItemStack stack, int customModelData) {
+        if (customModelData <= 0) {
+            stack.remove(DataComponents.CUSTOM_MODEL_DATA);
+            return;
+        }
+
+        stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(customModelData));
     }
 }
