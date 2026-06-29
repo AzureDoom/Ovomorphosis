@@ -29,6 +29,7 @@ dependencies {
     compileOnly "mod.azure.azurelib:azurelib-common-${minecraft_version}:${azurelib_version}"
     compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
     annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
+    compileOnly "maven.modrinth:gigeresque:0.8.16"
 }
 
 configurations {
@@ -43,6 +44,6 @@ configurations {
 }
 
 artifacts {
-    commonJava sourceSets.main.java.sourceDirectories.singleFile
-    commonResources sourceSets.main.resources.sourceDirectories.singleFile
+    commonJava(sourceSets.main.java.srcDirs.find { it.exists() })
+    commonResources(sourceSets.main.resources.srcDirs.find { it.exists() })
 }

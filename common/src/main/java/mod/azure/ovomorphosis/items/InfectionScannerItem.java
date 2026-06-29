@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import mod.azure.ovomorphosis.compat.GigeresqueCompat;
 import mod.azure.ovomorphosis.infection.InfectionManager;
+import mod.azure.ovomorphosis.services.XenoServices;
 
 public class InfectionScannerItem extends Item {
 
@@ -64,6 +66,13 @@ public class InfectionScannerItem extends Item {
 
     private void scanEntity(LivingEntity target, Player scanner, ItemStack stack) {
         var level = scanner.level();
+
+        if (XenoServices.COMMON_REGISTRY.isModLoaded("gigeresque")) {
+            if (GigeresqueCompat.tryScanGigInfection(target, scanner)) {
+                return;
+            }
+        }
+
         var infected = InfectionManager.isInfected(target);
         var isSelf = target == scanner;
 
@@ -140,7 +149,7 @@ public class InfectionScannerItem extends Item {
      * Finds the nearest living entity the player is roughly looking at within SCAN_RANGE. Returns null if none found
      * (triggers self-scan).
      */
-    private static LivingEntity findLookTarget(Player player, Level level) {
+    public static LivingEntity findLookTarget(Player player, Level level) {
         var eyePos = player.getEyePosition();
         var lookVec = player.getLookAngle();
 

@@ -29,7 +29,23 @@ repositories {
         name = 'BlameJared'
         url = 'https://maven.blamejared.com'
     }
-    maven { url "https://maven.terraformersmc.com/" }
+    maven {
+        url = 'https://www.cursemaven.com'
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
     maven { url "https://maven.terraformersmc.com/releases" } // modmenu
     maven { url 'https://maven.azuredoom.com/mods' }
     maven {

@@ -24,4 +24,6 @@ public interface CommonRegistry {
     );
 
     boolean isDevelopmentEnvironment();
+
+    boolean isModLoaded(String modId);
 }

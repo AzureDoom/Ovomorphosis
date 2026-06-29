@@ -42,6 +42,7 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 dependencies {
     implementation "mod.azure.azurelib:azurelib-neo-${minecraft_version}:${azurelib_version}"
+    compileOnly "maven.modrinth:gigeresque:0.8.16"
 }
 
 def keyPropsFile = new File(rootProject.projectDir, "key.properties")

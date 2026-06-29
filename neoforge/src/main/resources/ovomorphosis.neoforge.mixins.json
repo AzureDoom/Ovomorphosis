@@ -15,6 +15,7 @@
     "FoxMixin",
     "LivingEntityMixin",
     "MixinEntityTypeBuilder_SilenceDataFixerError",
+    "MixinItem_GigeresqueSurgeryKit",
     "MobEntityMixin",
     "PlayerEntityMixin",
     "ServerLevelMixin",
