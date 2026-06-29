@@ -99,7 +99,8 @@ public class CrawlingCustomAStar extends CustomAStar {
             var isWalk = canStandAt(level, mob, pos);
             var isClimb = MovementUtils.isSafeClimbNode(level, pos);
             var isTunnel = tunnelCanStandAt(level, mob, pos);
-            if (i == path.size() - 1 || isWalk || isClimb || isTunnel) {
+            var isFluid = !level.getBlockState(pos).getFluidState().isEmpty();
+            if (i == path.size() - 1 || isWalk || isClimb || isTunnel || isFluid) {
                 filtered.add(pos);
             }
         }
@@ -126,13 +127,16 @@ public class CrawlingCustomAStar extends CustomAStar {
 
             var isClimb = MovementUtils.isSafeClimbNode(level, pos);
             var isWalk = canStandAt(level, mob, pos);
+            var isFluid = !level.getBlockState(pos).getFluidState().isEmpty();
 
             // BLUE = climb node, YELLOW = walk node, WHITE = both/unknown
             var markerParticle = isClimb && !isWalk
                 ? ParticleTypes.DRIPPING_WATER // blue tint = climb
                 : isWalk && !isClimb
                     ? ParticleTypes.FLAME // orange = walk (should not appear in wall route)
-                    : ParticleTypes.END_ROD; // white = both or neither
+                    : isFluid
+                        ? ParticleTypes.BUBBLE // cyan = water node
+                        : ParticleTypes.END_ROD; // white = both or neither
 
             serverLevel.sendParticles(markerParticle, cx, cy, cz, 3, 0.0D, 0.0D, 0.0D, 0.0D);
         }
@@ -179,13 +183,16 @@ public class CrawlingCustomAStar extends CustomAStar {
             var base = pos.offset(dir[0], 0, dir[1]);
 
             tryAddWalk(level, mob, result, base);
+            tryAddFluid(level, mob, result, base);
 
             if (!goalIsBelow) {
                 tryAddWalk(level, mob, result, base.above());
+                tryAddFluid(level, mob, result, base.above());
             }
 
             for (var drop = 1; drop <= 3; drop++) {
                 tryAddWalk(level, mob, result, base.below(drop));
+                tryAddFluid(level, mob, result, base.below(drop));
             }
 
             tryAddTunnelWalk(level, mob, result, base);
@@ -269,6 +276,19 @@ public class CrawlingCustomAStar extends CustomAStar {
         }
 
         return result;
+    }
+
+    private static void tryAddFluid(Level level, Mob mob, List<BlockPos> result, BlockPos feet) {
+        var state = level.getBlockState(feet);
+        if (state.getFluidState().isEmpty())
+            return;
+        if (!MovementUtils.isSafeBlock(level, feet))
+            return;
+        var head = feet.above();
+        if (!MovementUtils.isSafeBlock(level, head))
+            return;
+        if (!result.contains(feet))
+            result.add(feet);
     }
 
     private static void tryAddTunnelWalk(Level level, Mob mob, List<BlockPos> result, BlockPos feet) {
@@ -413,12 +433,20 @@ public class CrawlingCustomAStar extends CustomAStar {
             return 9999.0D;
         }
 
+        var toState = level.getBlockState(to);
+        var inFluid = !toState.getFluidState().isEmpty();
+        if (!inFluid && !MovementUtils.isSafeBlock(level, to.below())) {
+            return 9999.0D;
+        }
+
         var toIsWalkable = canStandAt(level, mob, to);
         var toIsTunnelWalk = !toIsWalkable && (tunnelCanStandAt(level, mob, to)
             || (isTightTunnel(level, to) && canStandAtCrawlSize(level, mob, to)));
         var toIsClimbable = MovementUtils.isSafeClimbNode(level, to);
 
-        if (!toIsWalkable && !toIsTunnelWalk && !toIsClimbable) {
+        var toIsFluid = !level.getBlockState(to).getFluidState().isEmpty()
+            && MovementUtils.isSafeBlock(level, to);
+        if (!toIsWalkable && !toIsTunnelWalk && !toIsClimbable && !toIsFluid) {
             return 9999.0D;
         }
 
@@ -446,6 +474,10 @@ public class CrawlingCustomAStar extends CustomAStar {
         var cost = 1.0D;
 
         var dy = to.getY() - from.getY();
+
+        if (inFluid) {
+            cost += 2.0D;
+        }
 
         if (toIsTunnelWalk) {
             if (dy > 0)
@@ -486,7 +518,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
 
-        if (!hasTransitionClearance(level, mob, from, to)) {
+        if (!toIsFluid && !hasTransitionClearance(level, mob, from, to)) {
             return 9999.0D;
         }
 

@@ -63,13 +63,11 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
         if (
             current != null && current.isAlive()
                 && TargetingUtils.validTarget(mob).test(current)
-                && (mob.distanceToSqr(current) <= 32 * 32 || mob.hasLineOfSight(current))
+                && (mob.distanceToSqr(current) <= 32 * 32)
         ) {
 
             var currentDistSq = mob.distanceToSqr(current);
-            if (current.isInWater() && currentDistSq <= 24 * 24) {
-                return current;
-            }
+
             if (closest == null || currentDistSq * 0.6 <= closestDistSq) {
                 return current;
             }
@@ -93,7 +91,7 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
             return false;
         }
         var distSq = mob.distanceToSqr(candidate);
-        return distSq <= 32 * 32 || mob.hasLineOfSight(candidate);
+        return distSq <= 32 * 32;
     }
 
     public void onTargetKilled() {

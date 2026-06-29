@@ -8353,6 +8353,9 @@
 		},
 		"in_air": {
 			"loop": "once"
+		},
+		"swimming": {
+			"loop": "once"
 		}
 	}
 }

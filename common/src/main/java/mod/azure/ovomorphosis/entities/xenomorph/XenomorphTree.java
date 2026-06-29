@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -252,10 +253,14 @@ public class XenomorphTree {
                     return BehaviorResult.run(moveToTargetAmbush, 19);
                 }
 
+                if (xenomorph.isEyeInFluid(FluidTags.WATER) || xenomorph.isEyeInFluid(FluidTags.LAVA)) {
+                    return BehaviorResult.run(swim, 200);
+                }
+
                 return BehaviorResult.run(moveToTargetCombat, 20);
             }
 
-            if (xenomorph.isInWater() || xenomorph.isInLava()) {
+            if (xenomorph.isEyeInFluid(FluidTags.WATER) || xenomorph.isEyeInFluid(FluidTags.LAVA)) {
                 return BehaviorResult.run(swim, 200);
             }
 

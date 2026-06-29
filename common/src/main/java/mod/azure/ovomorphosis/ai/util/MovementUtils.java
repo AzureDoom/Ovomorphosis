@@ -94,20 +94,25 @@ public final class MovementUtils {
                 if (!isSafeBlock(level, headPos))
                     return false;
 
-                var feetCollision = level.getBlockState(feetPos).getCollisionShape(level, feetPos);
-                var isStepUpRiser = !feetCollision.isEmpty()
-                    && level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty();
-                if (!isStepUpRiser && !feetCollision.isEmpty())
-                    return false;
-
                 if (!level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty())
                     return false;
 
                 var feetFluid = level.getBlockState(feetPos).getFluidState();
                 var inWater = feetFluid.is(FluidTags.WATER);
 
-                if (!inWater && !hasGroundWithinDrop(level, feetPos, 9))
-                    return false;
+                if (!inWater) {
+                    var feetCollision = level.getBlockState(feetPos).getCollisionShape(level, feetPos);
+                    var isStepUpRiser = !feetCollision.isEmpty()
+                        && level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty();
+                    if (!isStepUpRiser && !feetCollision.isEmpty())
+                        return false;
+
+                    if (!level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty())
+                        return false;
+
+                    if (!hasGroundWithinDrop(level, feetPos, 9))
+                        return false;
+                }
 
                 if (level.getBlockState(feetPos).getFluidState().is(FluidTags.LAVA))
                     return false;
