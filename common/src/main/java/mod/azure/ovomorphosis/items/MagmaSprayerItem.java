@@ -345,19 +345,19 @@ public class MagmaSprayerItem extends Item {
         );
         var fuel = getFuel(stack);
         components.add(
-                Component.translatable(
-                        "item.ovomorphosis.magma_sprayer.tooltip.fuel",
-                        fuel,
-                        100
-                ).withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
+            Component.translatable(
+                "item.ovomorphosis.magma_sprayer.tooltip.fuel",
+                fuel,
+                100
+            ).withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
         );
         var durability = stack.getMaxDamage() - stack.getDamageValue();
         components.add(
-                Component.translatable(
-                        "item.ovomorphosis.magma_sprayer.tooltip.condition",
-                        durability,
-                        stack.getMaxDamage()
-                ).withStyle(ChatFormatting.DARK_GRAY)
+            Component.translatable(
+                "item.ovomorphosis.magma_sprayer.tooltip.condition",
+                durability,
+                stack.getMaxDamage()
+            ).withStyle(ChatFormatting.DARK_GRAY)
         );
         super.appendHoverText(stack, level, components, flag);
     }
