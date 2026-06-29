@@ -249,13 +249,19 @@ public class CustomAStar {
             return 9999.0D;
         }
 
-        if (!MovementUtils.isSafeBlock(level, to.below())) {
+        var toState = level.getBlockState(to);
+        var inFluid = !toState.getFluidState().isEmpty();
+        if (!inFluid && !MovementUtils.isSafeBlock(level, to.below())) {
             return 9999.0D;
         }
 
         var cost = 1.0D;
 
         var dy = to.getY() - from.getY();
+
+        if (inFluid) {
+            cost += 2.0D;
+        }
 
         if (dy > 0) {
             cost += 1.5D;

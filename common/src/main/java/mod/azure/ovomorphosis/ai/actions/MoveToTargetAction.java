@@ -130,10 +130,31 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         var mobFeetPos = BlockPos.containing(mob.getX(), mob.getBoundingBox().minY, mob.getZ());
         var groundBlock = mobFeetPos.below();
-        var mobOnSolidGround = !mob.level()
+        var mobInFluid = !mob.level().getBlockState(mobFeetPos).getFluidState().isEmpty();
+        var mobOnSolidGround = !mobInFluid && !mob.level()
             .getBlockState(groundBlock)
             .getCollisionShape(mob.level(), groundBlock)
             .isEmpty();
+
+        var pathStart = mobFeetPos;
+        var belowFeet = mob.level().getBlockState(mobFeetPos.below());
+        var feetOrBelowInFluid = mobInFluid || !belowFeet.getFluidState().isEmpty();
+
+        if (feetOrBelowInFluid) {
+            if (mobInFluid) {
+                if (mob.level().getBlockState(pathStart).getFluidState().isEmpty()) {
+                    for (int dy = 1; dy <= 3; dy++) {
+                        var candidate = pathStart.above(dy);
+                        if (!mob.level().getBlockState(candidate).getFluidState().isEmpty()) {
+                            pathStart = candidate;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                pathStart = mobFeetPos.below();
+            }
+        }
 
         var mobIsInOrAtTunnel = canCrawl
             && (CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
@@ -188,20 +209,33 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         if (repathCooldown <= 0 || path.isEmpty() || pathIndex >= path.size()) {
             var crawlGoal = (tunnelBiasedGoal != null) ? tunnelBiasedGoal : target.blockPosition();
+            if (
+                mob.level().getBlockState(crawlGoal).isAir()
+                    && !mob.level().getBlockState(crawlGoal.below()).getFluidState().isEmpty()
+            ) {
+                crawlGoal = crawlGoal.below();
+            }
+            var fluidGoalRadius = feetOrBelowInFluid ? 2 : 0;
 
             if (canCrawl) {
-                path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), crawlGoal, 96, 0);
+                path = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, fluidGoalRadius);
                 if (path.isEmpty() && nearbyTunnelEntry != null && !nearbyTunnelEntry.equals(crawlGoal)) {
-                    path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), nearbyTunnelEntry, 96, 0);
+                    path = CrawlingCustomAStar.findPath(mob, pathStart, nearbyTunnelEntry, 96, fluidGoalRadius);
                 }
                 if (path.isEmpty()) {
-                    path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), crawlGoal, 96, 1);
+                    path = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, Math.max(fluidGoalRadius, 1));
                 }
                 if (path.isEmpty()) {
-                    path = CustomAStar.findPath(mob, mob.blockPosition(), target.blockPosition(), 64, 1);
+                    path = CustomAStar.findPath(
+                        mob,
+                        pathStart,
+                        target.blockPosition(),
+                        64,
+                        Math.max(fluidGoalRadius, 1)
+                    );
                 }
             } else {
-                path = CustomAStar.findPath(mob, mob.blockPosition(), target.blockPosition(), 64, 1);
+                path = CustomAStar.findPath(mob, pathStart, target.blockPosition(), 64, Math.max(fluidGoalRadius, 1));
             }
 
             pathIndex = path.size() > 1 ? 1 : 0;
@@ -441,6 +475,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             mob.getBoundingBox().minY,
             mob.getZ()
         );
+        var mobInFluid = !mob.level().getBlockState(mobFeet).getFluidState().isEmpty();
 
         var verticalStepUp =
             canCrawl
@@ -878,6 +913,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 faceTarget(mob, target);
                 return;
             }
+        }
+
+        if (mobInFluid) {
+            mob.setDeltaMovement(movement.x, mob.getDeltaMovement().y, movement.z);
+            mob.hasImpulse = true;
+            faceTarget(mob, target);
+            return;
         }
 
         var safe = MovementUtils.findSafeMovement(mob, movement, steerBias);
