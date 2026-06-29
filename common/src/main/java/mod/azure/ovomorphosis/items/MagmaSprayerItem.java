@@ -12,7 +12,6 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.*;
@@ -21,7 +20,6 @@ import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -245,16 +243,15 @@ public class MagmaSprayerItem extends Item {
     }
 
     private void spawnFlameParticles(Level level, Player player) {
+        var eyePos = player.getEyePosition();
         var lookVec = player.getLookAngle();
         var rng = level.random;
-
-        var muzzlePos = getMuzzlePos(player, lookVec);
 
         for (var i = 0; i <= RANGE * 3; i++) {
             var distance = i / 3.0D;
             var spread = distance * 0.08D;
 
-            var pos = muzzlePos.add(lookVec.scale(distance))
+            var pos = eyePos.add(lookVec.scale(i))
                 .add(
                     (rng.nextDouble() - 0.5D) * spread,
                     (rng.nextDouble() - 0.5D) * spread,
@@ -283,31 +280,6 @@ public class MagmaSprayerItem extends Item {
                 );
             }
         }
-    }
-
-    private Vec3 getMuzzlePos(Player player, Vec3 lookVec) {
-        var eyePos = player.getEyePosition();
-
-        var upVec = new Vec3(0.0D, 1.0D, 0.0D);
-        var rightVec = lookVec.cross(upVec);
-
-        if (rightVec.lengthSqr() < 1.0E-6D) {
-            rightVec = Vec3.directionFromRotation(0.0F, player.getYRot() + 90.0F);
-        } else {
-            rightVec = rightVec.normalize();
-        }
-
-        var hand = player.getUsedItemHand();
-        var arm = hand == InteractionHand.MAIN_HAND
-            ? player.getMainArm()
-            : player.getMainArm().getOpposite();
-
-        var side = arm == HumanoidArm.RIGHT ? 1.0D : -1.0D;
-
-        return eyePos
-            .add(lookVec.scale(0.95D))
-            .add(rightVec.scale(0.55D * side))
-            .add(0.0D, -0.30D, 0.3D);
     }
 
     @Override
