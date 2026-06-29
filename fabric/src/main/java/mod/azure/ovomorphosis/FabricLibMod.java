@@ -65,7 +65,7 @@ public final class FabricLibMod implements ModInitializer {
             entries.accept(ItemRegistry.FACEHUGGER_SPAWN_EGG.get());
             entries.accept(ItemRegistry.CHESTBURSTER_SPAWN_EGG.get());
             entries.accept(ItemRegistry.XENOMORPH_SPAWN_EGG.get());
-            // entries.accept(ItemRegistry.RUNNER_SPAWN_EGG.get());
+            entries.accept(ItemRegistry.RUNNER_SPAWN_EGG.get());
         });
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.BUILDING_BLOCKS).register(entries -> {
             entries.accept(BlockRegistry.RESIN_ITEM.get());

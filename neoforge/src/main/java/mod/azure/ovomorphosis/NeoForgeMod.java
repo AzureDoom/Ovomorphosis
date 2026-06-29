@@ -110,7 +110,7 @@ public final class NeoForgeMod {
             event.accept(ItemRegistry.FACEHUGGER_SPAWN_EGG.get());
             event.accept(ItemRegistry.CHESTBURSTER_SPAWN_EGG.get());
             event.accept(ItemRegistry.XENOMORPH_SPAWN_EGG.get());
-            // event.accept(ItemRegistry.RUNNER_SPAWN_EGG.get());
+            event.accept(ItemRegistry.RUNNER_SPAWN_EGG.get());
         }
         if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
             event.accept(BlockRegistry.RESIN_ITEM.get());
