@@ -62,6 +62,8 @@ if (keyPropsFile.exists()) {
             requires {
                 slug = "azurelib"
             }
+            client = true
+            server = true
         }
         modrinth {
             projectId = project.modrinthID
@@ -73,6 +75,7 @@ if (keyPropsFile.exists()) {
             requires {
                 slug = "azurelib"
             }
+            environment = CLIENT_AND_SERVER
         }
     }
 }
