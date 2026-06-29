@@ -16,38 +16,36 @@ public record SwimAction<E extends Mob>(int priority) implements Action<E> {
 
     @Override
     public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        if (mob.isDeadOrDying()) {
+        if (mob.isDeadOrDying())
             return ActionStatus.SUCCESS;
-        }
-
-        if (!mob.isInWater() && !mob.isInLava()) {
+        if (!mob.isInWater() && !mob.isInLava())
             return ActionStatus.SUCCESS;
-        }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         var destPos = target != null && target.isAlive()
-            ? target.position()
+            ? target.position().add(0, target.getBbHeight() * 0.5, 0)
             : blackboard.get(AiKeys.DESTINATION, BlockPos.class) != null
                 ? Vec3.atBottomCenterOf(Objects.requireNonNull(blackboard.get(AiKeys.DESTINATION, BlockPos.class)))
                 : null;
 
         if (destPos != null) {
             var toTarget = destPos.subtract(mob.position());
-            if (toTarget.lengthSqr() > 0.01D) {
+            var dist = toTarget.length();
+
+            if (dist > 0.5D) {
                 var movement = toTarget.normalize().scale(0.22D);
                 mob.setDeltaMovement(movement);
                 mob.hasImpulse = true;
                 faceMovementDirection(mob, movement);
+            } else {
+                mob.setDeltaMovement(Vec3.ZERO);
             }
         } else {
-            mob.setDeltaMovement(
-                0.0D,
-                0.0D,
-                0.0D
-            );
+            var current = mob.getDeltaMovement();
+            mob.setDeltaMovement(current.x * 0.5, 0.03, current.z * 0.5);
         }
 
-        mob.setDeltaMovement(mob.getDeltaMovement().multiply(0.8D, 0.8D, 0.8D));
+        mob.setDeltaMovement(mob.getDeltaMovement().multiply(0.8, 0.8, 0.8));
         return ActionStatus.RUNNING;
     }
 
