@@ -66,7 +66,10 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
                 && (mob.distanceToSqr(current) <= 32 * 32 || mob.hasLineOfSight(current))
         ) {
 
-            double currentDistSq = mob.distanceToSqr(current);
+            var currentDistSq = mob.distanceToSqr(current);
+            if (current.isInWater() && currentDistSq <= 24 * 24) {
+                return current;
+            }
             if (closest == null || currentDistSq * 0.6 <= closestDistSq) {
                 return current;
             }
