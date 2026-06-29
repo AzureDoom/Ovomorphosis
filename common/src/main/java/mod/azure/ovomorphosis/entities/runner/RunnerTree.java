@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.entities.runner;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 
 import mod.azure.ovomorphosis.ai.actions.*;
@@ -205,11 +206,14 @@ public class RunnerTree {
                     return BehaviorResult.run(moveToTargetAmbush, 19);
                 }
 
+                if (runner.isEyeInFluid(FluidTags.WATER) || runner.isEyeInFluid(FluidTags.LAVA)) {
+                    return BehaviorResult.run(swim, 200);
+                }
+
                 return BehaviorResult.run(moveToTargetCombat, 20);
             }
 
-            // ── Water / lava ─────────────────────────────────────────────────────
-            if (runner.isInWater() || runner.isInLava()) {
+            if (runner.isEyeInFluid(FluidTags.WATER) || runner.isEyeInFluid(FluidTags.LAVA)) {
                 return BehaviorResult.run(swim, 200);
             }
 
