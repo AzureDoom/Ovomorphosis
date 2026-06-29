@@ -2,11 +2,11 @@
 	"format_version": "1.9.0",
 	"credit": "Made with Blockbench",
 	"textures": {
-		"1": "ovomorphosis:item/scanner_body_off",
+		"1": "ovomorphosis:item/scanner_body_on",
 		"5": "ovomorphosis:item/amethyst_shard",
 		"7": "ovomorphosis:item/copper_plate",
 		"9": "ovomorphosis:item/copper_handle",
-		"10": "ovomorphosis:item/redstone_led_unlit",
+		"10": "ovomorphosis:item/redstone_led_lit_redder",
 		"particle": "ovomorphosis:item/amethyst_shard"
 	},
 	"elements": [
@@ -206,20 +206,6 @@
 			"scope": 0,
 			"color": 0,
 			"children": [7, 8, 9, 10]
-		}
-	],
-	"overrides": [
-		{
-			"predicate": {
-				"custom_model_data": 1
-			},
-			"model": "ovomorphosis:item/infection_scanner_symptomatic"
-		},
-		{
-			"predicate": {
-				"custom_model_data": 2
-			},
-			"model": "ovomorphosis:item/infection_scanner_critical"
 		}
 	]
 }

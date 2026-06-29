@@ -17,18 +17,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import mod.azure.ovomorphosis.infection.InfectionManager;
-import mod.azure.ovomorphosis.infection.InfectionState;
 
 public class InfectionScannerItem extends Item {
 
-    private static final int COOLDOWN_TICKS = 60;
-
     private static final int MAX_DAMAGE = 32;
 
-    private static final double SCAN_RANGE = 4.0;
+    private static final int MODEL_CLEAR = 0;
+
+    private static final int MODEL_SYMPTOMATIC = 1;
+
+    private static final int MODEL_CRITICAL = 2;
 
     public InfectionScannerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE));
@@ -51,15 +53,15 @@ public class InfectionScannerItem extends Item {
         }
 
         var target = findLookTarget(player, level);
-        scanEntity(Objects.requireNonNullElse(target, player), player);
+        scanEntity(Objects.requireNonNullElse(target, player), player, stack);
 
         stack.hurtAndBreak(1, player, s -> player.broadcastBreakEvent(player.getUsedItemHand()));
-        player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
+        player.getCooldowns().addCooldown(this, 30);
 
         return InteractionResultHolder.success(stack);
     }
 
-    private void scanEntity(LivingEntity target, Player scanner) {
+    private void scanEntity(LivingEntity target, Player scanner, ItemStack stack) {
         var level = scanner.level();
         var infected = InfectionManager.isInfected(target);
         var isSelf = target == scanner;
@@ -75,37 +77,51 @@ public class InfectionScannerItem extends Item {
                 case CRITICAL -> "CRITICAL";
             };
 
-            String who = isSelf ? "SELF" : target.getDisplayName().getString().toUpperCase();
+            var modelData = switch (phase) {
+                case DORMANT -> MODEL_CLEAR;
+                case SYMPTOMATIC -> MODEL_SYMPTOMATIC;
+                case CRITICAL -> MODEL_CRITICAL;
+            };
 
-            scanner.displayClientMessage(
-                Component.literal("► [" + who + "] INFECTED — Stage: " + phaseStr)
-                    .withStyle(ChatFormatting.RED),
-                true
+            setScannerModel(stack, modelData);
+
+            var who = isSelf
+                ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
+                : target.getDisplayName();
+
+            var phaseKey = Component.translatable(
+                "item.ovomorphosis.infection_scanner.tooltip.stage." + phaseStr.toLowerCase(Locale.ROOT)
             );
 
             scanner.displayClientMessage(
-                Component.literal("Infection: " + phaseStr)
-                    .withStyle(
-                        phase == InfectionState.Phase.CRITICAL
-                            ? ChatFormatting.DARK_RED
-                            : ChatFormatting.YELLOW
-                    ),
+                Component.translatable(
+                    "item.ovomorphosis.infection_scanner.tooltip.infected",
+                    who,
+                    phaseKey
+                ).withStyle(ChatFormatting.RED),
                 true
             );
 
             level.playSound(
                 null,
                 scanner.blockPosition(),
-                SoundEvents.NOTE_BLOCK_BASS.value(),
+                SoundEvents.NOTE_BLOCK_PLING.value(),
                 SoundSource.PLAYERS,
                 0.8F,
                 0.5F
             );
         } else {
-            var who = isSelf ? "SELF" : target.getDisplayName().getString().toUpperCase();
+            setScannerModel(stack, MODEL_CLEAR);
+
+            var who = isSelf
+                ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
+                : target.getDisplayName();
+
             scanner.displayClientMessage(
-                Component.literal("► [" + who + "] CLEAR")
-                    .withStyle(ChatFormatting.GREEN),
+                Component.translatable(
+                    "item.ovomorphosis.infection_scanner.tooltip.clear",
+                    who
+                ).withStyle(ChatFormatting.GREEN),
                 true
             );
 
@@ -130,7 +146,7 @@ public class InfectionScannerItem extends Item {
 
         return level.getEntitiesOfClass(
             LivingEntity.class,
-            new AABB(player.blockPosition()).inflate(SCAN_RANGE),
+            new AABB(player.blockPosition()).inflate(4),
             e -> e != player && e.isAlive()
         )
             .stream()
@@ -163,5 +179,19 @@ public class InfectionScannerItem extends Item {
     @Override
     public boolean isEnchantable(@NotNull ItemStack stack) {
         return false;
+    }
+
+    private static void setScannerModel(ItemStack stack, int customModelData) {
+        if (customModelData <= 0) {
+            stack.getOrCreateTag().remove("CustomModelData");
+
+            if (stack.getTag() != null && stack.getTag().isEmpty()) {
+                stack.setTag(null);
+            }
+
+            return;
+        }
+
+        stack.getOrCreateTag().putInt("CustomModelData", customModelData);
     }
 }
