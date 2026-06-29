@@ -84,6 +84,7 @@ public final class NeoForgeMod {
         modEventBus.addListener(this::addSpawnPlacements);
         modEventBus.addListener(this::addCreativeTabs);
         modEventBus.addListener(this::registerMessages);
+        NeoForgeLootModifiers.GLOBAL_LOOT_MODIFIERS.register(modEventBus);
     }
 
     public void registerMessages(final RegisterPayloadHandlersEvent event) {
