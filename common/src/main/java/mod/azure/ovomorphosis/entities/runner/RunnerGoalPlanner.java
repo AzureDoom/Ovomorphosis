@@ -3,7 +3,7 @@ package mod.azure.ovomorphosis.entities.runner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import mod.azure.ovomorphosis.ai.actions.xenomorph.FleeFireAction;
+import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;

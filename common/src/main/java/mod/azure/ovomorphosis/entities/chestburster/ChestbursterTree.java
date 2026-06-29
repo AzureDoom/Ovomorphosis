@@ -37,12 +37,18 @@ public class ChestbursterTree {
             120
         );
 
+        var fleeFire = new FleeFireAction<ChestbursterEntity>(110);
+
         var swim = new SwimAction<ChestbursterEntity>(200);
 
         return (chestburster, blackboard, cooldowns) -> {
 
             if (fleeExplosive.hasNearbyExplosive(chestburster)) {
                 return BehaviorResult.run(fleeExplosive, 120);
+            }
+
+            if (FleeFireAction.shouldFleefire(chestburster) || chestburster.isOnFire()) {
+                return BehaviorResult.run(fleeFire, fleeFire.priority());
             }
 
             if (chestburster.isInWater() || chestburster.isInLava()) {

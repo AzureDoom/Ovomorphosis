@@ -35,6 +35,7 @@ public class FacehuggerTree {
         var leapAndAttach = new LeapAndAttachAction<>();
         var retreatAndHide = new RetreatAndHideAction();
         var swim = new SwimAction<FacehuggerEntity>(200);
+        var fleeFire = new FleeFireAction<FacehuggerEntity>(110);
 
         return (facehugger, blackboard, cooldowns) -> {
 
@@ -44,6 +45,10 @@ public class FacehuggerTree {
 
             if (facehugger.isAttachedToHost()) {
                 return BehaviorResult.run(leapAndAttach, 30);
+            }
+
+            if (FleeFireAction.shouldFleefire(facehugger) || facehugger.isOnFire()) {
+                return BehaviorResult.run(fleeFire, fleeFire.priority());
             }
 
             if (facehugger.isInWater() || facehugger.isInLava()) {
