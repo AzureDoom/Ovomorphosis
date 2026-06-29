@@ -77,6 +77,8 @@ public final class FabricLibMod implements ModInitializer {
         });
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.COMBAT).register(entries -> {
             entries.accept(ItemRegistry.FLAMETHROWER.get());
+        });
+        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
             entries.accept(ItemRegistry.SCANNER.get());
             entries.accept(ItemRegistry.MOTION_TRACKER.get());
         });

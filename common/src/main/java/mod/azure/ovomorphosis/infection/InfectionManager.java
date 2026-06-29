@@ -198,7 +198,7 @@ public final class InfectionManager {
         host.hurt(DamageTypeRegistry.of(level, DamageTypeRegistry.XENOMORPH_INFECTION), Float.MAX_VALUE);
     }
 
-    private static void spawnMob(LivingEntity host, ServerLevel level, AbstractAlienEntity alien) {
+    public static void spawnMob(LivingEntity host, ServerLevel level, AbstractAlienEntity alien) {
         var spawnPos = host.position().add(0, host.getBbHeight() * 0.5, 0);
         alien.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
 

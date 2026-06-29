@@ -22,6 +22,7 @@ dependencies {
 	compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
     annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
     modImplementation "mod.azure.azurelib:azurelib-common-${minecraft_version}:${azurelib_version}"
+    compileOnly "maven.modrinth:gigeresque:WG8PcuSI"
 }
 
 configurations {

@@ -114,6 +114,8 @@ public final class ForgeMod {
         }
         if (event.getTabKey() == CreativeModeTabs.COMBAT) {
             event.accept(ItemRegistry.FLAMETHROWER.get());
+        }
+        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(ItemRegistry.SCANNER.get());
             event.accept(ItemRegistry.MOTION_TRACKER.get());
         }
