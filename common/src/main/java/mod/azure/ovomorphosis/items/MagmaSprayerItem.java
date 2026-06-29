@@ -260,8 +260,8 @@ public class MagmaSprayerItem extends Item {
                 .withStyle(ChatFormatting.GRAY)
         );
         components.add(
-                Component.translatable("item.ovomorphosis.magma_sprayer.tooltip.refill")
-                        .withStyle(ChatFormatting.GRAY)
+            Component.translatable("item.ovomorphosis.magma_sprayer.tooltip.refill")
+                .withStyle(ChatFormatting.GRAY)
         );
         var fuel = getFuel(stack);
         components.add(
