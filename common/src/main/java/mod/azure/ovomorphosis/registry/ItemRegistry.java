@@ -17,8 +17,8 @@ public class ItemRegistry {
         "ovomorph_spawn_egg",
         XenoServices.COMMON_REGISTRY.makeSpawnEggFor(
             EntityRegistry.OVOMORPH,
-            0x746e4c,
-            0x0f0f0d,
+            0xFFFFFF,
+            0xFFFFFF,
             new Item.Properties()
         )
     );
@@ -27,8 +27,8 @@ public class ItemRegistry {
         "facehugger_spawn_egg",
         XenoServices.COMMON_REGISTRY.makeSpawnEggFor(
             EntityRegistry.FACEHUGGER,
-            0xbc9667,
-            0x765833,
+            0xFFFFFF,
+            0xFFFFFF,
             new Item.Properties()
         )
     );
@@ -37,8 +37,8 @@ public class ItemRegistry {
         "chestburster_spawn_egg",
         XenoServices.COMMON_REGISTRY.makeSpawnEggFor(
             EntityRegistry.CHESTBURSTER,
-            0x666666,
-            0x987242,
+            0xFFFFFF,
+            0xFFFFFF,
             new Item.Properties()
         )
     );
@@ -47,8 +47,8 @@ public class ItemRegistry {
         "xenomorph_spawn_egg",
         XenoServices.COMMON_REGISTRY.makeSpawnEggFor(
             EntityRegistry.XENOMORPH,
-            0x131416,
-            0x362b1e,
+            0xFFFFFF,
+            0xFFFFFF,
             new Item.Properties()
         )
     );
@@ -57,8 +57,8 @@ public class ItemRegistry {
         "runner_spawn_egg",
         XenoServices.COMMON_REGISTRY.makeSpawnEggFor(
             EntityRegistry.RUNNER,
-            0x131416,
-            0x362b1e,
+            0xFFFFFF,
+            0xFFFFFF,
             new Item.Properties()
         )
     );
