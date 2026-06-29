@@ -88,6 +88,7 @@ public final class ForgeMod {
         ForgeNetworkHandler.registerMessages();
         NetworkDispatcher.Holder.INSTANCE = new ForgeNetworkDispatcher();
         ModStructureModifierSerializers.STRUCTURE_MODIFIER_SERIALIZERS.register(modEventBus);
+        ForgeLootModifiers.GLOBAL_LOOT_MODIFIERS.register(modEventBus);
     }
 
     public void createEntityAttributes(final EntityAttributeCreationEvent event) {

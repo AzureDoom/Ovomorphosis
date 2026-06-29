@@ -31,6 +31,7 @@ public final class FabricLibMod implements ModInitializer {
     @Override
     public void onInitialize() {
         CommonMod.initRegistries();
+        FabricLootInjects.init();
         NetworkDispatcher.Holder.INSTANCE = new FabricNetworkDispatcher();
         ResourceManagerHelper.get(PackType.SERVER_DATA)
             .registerReloadListener(new FabricHeadOffsetReloadListener());
