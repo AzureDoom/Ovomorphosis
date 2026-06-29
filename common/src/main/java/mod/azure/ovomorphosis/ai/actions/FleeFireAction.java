@@ -1,4 +1,4 @@
-package mod.azure.ovomorphosis.ai.actions.xenomorph;
+package mod.azure.ovomorphosis.ai.actions;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
