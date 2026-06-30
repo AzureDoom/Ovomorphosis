@@ -78,6 +78,7 @@ public class GigeresqueCompat {
                 new RunnerEntity(EntityRegistry.RUNNER.get(), livingEntity.level())
             );
         }
+        InfectionManager.removeInfection(livingEntity.getUUID());
         applySurgeryKitBehavior(player, livingEntity, itemStack);
     }
 
