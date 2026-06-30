@@ -45,6 +45,10 @@ public final class InfectionManager {
         INFECTIONS.put(uuid, state);
     }
 
+    public static void removeInfection(UUID uuid) {
+        INFECTIONS.remove(uuid);
+    }
+
     public static void clearAll() {
         INFECTIONS.clear();
     }

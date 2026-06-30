@@ -15,6 +15,7 @@
     "FoxMixin",
     "LivingEntityMixin",
     "MixinEntityTypeBuilder_SilenceDataFixerError",
+    "MixinItem_ChorusFruit",
     "MixinItem_GigeresqueSurgeryKit",
     "MobEntityMixin",
     "PlayerEntityMixin",
