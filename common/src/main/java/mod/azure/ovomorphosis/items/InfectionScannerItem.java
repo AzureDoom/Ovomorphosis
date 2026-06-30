@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import mod.azure.ovomorphosis.compat.AVPCompat;
 import mod.azure.ovomorphosis.compat.GigeresqueCompat;
 import mod.azure.ovomorphosis.infection.InfectionManager;
 import mod.azure.ovomorphosis.services.XenoServices;
@@ -29,11 +30,11 @@ public class InfectionScannerItem extends Item {
 
     private static final int MAX_DAMAGE = 32;
 
-    private static final int MODEL_CLEAR = 0;
+    public static final int MODEL_CLEAR = 0;
 
-    private static final int MODEL_SYMPTOMATIC = 1;
+    public static final int MODEL_SYMPTOMATIC = 1;
 
-    private static final int MODEL_CRITICAL = 2;
+    public static final int MODEL_CRITICAL = 2;
 
     public InfectionScannerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
@@ -68,7 +69,10 @@ public class InfectionScannerItem extends Item {
         var level = scanner.level();
 
         if (XenoServices.COMMON_REGISTRY.isModLoaded("gigeresque")) {
-            if (GigeresqueCompat.tryScanGigInfection(target, scanner)) {
+            if (GigeresqueCompat.tryScanGigInfection(target, scanner, stack)) {
+                return;
+            }
+        }
                 return;
             }
         }
@@ -189,7 +193,7 @@ public class InfectionScannerItem extends Item {
         return false;
     }
 
-    private static void setScannerModel(ItemStack stack, int customModelData) {
+    public static void setScannerModel(ItemStack stack, int customModelData) {
         if (customModelData <= 0) {
             stack.remove(DataComponents.CUSTOM_MODEL_DATA);
             return;

@@ -17,6 +17,7 @@ import net.minecraft.world.item.ItemStack;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.infection.InfectionManager;
+import mod.azure.ovomorphosis.items.InfectionScannerItem;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -26,12 +27,7 @@ public class GigeresqueCompat {
         return livingEntity.hasEffect(GigStatusEffects.IMPREGNATION);
     }
 
-    public static boolean tryScanGigInfection(LivingEntity target, Player scanner) {
-        if (!hasGigBurster(target)) {
-            mod.azure.ovomorphosis.CommonMod.LOGGER.info("GigBurster not found!");
-            return false;
-        }
-
+    public static boolean tryScanGigInfection(LivingEntity target, Player scanner, ItemStack stack) {
         var isSelf = target == scanner;
         var who = isSelf
             ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
@@ -55,7 +51,9 @@ public class GigeresqueCompat {
                 0.3F
             );
 
-        return true;
+        InfectionScannerItem.setScannerModel(stack, InfectionScannerItem.MODEL_SYMPTOMATIC);
+
+        return hasGigBurster(target);
     }
 
     public static void removeParasite(Player player, LivingEntity livingEntity, ItemStack itemStack) {
