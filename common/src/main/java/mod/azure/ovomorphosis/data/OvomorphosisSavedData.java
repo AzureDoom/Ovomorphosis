@@ -18,18 +18,16 @@ import mod.azure.ovomorphosis.infection.InfectionState;
 
 public final class OvomorphosisSavedData extends SavedData {
 
-    private static final String DATA_NAME = "ovomorphosis_data";
-
     private HiveMemory hiveMemory = new HiveMemory();
 
     public static OvomorphosisSavedData get(ServerLevel level) {
-        ServerLevel overworld = level.getServer().overworld();
+        var overworld = level.getServer().overworld();
 
         return overworld.getDataStorage()
             .computeIfAbsent(
                 tag -> load(tag, overworld),
                 OvomorphosisSavedData::createEmpty,
-                DATA_NAME
+                "ovomorphosis_data"
             );
     }
 
@@ -39,10 +37,6 @@ public final class OvomorphosisSavedData extends SavedData {
      */
     public static HiveMemory getHiveMemory(ServerLevel level) {
         return get(level).hiveMemory;
-    }
-
-    public HiveMemory getHiveMemory() {
-        return hiveMemory;
     }
 
     private static OvomorphosisSavedData createEmpty() {

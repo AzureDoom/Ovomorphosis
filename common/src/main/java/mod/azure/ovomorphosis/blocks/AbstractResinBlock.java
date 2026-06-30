@@ -47,7 +47,7 @@ public abstract class AbstractResinBlock extends Block {
             return;
 
         if (level instanceof ServerLevel serverLevel) {
-            boolean cloudExists = !serverLevel.getEntitiesOfClass(
+            var cloudExists = !serverLevel.getEntitiesOfClass(
                 AreaEffectCloud.class,
                 new AABB(pos).inflate(4.0)
             ).isEmpty();

@@ -215,7 +215,7 @@ public class ResinWebBlock extends AbstractResinBlock {
         var bl = blockState.is(this);
         var blockState2 = bl ? blockState : defaultBlockState();
         var placementDirections = ctx.getNearestLookingDirections();
-        for (Direction direction : placementDirections) {
+        for (var direction : placementDirections) {
             if (direction != Direction.DOWN) {
                 var booleanProperty = getFacingProperty(direction);
                 var bl2 = bl && blockState.getValue(booleanProperty);
