@@ -73,6 +73,9 @@ public class InfectionScannerItem extends Item {
                 return;
             }
         }
+
+        if (XenoServices.COMMON_REGISTRY.isModLoaded("avp_alien")) {
+            if (AVPCompat.tryScanAVPInfection(target, scanner, stack)) {
                 return;
             }
         }

@@ -74,6 +74,7 @@
   "item.ovomorphosis.infection_scanner.tooltip.stage.symptomatic": "SYMPTOMATIC",
   "item.ovomorphosis.infection_scanner.tooltip.stage.critical": "CRITICAL",
   "item.ovomorphosis.infection_scanner.tooltip.gig_impregnated": "%s has a Gigeresque embryo detected — bursting imminent!",
+  "item.ovomorphosis.infection_scanner.tooltip.avp_impregnated": "%s has a AVP embryo detected — bursting imminent!",
   "item.ovomorphosis.motion_tracker.clear": "No movement detected.",
   "item.ovomorphosis.motion_tracker.tooltip": "Detects nearby xenomorph movement. Accuracy degrades through solid walls.",
   "msg.ovomorphosis.chest_bursting": "Something is tearing through your chest...",
