@@ -9,6 +9,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -25,7 +26,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Comparator;
 import java.util.List;
 
-import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.util.ModTags;
 
 public class MotionTrackerItem extends Item {
 
@@ -63,9 +64,12 @@ public class MotionTrackerItem extends Item {
         var serverPlayer = (ServerPlayer) player;
 
         var nearby = serverLevel.getEntitiesOfClass(
-            AbstractAlienEntity.class,
+            PathfinderMob.class,
             new AABB(player.blockPosition()).inflate(24),
-            e -> e.isAlive() && !e.isInvisible()
+            e -> e.getType().is(ModTags.MOTION_TRACKABLE)
+                && e.isAlive()
+                && !e.isInvisible()
+                && e.getDeltaMovement().lengthSqr() > 0.025
         );
 
         if (nearby.isEmpty()) {
