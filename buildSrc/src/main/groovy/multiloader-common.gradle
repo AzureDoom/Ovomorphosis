@@ -52,6 +52,11 @@ repositories {
         name = 'Parchment'
         url = 'https://maven.parchmentmc.org'
     }
+    maven {
+        name = "avpReleases"
+        url = uri("https://maven.aliensvspredatormod.com/releases")
+    }
+    maven { url = "https://maven.architectury.dev/" }
 }
 
 dependencies {
