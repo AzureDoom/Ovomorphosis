@@ -1,8 +1,8 @@
 package mod.azure.ovomorphosis.blocks;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -17,7 +17,10 @@ public class ResinWebBlockEntity extends BlockEntity {
         super(BlockEntityRegistry.RESIN_WEB_CROSS_BE.get(), pos, state);
     }
 
-    public static void serverTick(ServerLevel level, BlockPos pos, BlockState state, ResinWebBlockEntity be) {
+    @SuppressWarnings("unused")
+    public static void serverTick(Level level, BlockPos pos, BlockState state, BlockEntity be) {
+        if (level.isClientSide())
+            return;
         var tracker = EggmorphTracker.getOrCreate(pos.immutable());
 
         var cx = pos.getX() + 0.5;

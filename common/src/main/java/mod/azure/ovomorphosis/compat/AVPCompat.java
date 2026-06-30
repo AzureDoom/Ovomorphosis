@@ -16,7 +16,7 @@ public class AVPCompat {
 
     public static boolean tryScanAVPInfection(LivingEntity target, Player scanner, ItemStack stack) {
         if (
-            !(target instanceof Host host)
+            !(target instanceof Host)
                 || scanner.level().isClientSide()
                 || !AlienPredicates.hasEmbryo(target)
         ) {

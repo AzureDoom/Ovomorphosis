@@ -1,7 +1,6 @@
 package mod.azure.ovomorphosis.blocks;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -34,14 +33,10 @@ public class ResinWebFullBlock extends AbstractResinBlock implements EntityBlock
     ) {
         if (level.isClientSide())
             return null;
-        return type == BlockEntityRegistry.RESIN_WEB_CROSS_BE.get()
-            ? (lvl, pos, st, be) -> ResinWebBlockEntity.serverTick(
-                (ServerLevel) lvl,
-                pos,
-                st,
-                (ResinWebBlockEntity) be
-            )
-            : null;
+        if (type == BlockEntityRegistry.RESIN_WEB_CROSS_BE.get()) {
+            return ResinWebBlockEntity::serverTick;
+        }
+        return null;
     }
 
     @Override
