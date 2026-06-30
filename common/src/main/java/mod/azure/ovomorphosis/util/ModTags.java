@@ -68,6 +68,11 @@ public record ModTags() {
         CommonMod.modResource("runner_host")
     );
 
+    public static final TagKey<EntityType<?>> MOTION_TRACKABLE = TagKey.create(
+        Registries.ENTITY_TYPE,
+        CommonMod.modResource("motion_trackable")
+    );
+
     public static final TagKey<Structure> INFESTABLE_STRUCTURES = TagKey.create(
         Registries.STRUCTURE,
         CommonMod.modResource("infestable_structures")

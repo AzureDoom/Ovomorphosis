@@ -1,0 +1,40 @@
+{
+  "replace": false,
+  "values": [
+    "ovomorphosis:facehugger",
+    "ovomorphosis:chestburster",
+    "ovomorphosis:xenomorph",
+    {
+      "id": "#avp_alien:aliens",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:gigeresqueclassic",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:gigeresqueaqua",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:gigeresquerunners",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:gigeresquemutants",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:gigeresqueneos",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:gigeresquetemplebeasts",
+      "required": false
+    },
+    {
+      "id": "#gigeresque:gigeresquemisc",
+      "required": false
+    }
+  ]
+}
