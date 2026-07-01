@@ -160,7 +160,7 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     public void tick() {
         super.tick();
         if (!this.level().isClientSide()) {
-            if (!this.isNoAi()) {
+            if (!this.isNoAi() || this.getGrowth() < 600) {
                 tickGoalPlanner();
                 brainRuntime.tick();
                 CrawlingMovementManager.updateWallCrawlingPhysics(this);
@@ -370,6 +370,11 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     public void updateAnimations() {
         if (this.isDeadOrDying() || this.getHealth() <= 0) {
             playAnimation(ClientAnimState.DEATH);
+            return;
+        }
+
+        if (this.getGrowth() < 600) {
+            animationDispatcher.clientChrysalispose();
             return;
         }
 
