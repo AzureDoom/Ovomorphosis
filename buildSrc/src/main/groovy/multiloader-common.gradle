@@ -46,8 +46,8 @@ repositories {
             includeGroup "maven.modrinth"
         }
     }
-    maven { url "https://maven.terraformersmc.com/releases" } // modmenu
-    maven { url 'https://maven.azuredoom.com/mods' }
+    maven { url = "https://maven.terraformersmc.com/releases" } // modmenu
+    maven { url = "https://maven.azuredoom.com/mods" }
     maven {
         name = 'Parchment'
         url = 'https://maven.parchmentmc.org'
