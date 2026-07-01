@@ -25,10 +25,10 @@ neoForge {
 }
 
 dependencies {
-    compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
+    compileOnly "org.spongepowered:mixin:0.8.5"
     compileOnly "mod.azure.azurelib:azurelib-common-${minecraft_version}:${azurelib_version}"
-    compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
-    annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
+    compileOnly "io.github.llamalad7:mixinextras-common:0.3.5"
+    annotationProcessor "io.github.llamalad7:mixinextras-common:0.3.5"
     compileOnly "maven.modrinth:gigeresque:0.8.16"
     compileOnly("com.avp.alien:avp_alien-neoforge-1.21.1:0.2.0-alpha.1") {
         exclude group: 'org.slf4j', module: 'slf4j-api'
