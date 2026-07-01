@@ -24,6 +24,7 @@ import mod.azure.ovomorphosis.network.NetworkDispatcher;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
+import mod.azure.ovomorphosis.structuremodifier.StructureModifierManager;
 import mod.azure.ovomorphosis.util.ModTags;
 
 public final class FabricLibMod implements ModInitializer {
@@ -42,6 +43,8 @@ public final class FabricLibMod implements ModInitializer {
                 FabricStructureSpawnPatcher.patch(server);
             }
         });
+        ResourceManagerHelper.get(PackType.SERVER_DATA)
+            .registerReloadListener(StructureModifierManager.INSTANCE);
         FlammableBlockRegistry.getDefaultInstance().add(ModTags.RESIN, 5, 5);
         FabricDefaultAttributeRegistry.register(
             EntityRegistry.OVOMORPH.get(),
