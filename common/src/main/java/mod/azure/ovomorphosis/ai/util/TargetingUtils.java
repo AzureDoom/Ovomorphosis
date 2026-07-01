@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.ai.util;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -145,9 +146,11 @@ public final class TargetingUtils {
     }
 
     public static boolean faceHuggerTest(LivingEntity self, LivingEntity target) {
-        if (target instanceof AmbientCreature) {
+        if (target instanceof AmbientCreature)
             return false;
-        }
+
+        if (target.getType().is(EntityTypeTags.UNDEAD))
+            return false;
 
         if (target instanceof AbstractAlienEntity)
             return false;
