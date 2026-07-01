@@ -111,9 +111,10 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
         this.setFireToleranceNbt(tag.getFloat("fireToleranceNbt"));
     }
 
+    @SuppressWarnings("ConstantValue")
     @Override
     public boolean ovomorphosis$isWallCrawling() {
-        return crawlingManager.isWallCrawling();
+        return crawlingManager != null && crawlingManager.isWallCrawling();
     }
 
     @Override
