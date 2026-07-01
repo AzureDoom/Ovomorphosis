@@ -16,7 +16,7 @@ legacyForge {
 
     validateAccessTransformers = true
 
-    def at = project(':forge').file('src/main/resources/META-INF/accesstransformer.cfg')
+    def at = project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')
     if (at.exists()) {
         accessTransformers.from(at.absolutePath)
     }
@@ -86,6 +86,7 @@ if (keyPropsFile.exists()) {
             requires {
                 slug = "azurelib"
             }
+            javaVersions.add(JavaVersion.VERSION_17)
             client = true
             server = true
         }
