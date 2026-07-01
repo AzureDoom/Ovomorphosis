@@ -61,6 +61,12 @@ public class RunnerAnimationDispatcher {
         AzPlayBehaviors.LOOP
     );
 
+    private final AzCommand chrysalisCommand = AzCommand.create(
+        CommonStrings.BASE_CONTROLLER,
+        "chrysalispose",
+        AzPlayBehaviors.LOOP
+    );
+
     private final RunnerEntity runner;
 
     public RunnerAnimationDispatcher(RunnerEntity runner) {
@@ -89,6 +95,10 @@ public class RunnerAnimationDispatcher {
 
     public void clientInAir() {
         inAirCommand.sendForEntity(runner);
+    }
+
+    public void clientChrysalispose() {
+        chrysalisCommand.sendForEntity(runner);
     }
 
     public void serverAttack() {
