@@ -145,9 +145,11 @@ public final class TargetingUtils {
     }
 
     public static boolean faceHuggerTest(LivingEntity self, LivingEntity target) {
-        if (target instanceof AmbientCreature) {
+        if (target instanceof AmbientCreature)
             return false;
-        }
+
+        if (target.getType().is(ModTags.UNDEAD))
+            return false;
 
         if (target instanceof AbstractAlienEntity)
             return false;

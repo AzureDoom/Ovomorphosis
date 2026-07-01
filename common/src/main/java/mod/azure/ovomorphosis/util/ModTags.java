@@ -73,6 +73,11 @@ public record ModTags() {
         CommonMod.modResource("motion_trackable")
     );
 
+    public static final TagKey<EntityType<?>> UNDEAD = TagKey.create(
+        Registries.ENTITY_TYPE,
+        CommonMod.modResource("undead")
+    );
+
     public static final TagKey<Structure> INFESTABLE_STRUCTURES = TagKey.create(
         Registries.STRUCTURE,
         CommonMod.modResource("infestable_structures")
