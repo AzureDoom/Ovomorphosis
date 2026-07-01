@@ -19,6 +19,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.*;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -154,6 +155,33 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     public boolean killedEntity(@NotNull ServerLevel level, @NotNull LivingEntity entity) {
         targetSelector.onTargetKilled();
         return super.killedEntity(level, entity);
+    }
+
+    @Override
+    public @NotNull AABB makeBoundingBox() {
+        var pos = this.position();
+        float height;
+        double halfX, halfZ;
+
+        if (this.ovomorphosis$isWallCrawling()) {
+            float scale = this.getGrowthScale();
+            halfX = halfZ = (0.6F * scale) / 2.0;
+            height = 0.6F * scale;
+        } else {
+            float scale = this.getGrowthScale();
+            halfX = (1.4 * scale) / 2.0;
+            halfZ = (0.6 * scale) / 2.0;
+            height = this.getDimensions(Pose.STANDING).height;
+        }
+
+        return new AABB(
+            pos.x - halfX,
+            pos.y,
+            pos.z - halfZ,
+            pos.x + halfX,
+            pos.y + height,
+            pos.z + halfZ
+        );
     }
 
     @Override
