@@ -60,7 +60,7 @@ public class EntityRegistry {
         MobCategory.MONSTER,
         0.9f,
         1.75f,
-        true
+        false
     );
 
     public static final Supplier<EntityType<AcidEntity>> ACID = registerEntity(
