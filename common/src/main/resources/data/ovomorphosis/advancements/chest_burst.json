@@ -1,7 +1,7 @@
 {
   "display": {
     "icon": {
-      "id": "minecraft:egg"
+      "item": "minecraft:egg"
     },
     "title": {
       "translate": "advancements.ovomorphosis.chestbursted.title"

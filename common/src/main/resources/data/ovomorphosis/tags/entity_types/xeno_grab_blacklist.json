@@ -4,9 +4,6 @@
     "minecraft:shulker",
     "minecraft:ghast",
     "minecraft:iron_golem",
-    "minecraft:breeze",
-    "minecraft:armadillo",
-    "minecraft:bogged",
     "minecraft:wither",
     {
       "id": "#avp_alien:aliens",
