@@ -66,6 +66,7 @@ if (keyPropsFile.exists()) {
             requires {
                 slug = "azurelib"
             }
+            javaVersions.add(JavaVersion.VERSION_21)
             client = true
             server = true
         }
