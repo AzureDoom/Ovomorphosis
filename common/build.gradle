@@ -7,7 +7,7 @@ plugins {
 neoForge {
     neoFormVersion = "${neoform_version}"
 
-    accessTransformers = ["../neoforge/src/main/resources/META-INF/accesstransformer.cfg"]
+    accessTransformers = ["../common/src/main/resources/META-INF/accesstransformer.cfg"]
 
     parchment {
         minecraftVersion = "${parchment_minecraft}"
