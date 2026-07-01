@@ -1,7 +1,6 @@
 package mod.azure.ovomorphosis.ai.util;
 
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ambient.AmbientCreature;
 import net.minecraft.world.entity.animal.AbstractFish;
 import net.minecraft.world.phys.AABB;
 
@@ -9,7 +8,6 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
-import mod.azure.ovomorphosis.util.ModTags;
 
 public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> implements TargetSelector<E> {
 
@@ -55,11 +53,7 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
     }
 
     private boolean isValidCandidateFullRange(E mob, LivingEntity candidate) {
-        if (candidate instanceof AmbientCreature)
-            return false;
         if (candidate instanceof AbstractAlienEntity)
-            return false;
-        if (candidate.getType().is(ModTags.FACEHUGGER_BLACKLIST))
             return false;
         if (hasOtherFacehuggerPassenger(mob, candidate))
             return false;
@@ -67,8 +61,7 @@ public final class FacehuggerHostileTargetSelector<E extends FacehuggerEntity> i
             return false;
         if (candidate instanceof AbstractFish)
             return false;
-        return TargetingUtils.baseValid(mob).test(candidate)
-            && TargetingUtils.notAnnoyingMobs().test(candidate)
+        return TargetingUtils.faceHuggerTest(mob, candidate)
             && mob.distanceToSqr(candidate) <= range * range;
     }
 
