@@ -4,6 +4,7 @@
     "ovomorphosis:facehugger",
     "ovomorphosis:chestburster",
     "ovomorphosis:xenomorph",
+    "ovomorphosis:runner",
     {
       "id": "#avp_alien:aliens",
       "required": false
