@@ -14,6 +14,7 @@ import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.*;
+import mod.azure.ovomorphosis.level.TunnelEntryRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
 public final class MoveToTargetAction<E extends Mob> implements Action<E> {
@@ -46,13 +47,25 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
     private int repathCooldown = 0;
 
-    /**
-     * Tracks how many ticks the mob has been moving without closing distance to the target. Unlike stuckTicks, this
-     * fires even when the mob is sliding laterally along a wall — the key signal for proactive wall-breaking.
-     */
     private double lastDistSqToTarget = Double.MAX_VALUE;
 
     private int noProgressTicks = 0;
+
+    private final PathNodeCache nodeCache = new PathNodeCache();
+
+    private BlockPos cachedTunnelEntry = null;
+
+    private BlockPos tunnelScanOrigin = null;
+
+    private int tunnelRescanCooldown = 0;
+
+    private static final int TUNNEL_RESCAN_TICKS = 20;
+
+    private static final int TUNNEL_SCAN_RADIUS = 32;
+
+    private static final int TUNNEL_SCAN_MIN_DY = -3;
+
+    private static final int TUNNEL_SCAN_MAX_DY = 1;
 
     public MoveToTargetAction(
         double stopDistance,
@@ -81,10 +94,16 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         repathCooldown = 0;
         lastDistSqToTarget = Double.MAX_VALUE;
         noProgressTicks = 0;
+        nodeCache.clear();
+        cachedTunnelEntry = null;
+        tunnelScanOrigin = null;
+        tunnelRescanCooldown = 0;
     }
 
     @Override
     public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+        nodeCache.clear();
+
         if (mob.getHealth() <= 0) {
             mob.setAggressive(false);
             return ActionStatus.INTERRUPTED;
@@ -157,19 +176,19 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         var mobIsInOrAtTunnel = canCrawl
-            && (CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.below())
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.above())
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos)
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below()));
+            && (nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
+                || nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeetPos.below())
+                || nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeetPos.above())
+                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos)
+                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below()));
 
         var nextWaypointIsTunnel = false;
         if (canCrawl && !path.isEmpty() && pathIndex < path.size()) {
             for (var li = pathIndex; li < Math.min(path.size(), pathIndex + 3); li++) {
                 var la = path.get(li);
                 if (
-                    CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                    nodeCache.tunnelCanStandAt(mob.level(), mob, la)
+                        || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, la)
                 ) {
                     nextWaypointIsTunnel = true;
                     break;
@@ -218,12 +237,26 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             var fluidGoalRadius = feetOrBelowInFluid ? 2 : 0;
 
             if (canCrawl) {
-                path = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, fluidGoalRadius);
+                path = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, fluidGoalRadius, nodeCache);
                 if (path.isEmpty() && nearbyTunnelEntry != null && !nearbyTunnelEntry.equals(crawlGoal)) {
-                    path = CrawlingCustomAStar.findPath(mob, pathStart, nearbyTunnelEntry, 96, fluidGoalRadius);
+                    path = CrawlingCustomAStar.findPath(
+                        mob,
+                        pathStart,
+                        nearbyTunnelEntry,
+                        96,
+                        fluidGoalRadius,
+                        nodeCache
+                    );
                 }
                 if (path.isEmpty()) {
-                    path = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, Math.max(fluidGoalRadius, 1));
+                    path = CrawlingCustomAStar.findPath(
+                        mob,
+                        pathStart,
+                        crawlGoal,
+                        96,
+                        Math.max(fluidGoalRadius, 1),
+                        nodeCache
+                    );
                 }
                 if (path.isEmpty()) {
                     path = CustomAStar.findPath(
@@ -265,18 +298,18 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 var waypointCenter = Vec3.atBottomCenterOf(waypointBlock);
 
                 var waypointIsTightPassage =
-                    CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock)
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock)
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
+                    nodeCache.tunnelCanStandAt(mob.level(), mob, waypointBlock)
+                        || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock)
+                        || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                        || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
 
                 var approachingTunnel = waypointIsTightPassage;
                 if (!approachingTunnel) {
                     for (var lookahead = pathIndex; lookahead < Math.min(path.size(), pathIndex + 4); lookahead++) {
                         var la = path.get(lookahead);
                         if (
-                            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                            nodeCache.tunnelCanStandAt(mob.level(), mob, la)
+                                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, la)
                         ) {
                             approachingTunnel = true;
                             break;
@@ -289,8 +322,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     for (var lookahead = pathIndex; lookahead < Math.min(path.size(), pathIndex + 4); lookahead++) {
                         var la = path.get(lookahead);
                         if (
-                            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                            nodeCache.tunnelCanStandAt(mob.level(), mob, la)
+                                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, la)
                         ) {
                             tunnelTargetBlock = la;
                             break;
@@ -463,12 +496,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         var waypointIsVerticalShaft =
-            CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock);
+            nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock);
 
         var waypointLeadsIntoVerticalShaft =
             waypointIsVerticalShaft
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
+                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
 
         var mobFeet = BlockPos.containing(
             mob.getX(),
@@ -541,7 +574,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         if (waypointLeadsIntoVerticalShaft && target.getY() < mob.getY() - 0.75D) {
             var shaftBlock = waypointIsVerticalShaft
                 ? waypointBlock
-                : CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                : nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
                     ? waypointBlock.below()
                     : waypointBlock.below(2);
 
@@ -585,16 +618,16 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         var waypointIsTunnel =
-            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock);
+            nodeCache.tunnelCanStandAt(mob.level(), mob, waypointBlock);
 
         var mobIsInTunnel =
-            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet)
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below())
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.above())
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below(2))
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet)
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below())
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below(2));
+            nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeet)
+                || nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeet.below())
+                || nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeet.above())
+                || nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeet.below(2))
+                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet)
+                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below())
+                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below(2));
 
         if (waypointIsTunnel || mobIsInTunnel) {
             var horizontal = new Vec3(direction.x, 0.0D, direction.z);
@@ -653,8 +686,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             }
         }
 
-        var waypointIsGroundOnly = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
-            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
+        var waypointIsGroundOnly = nodeCache.canStandAt(mob.level(), mob, waypointBlock)
+            && !nodeCache.isSafeClimbNode(mob.level(), waypointBlock)
             && waypointBlock.getY() <= mobFeet.getY();
         var canAttachToWall = shouldUseCrawlingNow
             && !waypointIsGroundOnly
@@ -873,7 +906,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     stuckTicks = 0;
                     repathCooldown = 0;
                     faceTarget(mob, target);
-                    return; // skip detours — let BreakToTargetAction handle it
+                    return;
                 }
             }
 
@@ -1036,8 +1069,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var yError = waypointCenter.y - mob.getY();
 
         var level = mob.level();
-        var isTunnel = CrawlingCustomAStar.tunnelCanStandAt(level, mob, waypoint);
-        var isVerticalShaft = CrawlingCustomAStar.verticalShaftCanCrawlAt(level, mob, waypoint);
+        var isTunnel = nodeCache.tunnelCanStandAt(level, mob, waypoint);
+        var isVerticalShaft = nodeCache.verticalShaftCanCrawlAt(level, mob, waypoint);
 
         if (isVerticalShaft) {
             var shaftRadius = 0.40D;
@@ -1315,29 +1348,24 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 targetPos.offset(8, 1, 8)
             )
         ) {
-            var reachable =
-                CustomAStar.canStandAt(level, mob, pos)
-                    || CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos)
-                    || CrawlingCustomAStar.verticalShaftCanCrawlAt(level, mob, pos);
+            var isTunnelish =
+                nodeCache.tunnelCanStandAt(level, mob, pos)
+                    || nodeCache.verticalShaftCanCrawlAt(level, mob, pos);
 
-            if (!reachable) {
+            if (!isTunnelish && !nodeCache.canStandAt(level, mob, pos)) {
                 continue;
             }
-
-            var isTunnelish =
-                CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos)
-                    || CrawlingCustomAStar.verticalShaftCanCrawlAt(level, mob, pos);
 
             if (!isTunnelish && !hasClearPathToTarget(mob, target, pos)) {
                 continue;
             }
 
             var nearTunnel =
-                CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos)
-                    || CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos.north())
-                    || CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos.south())
-                    || CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos.east())
-                    || CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos.west());
+                isTunnelish
+                    || nodeCache.tunnelCanStandAt(level, mob, pos.north())
+                    || nodeCache.tunnelCanStandAt(level, mob, pos.south())
+                    || nodeCache.tunnelCanStandAt(level, mob, pos.east())
+                    || nodeCache.tunnelCanStandAt(level, mob, pos.west());
 
             var score =
                 pos.distSqr(targetPos)
@@ -1372,34 +1400,106 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         return hit.getType() == HitResult.Type.MISS;
     }
 
+    /**
+     * Returns the nearest tunnel entry the mob could use, or {@code null}.
+     * <p>
+     * Cost tiers, cheapest first: (1) the cached result from a recent scan, revalidated with two checks; (2) the
+     * {@link TunnelEntryRegistry} — a few chunk-bucket lookups over known entries; (3) a full expanding-ring world
+     * scan, at most once every {@value #TUNNEL_RESCAN_TICKS} ticks. The old implementation ran tier 3 over the entire
+     * 65x5x65 volume (~21k positions) every single tick.
+     */
     private BlockPos findNearbyTunnelEntry(E mob) {
         var level = mob.level();
         var origin = mob.blockPosition();
 
-        BlockPos best = null;
-        double bestDist = Double.MAX_VALUE;
+        if (tunnelRescanCooldown > 0 && tunnelScanOrigin != null && origin.distSqr(tunnelScanOrigin) <= 16.0D) {
+            tunnelRescanCooldown--;
 
-        for (
-            var pos : BlockPos.betweenClosed(
-                origin.offset(-32, -3, -32),
-                origin.offset(32, 1, 32)
-            )
-        ) {
-            if (
-                !CrawlingCustomAStar.tunnelCanStandAt(level, mob, pos)
-                    && !CrawlingCustomAStar.verticalShaftCanCrawlAt(level, mob, pos)
-            ) {
-                continue;
+            if (cachedTunnelEntry == null) {
+                return null;
             }
 
-            var dist = pos.distSqr(origin);
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = pos.immutable();
+            if (
+                nodeCache.tunnelCanStandAt(level, mob, cachedTunnelEntry)
+                    || nodeCache.verticalShaftCanCrawlAt(level, mob, cachedTunnelEntry)
+            ) {
+                return cachedTunnelEntry;
+            }
+
+            TunnelEntryRegistry.unregister(level, cachedTunnelEntry);
+        }
+
+        tunnelScanOrigin = origin;
+        tunnelRescanCooldown = TUNNEL_RESCAN_TICKS;
+
+        var known = TunnelEntryRegistry.findNearestValid(
+            level,
+            mob,
+            origin,
+            TUNNEL_SCAN_RADIUS,
+            TUNNEL_SCAN_MIN_DY,
+            TUNNEL_SCAN_MAX_DY,
+            nodeCache
+        );
+        if (known != null) {
+            cachedTunnelEntry = known;
+            return known;
+        }
+
+        cachedTunnelEntry = scanForTunnelEntry(mob, origin);
+        return cachedTunnelEntry;
+    }
+
+    /**
+     * Expanding-square-ring scan for the nearest tunnel entry. The first ring containing a hit holds the nearest entry
+     * (to within ring granularity), so the common cases — an entry close by, or open terrain rejected cheaply by the
+     * reordered {@code tunnelCanStandAt} — terminate after a small fraction of the full volume. Every hit is registered
+     * so future lookups (by this mob or any other) resolve from the registry instead.
+     */
+    private BlockPos scanForTunnelEntry(E mob, BlockPos origin) {
+        var level = mob.level();
+        var cursor = new BlockPos.MutableBlockPos();
+
+        for (var r = 0; r <= TUNNEL_SCAN_RADIUS; r++) {
+            BlockPos best = null;
+            var bestDist = Double.MAX_VALUE;
+
+            for (var dx = -r; dx <= r; dx++) {
+                var onXEdge = Math.abs(dx) == r;
+
+                for (var dz = -r; dz <= r; dz++) {
+                    if (!onXEdge && Math.abs(dz) != r) {
+                        continue;
+                    }
+
+                    for (var dy = TUNNEL_SCAN_MIN_DY; dy <= TUNNEL_SCAN_MAX_DY; dy++) {
+                        cursor.setWithOffset(origin, dx, dy, dz);
+
+                        if (
+                            !nodeCache.tunnelCanStandAt(level, mob, cursor)
+                                && !nodeCache.verticalShaftCanCrawlAt(level, mob, cursor)
+                        ) {
+                            continue;
+                        }
+
+                        var hit = cursor.immutable();
+                        TunnelEntryRegistry.register(level, hit);
+
+                        var dist = hit.distSqr(origin);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            best = hit;
+                        }
+                    }
+                }
+            }
+
+            if (best != null) {
+                return best;
             }
         }
 
-        return best;
+        return null;
     }
 
     private boolean needsCrawlStepUp(E mob, BlockPos waypointBlock, BlockPos mobFeet) {
@@ -1493,7 +1593,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             var dy = to.getY() - from.getY();
 
             if (dy < 2) {
-                continue; // normal step or flat — ignore
+                continue;
             }
 
             for (var wallY = from.getY() + 1; wallY < to.getY(); wallY++) {
@@ -1501,7 +1601,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 if (canBreakPathBlock(mob, candidate)) {
                     blackboard.set(AiKeys.BREAK_TO_TARGET_SCAN, candidate);
                     blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
-                    return; // only queue one block at a time
+                    return;
                 }
             }
         }

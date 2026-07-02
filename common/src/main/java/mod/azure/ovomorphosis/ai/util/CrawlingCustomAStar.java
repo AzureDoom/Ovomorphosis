@@ -18,6 +18,23 @@ import mod.azure.ovomorphosis.CommonMod;
 public class CrawlingCustomAStar extends CustomAStar {
 
     public static List<BlockPos> findPath(Mob mob, BlockPos start, BlockPos goal, int maxRange, int goalRadius) {
+        return findPath(mob, start, goal, maxRange, goalRadius, new PathNodeCache());
+    }
+
+    /**
+     * Variant taking the caller's {@link PathNodeCache}. A* revisits the same positions constantly (each block is a
+     * neighbor of up to four expanded nodes, then re-classified again in {@code movementCost}); the cache collapses
+     * those repeats. Callers that run a pathfind inside a larger per-tick scope should pass their per-tick cache so
+     * warm entries are shared.
+     */
+    public static List<BlockPos> findPath(
+        Mob mob,
+        BlockPos start,
+        BlockPos goal,
+        int maxRange,
+        int goalRadius,
+        PathNodeCache cache
+    ) {
         var level = mob.level();
 
         var open = new PriorityQueue<>(Comparator.comparingDouble(Node::f));
@@ -50,12 +67,12 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
 
             if (isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)) {
-                var fullPath = filterTransitionNodes(reconstruct(current), level, mob);
+                var fullPath = filterTransitionNodes(reconstruct(current), level, mob, cache);
                 debugParticlePath(mob, fullPath, true);
                 return fullPath;
             }
 
-            for (var next : neighbors(level, mob, current.pos(), goalFeet)) {
+            for (var next : neighbors(level, mob, current.pos(), goalFeet, cache)) {
 
                 if (closed.contains(next)) {
                     continue;
@@ -65,7 +82,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                     continue;
                 }
 
-                var stepCost = movementCost(level, mob, current.pos(), next);
+                var stepCost = movementCost(level, mob, current.pos(), next, cache);
 
                 if (stepCost >= 9999.0D) {
                     continue;
@@ -82,7 +99,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
         if (bestPartial != null && bestPartial.parent() != null) {
-            var partialPath = filterTransitionNodes(reconstruct(bestPartial), level, mob);
+            var partialPath = filterTransitionNodes(reconstruct(bestPartial), level, mob, cache);
             debugParticlePath(mob, partialPath, false);
             return partialPath;
         }
@@ -90,15 +107,20 @@ public class CrawlingCustomAStar extends CustomAStar {
         return Collections.emptyList();
     }
 
-    private static List<BlockPos> filterTransitionNodes(List<BlockPos> path, Level level, Mob mob) {
+    private static List<BlockPos> filterTransitionNodes(
+        List<BlockPos> path,
+        Level level,
+        Mob mob,
+        PathNodeCache cache
+    ) {
         if (path.size() <= 2)
             return path;
         var filtered = new ArrayList<BlockPos>();
         for (var i = 0; i < path.size(); i++) {
             var pos = path.get(i);
-            var isWalk = canStandAt(level, mob, pos);
-            var isClimb = MovementUtils.isSafeClimbNode(level, pos);
-            var isTunnel = tunnelCanStandAt(level, mob, pos);
+            var isWalk = cache.canStandAt(level, mob, pos);
+            var isClimb = cache.isSafeClimbNode(level, pos);
+            var isTunnel = cache.tunnelCanStandAt(level, mob, pos);
             var isFluid = !level.getBlockState(pos).getFluidState().isEmpty();
             if (i == path.size() - 1 || isWalk || isClimb || isTunnel || isFluid) {
                 filtered.add(pos);
@@ -169,6 +191,10 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     public static List<BlockPos> neighbors(Level level, Mob mob, BlockPos pos, BlockPos goal) {
+        return neighbors(level, mob, pos, goal, new PathNodeCache());
+    }
+
+    public static List<BlockPos> neighbors(Level level, Mob mob, BlockPos pos, BlockPos goal, PathNodeCache cache) {
         List<BlockPos> result = new ArrayList<>();
         var goalIsBelow = goal.getY() < pos.getY() - 1;
 
@@ -182,27 +208,27 @@ public class CrawlingCustomAStar extends CustomAStar {
         for (var dir : dirs) {
             var base = pos.offset(dir[0], 0, dir[1]);
 
-            tryAddWalk(level, mob, result, base);
+            tryAddWalk(level, mob, result, base, cache);
             tryAddFluid(level, mob, result, base);
 
             if (!goalIsBelow) {
-                tryAddWalk(level, mob, result, base.above());
+                tryAddWalk(level, mob, result, base.above(), cache);
                 tryAddFluid(level, mob, result, base.above());
             }
 
             for (var drop = 1; drop <= 3; drop++) {
-                tryAddWalk(level, mob, result, base.below(drop));
+                tryAddWalk(level, mob, result, base.below(drop), cache);
                 tryAddFluid(level, mob, result, base.below(drop));
             }
 
-            tryAddTunnelWalk(level, mob, result, base);
+            tryAddTunnelWalk(level, mob, result, base, cache);
 
             if (!goalIsBelow) {
-                tryAddTunnelWalk(level, mob, result, base.above());
+                tryAddTunnelWalk(level, mob, result, base.above(), cache);
             }
 
             for (var drop = 1; drop <= 3; drop++) {
-                tryAddTunnelWalk(level, mob, result, base.below(drop));
+                tryAddTunnelWalk(level, mob, result, base.below(drop), cache);
             }
         }
 
@@ -210,14 +236,14 @@ public class CrawlingCustomAStar extends CustomAStar {
             var candidate = pos.below(drop);
             if (!level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty())
                 break;
-            if (tunnelCanStandAt(level, mob, candidate) && !result.contains(candidate)) {
+            if (cache.tunnelCanStandAt(level, mob, candidate) && !result.contains(candidate)) {
                 result.add(candidate);
                 break;
             }
         }
 
         if (MovementUtils.canWallCrawl(mob)) {
-            var posIsTunnel = tunnelCanStandAt(level, mob, pos);
+            var posIsTunnel = cache.tunnelCanStandAt(level, mob, pos);
             for (var dir : Direction.values()) {
                 var next = pos.relative(dir);
 
@@ -225,11 +251,11 @@ public class CrawlingCustomAStar extends CustomAStar {
                     continue;
                 }
 
-                if (posIsTunnel && next.getY() > pos.getY() && !tunnelCanStandAt(level, mob, next)) {
+                if (posIsTunnel && next.getY() > pos.getY() && !cache.tunnelCanStandAt(level, mob, next)) {
                     continue;
                 }
 
-                tryAddClimb(level, mob, result, next);
+                tryAddClimb(level, mob, result, next, cache);
             }
 
             int[][] hDirs = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
@@ -238,8 +264,8 @@ public class CrawlingCustomAStar extends CustomAStar {
                 for (var rise = 1; rise <= 4; rise++) {
                     var candidate = pos.above(rise);
                     if (
-                        MovementUtils.isSafeClimbNode(level, candidate)
-                            && hasClimbClearance(level, mob, candidate)
+                        cache.isSafeClimbNode(level, candidate)
+                            && hasClimbClearance(level, mob, candidate, cache)
                     ) {
                         result.add(candidate);
                         break;
@@ -251,8 +277,8 @@ public class CrawlingCustomAStar extends CustomAStar {
                     for (var rise = 1; rise <= 4; rise++) {
                         var candidate = side.above(rise);
                         if (
-                            MovementUtils.isSafeClimbNode(level, candidate)
-                                && hasClimbClearance(level, mob, candidate)
+                            cache.isSafeClimbNode(level, candidate)
+                                && hasClimbClearance(level, mob, candidate, cache)
                         ) {
                             result.add(candidate);
                             break;
@@ -266,7 +292,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                 for (var drop = 1; drop <= 6; drop++) {
                     var candidate = side.below(drop);
                     if (
-                        MovementUtils.isSafeClimbNode(level, candidate) && hasClimbClearance(level, mob, candidate)
+                        cache.isSafeClimbNode(level, candidate) && hasClimbClearance(level, mob, candidate, cache)
                     ) {
                         result.add(candidate);
                         break;
@@ -291,8 +317,14 @@ public class CrawlingCustomAStar extends CustomAStar {
             result.add(feet);
     }
 
-    private static void tryAddTunnelWalk(Level level, Mob mob, List<BlockPos> result, BlockPos feet) {
-        if (!result.contains(feet) && tunnelCanStandAt(level, mob, feet)) {
+    private static void tryAddTunnelWalk(
+        Level level,
+        Mob mob,
+        List<BlockPos> result,
+        BlockPos feet,
+        PathNodeCache cache
+    ) {
+        if (!result.contains(feet) && cache.tunnelCanStandAt(level, mob, feet)) {
             result.add(feet);
         }
     }
@@ -314,9 +346,23 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     public static boolean tunnelCanStandAt(Level level, Mob mob, BlockPos feet) {
+        return tunnelCanStandAt(level, mob, feet, null);
+    }
+
+    /**
+     * Variant taking an optional {@link PathNodeCache} to memoize the solidity lookups shared with neighboring
+     * candidates. Checks are ordered cheapest-rejection-first: feet passability (1 query), then ground solidity (1
+     * query — rejects the huge open-air case before paying for the ~9-query tight-tunnel test), then confinement,
+     * clearance, and finally the AABB collision sweep.
+     */
+    public static boolean tunnelCanStandAt(Level level, Mob mob, BlockPos feet, PathNodeCache cache) {
         if (!isPassableForCrawl(level, feet))
             return false;
-        if (!isTightTunnel(level, feet))
+
+        if (!solidAt(level, feet.below(), cache))
+            return false;
+
+        if (!isTightTunnel(level, feet, cache))
             return false;
 
         var crawlHeight = getEffectiveCrawlHeight(mob);
@@ -334,10 +380,6 @@ public class CrawlingCustomAStar extends CustomAStar {
             )
                 return false;
         }
-
-        var groundBlock = feet.below();
-        if (!isPhysicallySolid(level, groundBlock))
-            return false;
 
         var testHalfW = 0.3D;
         var mobBox = new AABB(
@@ -360,25 +402,29 @@ public class CrawlingCustomAStar extends CustomAStar {
         return dx + dz + yPenalty + tieBreak;
     }
 
-    private static void tryAddWalk(Level level, Mob mob, List<BlockPos> result, BlockPos feet) {
-        if (canStandAt(level, mob, feet)) {
+    private static void tryAddWalk(Level level, Mob mob, List<BlockPos> result, BlockPos feet, PathNodeCache cache) {
+        if (cache.canStandAt(level, mob, feet)) {
             result.add(feet);
         }
     }
 
-    private static void tryAddClimb(Level level, Mob mob, List<BlockPos> result, BlockPos feet) {
-        if (MovementUtils.isSafeClimbNode(level, feet) && hasClimbClearance(level, mob, feet)) {
+    private static void tryAddClimb(Level level, Mob mob, List<BlockPos> result, BlockPos feet, PathNodeCache cache) {
+        if (cache.isSafeClimbNode(level, feet) && hasClimbClearance(level, mob, feet, cache)) {
             result.add(feet);
         }
     }
 
     private static boolean hasClimbClearance(Level level, Mob mob, BlockPos feet) {
+        return hasClimbClearance(level, mob, feet, null);
+    }
+
+    private static boolean hasClimbClearance(Level level, Mob mob, BlockPos feet, PathNodeCache cache) {
         var below = feet.below();
         var belowShape = level.getBlockState(below).getCollisionShape(level, below);
         var belowTopY = belowShape.isEmpty() ? 0.0D : belowShape.max(Direction.Axis.Y);
         var bottomY = feet.getY() + belowTopY;
 
-        var tight = isTightTunnel(level, feet);
+        var tight = isTightTunnel(level, feet, cache);
         var fullHalfW = mob.getBbWidth() / 2.0D;
         var testHalfW = tight ? Math.min(fullHalfW, 0.35D) : Math.min(fullHalfW, 0.3D);
         var testHeight = tight ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
@@ -398,21 +444,30 @@ public class CrawlingCustomAStar extends CustomAStar {
      * Returns true if the block is physically solid for pathfinding purposes — has a non-empty collision shape. Blocks
      * like grass, flowers, and carpet return false here even though they are not air.
      */
-    private static boolean isPhysicallySolid(Level level, BlockPos pos) {
+    public static boolean isPhysicallySolid(Level level, BlockPos pos) {
         return !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
     }
 
+    /** Routes a solidity check through the cache when one is available. */
+    private static boolean solidAt(Level level, BlockPos pos, PathNodeCache cache) {
+        return cache != null ? cache.isPhysicallySolid(level, pos) : isPhysicallySolid(level, pos);
+    }
+
     public static boolean isTightTunnel(Level level, BlockPos pos) {
+        return isTightTunnel(level, pos, null);
+    }
+
+    public static boolean isTightTunnel(Level level, BlockPos pos, PathNodeCache cache) {
         var head = pos.above();
 
-        var eastFeet = isPhysicallySolid(level, pos.east());
-        var westFeet = isPhysicallySolid(level, pos.west());
-        var eastHead = isPhysicallySolid(level, head.east());
-        var westHead = isPhysicallySolid(level, head.west());
-        var northFeet = isPhysicallySolid(level, pos.north());
-        var southFeet = isPhysicallySolid(level, pos.south());
-        var northHead = isPhysicallySolid(level, head.north());
-        var southHead = isPhysicallySolid(level, head.south());
+        var eastFeet = solidAt(level, pos.east(), cache);
+        var westFeet = solidAt(level, pos.west(), cache);
+        var eastHead = solidAt(level, head.east(), cache);
+        var westHead = solidAt(level, head.west(), cache);
+        var northFeet = solidAt(level, pos.north(), cache);
+        var southFeet = solidAt(level, pos.south(), cache);
+        var northHead = solidAt(level, head.north(), cache);
+        var southHead = solidAt(level, head.south(), cache);
 
         var confinedX = (eastFeet || eastHead) && (westFeet || westHead);
         var confinedZ = (northFeet || northHead) && (southFeet || southHead);
@@ -429,6 +484,10 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     public static double movementCost(Level level, Mob mob, BlockPos from, BlockPos to) {
+        return movementCost(level, mob, from, to, new PathNodeCache());
+    }
+
+    public static double movementCost(Level level, Mob mob, BlockPos from, BlockPos to, PathNodeCache cache) {
         if (!MovementUtils.isSafeBlock(level, to)) {
             return 9999.0D;
         }
@@ -439,10 +498,10 @@ public class CrawlingCustomAStar extends CustomAStar {
             return 9999.0D;
         }
 
-        var toIsWalkable = canStandAt(level, mob, to);
-        var toIsTunnelWalk = !toIsWalkable && (tunnelCanStandAt(level, mob, to)
-            || (isTightTunnel(level, to) && canStandAtCrawlSize(level, mob, to)));
-        var toIsClimbable = MovementUtils.isSafeClimbNode(level, to);
+        var toIsWalkable = cache.canStandAt(level, mob, to);
+        var toIsTunnelWalk = !toIsWalkable && (cache.tunnelCanStandAt(level, mob, to)
+            || (isTightTunnel(level, to, cache) && canStandAtCrawlSize(level, mob, to)));
+        var toIsClimbable = cache.isSafeClimbNode(level, to);
 
         var toIsFluid = !level.getBlockState(to).getFluidState().isEmpty()
             && MovementUtils.isSafeBlock(level, to);
@@ -453,7 +512,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         if (toIsClimbable && !toIsWalkable && !toIsTunnelWalk) {
             var halfW = mob.getBbWidth() / 2.0D;
             var testHalfW = Math.min(halfW, 0.3D);
-            var testHeight = isTightTunnel(level, to) ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
+            var testHeight = isTightTunnel(level, to, cache) ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
             var belowTo = to.below();
             var belowShape = level.getBlockState(belowTo).getCollisionShape(level, belowTo);
             var belowTopY = belowShape.isEmpty() ? 0.0D : belowShape.max(Direction.Axis.Y);
@@ -518,7 +577,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
 
-        if (!toIsFluid && !hasTransitionClearance(level, mob, from, to)) {
+        if (!toIsFluid && !hasTransitionClearance(level, mob, from, to, cache)) {
             return 9999.0D;
         }
 
@@ -526,6 +585,10 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     public static boolean verticalShaftCanCrawlAt(Level level, Mob mob, BlockPos feet) {
+        return verticalShaftCanCrawlAt(level, mob, feet, null);
+    }
+
+    public static boolean verticalShaftCanCrawlAt(Level level, Mob mob, BlockPos feet, PathNodeCache cache) {
         var crawlHeight = getEffectiveCrawlHeight(mob);
         var blocksOccupied = Math.max(1, (int) Math.ceil(crawlHeight));
 
@@ -542,10 +605,10 @@ public class CrawlingCustomAStar extends CustomAStar {
         var head = feet.above();
 
         var hasSideWall =
-            isPhysicallySolid(level, feet.east()) || isPhysicallySolid(level, feet.west())
-                || isPhysicallySolid(level, feet.north()) || isPhysicallySolid(level, feet.south())
-                || isPhysicallySolid(level, head.east()) || isPhysicallySolid(level, head.west())
-                || isPhysicallySolid(level, head.north()) || isPhysicallySolid(level, head.south());
+            solidAt(level, feet.east(), cache) || solidAt(level, feet.west(), cache)
+                || solidAt(level, feet.north(), cache) || solidAt(level, feet.south(), cache)
+                || solidAt(level, head.east(), cache) || solidAt(level, head.west(), cache)
+                || solidAt(level, head.north(), cache) || solidAt(level, head.south(), cache);
 
         if (!hasSideWall)
             return false;
@@ -602,7 +665,13 @@ public class CrawlingCustomAStar extends CustomAStar {
         return true;
     }
 
-    private static boolean hasTransitionClearance(Level level, Mob mob, BlockPos from, BlockPos to) {
+    private static boolean hasTransitionClearance(
+        Level level,
+        Mob mob,
+        BlockPos from,
+        BlockPos to,
+        PathNodeCache cache
+    ) {
         var fromCenter = Vec3.atBottomCenterOf(from);
         var toCenter = Vec3.atBottomCenterOf(to);
 
@@ -611,8 +680,8 @@ public class CrawlingCustomAStar extends CustomAStar {
         var dy = to.getY() - from.getY();
 
         if (dy > 0) {
-            var toIsClimb = MovementUtils.isSafeClimbNode(level, to);
-            var fromIsClimb = MovementUtils.isSafeClimbNode(level, from);
+            var toIsClimb = cache.isSafeClimbNode(level, to);
+            var fromIsClimb = cache.isSafeClimbNode(level, from);
             var sweepOriginX = (toIsClimb && !fromIsClimb) ? toCenter.x : fromCenter.x;
             var sweepOriginZ = (toIsClimb && !fromIsClimb) ? toCenter.z : fromCenter.z;
 

@@ -8,6 +8,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
@@ -85,12 +86,14 @@ public class CustomAStar {
 
             if (isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)) {
                 var path = reconstruct(current);
-                for (var i = 0; i < path.size() - 1; i++) {
-                    var segFrom = Vec3.atCenterOf(path.get(i));
-                    var segTo = Vec3.atCenterOf(path.get(i + 1));
-                    AiDebugUtils.sendParticlePath(mob, segFrom, segTo);
+                if (CommonMod.getConfig().enablePathfindingDebug) {
+                    for (var i = 0; i < path.size() - 1; i++) {
+                        var segFrom = Vec3.atCenterOf(path.get(i));
+                        var segTo = Vec3.atCenterOf(path.get(i + 1));
+                        AiDebugUtils.sendParticlePath(mob, segFrom, segTo);
+                    }
                 }
-                return reconstruct(current);
+                return path;
             }
 
             for (var next : neighbors(level, mob, current.pos())) {
@@ -121,8 +124,10 @@ public class CustomAStar {
         }
         if (bestPartial != null && bestPartial.parent() != null) {
             var path = reconstruct(bestPartial);
-            for (var i = 0; i < path.size() - 1; i++) {
-                AiDebugUtils.sendParticlePath(mob, Vec3.atCenterOf(path.get(i)), Vec3.atCenterOf(path.get(i + 1)));
+            if (CommonMod.getConfig().enablePathfindingDebug) {
+                for (var i = 0; i < path.size() - 1; i++) {
+                    AiDebugUtils.sendParticlePath(mob, Vec3.atCenterOf(path.get(i)), Vec3.atCenterOf(path.get(i + 1)));
+                }
             }
             return path;
         }
