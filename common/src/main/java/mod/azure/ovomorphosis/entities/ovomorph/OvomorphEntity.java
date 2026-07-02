@@ -17,6 +17,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -106,7 +107,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
             .add(Attributes.ARMOR_TOUGHNESS, CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphArmorToughness)
             .add(
                 Attributes.KNOCKBACK_RESISTANCE,
-                CommonMod.getConfig().entityConfigs.ovomorphConfigs.ovomorphKnockbackRes
+                1.0
             )
             .add(Attributes.FOLLOW_RANGE, 0.0)
             .add(Attributes.MOVEMENT_SPEED, 0.0);
@@ -129,9 +130,14 @@ public class OvomorphEntity extends AbstractAlienEntity {
 
     @Override
     public void doPush(@NotNull Entity entity) {
+        if (entity instanceof OvomorphEntity) {
+            return;
+        }
+
         if (
-            !level().isClientSide && (entity instanceof LivingEntity living &&
-                TargetingUtils.faceHuggerTest(this, living))
+            !level().isClientSide &&
+                entity instanceof LivingEntity living &&
+                TargetingUtils.faceHuggerTest(this, living)
         ) {
             this.setEggState(EggStates.HATCHING.ordinal());
         }
@@ -192,6 +198,8 @@ public class OvomorphEntity extends AbstractAlienEntity {
         if (tickCount == 1) {
             moveTo(blockPosition().offset(0, 0, 0), getYRot(), getXRot());
         }
+        this.setDeltaMovement(Vec3.ZERO);
+        this.hasImpulse = false;
 
         var yaw = 90.0f;
         this.setYRot(yaw);
