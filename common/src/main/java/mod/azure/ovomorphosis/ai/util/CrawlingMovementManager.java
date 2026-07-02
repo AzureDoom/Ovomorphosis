@@ -306,8 +306,8 @@ public final class CrawlingMovementManager {
             }
         }
 
-        if (absYDiff == 0 && MovementUtils.isClimbable(mob.level(), mob.blockPosition(), true)) {
-            return true;
+        if (absYDiff == 0) {
+            return isWallBlockedBetween(mob, target);
         }
 
         return MovementUtils.isClimbable(mob.level(), target.blockPosition(), false);

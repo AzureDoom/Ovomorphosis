@@ -224,7 +224,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 ? findBestTunnelBiasedGoal(mob, target)
                 : null;
 
-        var repathInterval = isCrawlingNow ? 40 : 20;
+        var repathInterval = (isCrawlingNow ? 40 : 20) + (mob.getId() & 7);
 
         if (repathCooldown <= 0 || path.isEmpty() || pathIndex >= path.size()) {
             var crawlGoal = (tunnelBiasedGoal != null) ? tunnelBiasedGoal : target.blockPosition();
@@ -342,9 +342,17 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     var horiz = new Vec3(tunnelCenter.x - mob.getX(), 0, tunnelCenter.z - mob.getZ());
                     if (horiz.lengthSqr() > 0.09D) {
                         var toEntrance = horiz.normalize();
-                        Vec3 move = getMove(mob, toEntrance, tunnelCenter);
-                        if (canCrawl) {
-                            if (horiz.lengthSqr() < 2.25D) {
+                        var move = getMove(mob, toEntrance, tunnelCenter);
+
+                        var entranceYError = tunnelCenter.y - mob.getY();
+                        var closeEnoughToClimb = horiz.lengthSqr() < 2.25D;
+                        if (canCrawl && entranceYError > 0.25D && closeEnoughToClimb) {
+                            var climbY = Mth.clamp(entranceYError * 0.6D, speed * 0.5D, speed);
+                            move = new Vec3(move.x, climbY, move.z);
+                            CrawlingMovementManager.setWallCrawling(mob, true);
+                            CrawlingMovementManager.updateCrawlOrientation(mob, move);
+                        } else if (canCrawl) {
+                            if (closeEnoughToClimb) {
                                 CrawlingMovementManager.setWallCrawling(mob, true);
                                 CrawlingMovementManager.updateCrawlOrientation(mob, move);
                             } else if (mob instanceof WallCrawlingMob wc) {
@@ -1585,25 +1593,30 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
      * threshold means normal step-ups and hills are never considered.
      */
     private void checkPathForBreakableWall(E mob, Blackboard blackboard, List<BlockPos> path, int fromIndex) {
+        if (fromIndex < 0 || fromIndex >= path.size()) {
+            return;
+        }
+
         var scanLimit = Math.min(path.size(), fromIndex + 8);
+        var baseY = path.get(fromIndex).getY();
 
-        for (var i = fromIndex; i < scanLimit - 1; i++) {
-            var from = path.get(i);
-            var to = path.get(i + 1);
-            var dy = to.getY() - from.getY();
+        for (var i = fromIndex + 1; i < scanLimit; i++) {
+            var node = path.get(i);
+            var rise = node.getY() - baseY;
 
-            if (dy < 2) {
+            if (rise < 2) {
                 continue;
             }
 
-            for (var wallY = from.getY() + 1; wallY < to.getY(); wallY++) {
-                var candidate = new BlockPos(to.getX(), wallY, to.getZ());
+            for (var wallY = baseY; wallY < node.getY(); wallY++) {
+                var candidate = new BlockPos(node.getX(), wallY, node.getZ());
                 if (canBreakPathBlock(mob, candidate)) {
                     blackboard.set(AiKeys.BREAK_TO_TARGET_SCAN, candidate);
                     blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
                     return;
                 }
             }
+            return;
         }
     }
 

@@ -242,7 +242,10 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
 
-        if (MovementUtils.canWallCrawl(mob)) {
+        if (
+            MovementUtils.canWallCrawl(mob)
+                && (cache.tunnelCanStandAt(level, mob, pos) || hasClimbSurfaceNearby(level, pos, cache))
+        ) {
             var posIsTunnel = cache.tunnelCanStandAt(level, mob, pos);
             for (var dir : Direction.values()) {
                 var next = pos.relative(dir);
@@ -289,7 +292,7 @@ public class CrawlingCustomAStar extends CustomAStar {
 
             for (var dir : hDirs) {
                 var side = pos.offset(dir[0], 0, dir[1]);
-                for (var drop = 1; drop <= 6; drop++) {
+                for (var drop = 1; drop <= 4; drop++) {
                     var candidate = side.below(drop);
                     if (
                         cache.isSafeClimbNode(level, candidate) && hasClimbClearance(level, mob, candidate, cache)
@@ -451,6 +454,26 @@ public class CrawlingCustomAStar extends CustomAStar {
     /** Routes a solidity check through the cache when one is available. */
     private static boolean solidAt(Level level, BlockPos pos, PathNodeCache cache) {
         return cache != null ? cache.isPhysicallySolid(level, pos) : isPhysicallySolid(level, pos);
+    }
+
+    /**
+     * Cheap gate deciding whether it is worth generating any wall-crawl candidates from {@code pos}. Climb nodes
+     * require a solid face to grip, so on open terrain (the common case for a large mob population) this rejects the
+     * whole ~50-candidate climb block before it runs, which is the bulk of {@code neighbors()} cost in the profile.
+     * Matches {@link MovementUtils#isSafeClimbNode}'s notion of a cling surface: a horizontal neighbor at feet or head
+     * height, or an overhead ceiling — never the floor.
+     */
+    private static boolean hasClimbSurfaceNearby(Level level, BlockPos pos, PathNodeCache cache) {
+        var head = pos.above();
+        return solidAt(level, pos.north(), cache)
+            || solidAt(level, pos.south(), cache)
+            || solidAt(level, pos.east(), cache)
+            || solidAt(level, pos.west(), cache)
+            || solidAt(level, head.north(), cache)
+            || solidAt(level, head.south(), cache)
+            || solidAt(level, head.east(), cache)
+            || solidAt(level, head.west(), cache)
+            || solidAt(level, head.above(), cache);
     }
 
     public static boolean isTightTunnel(Level level, BlockPos pos) {

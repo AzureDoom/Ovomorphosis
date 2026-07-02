@@ -115,6 +115,14 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             breakProgress = 0f;
         }
 
+        if (!isWithinReach(mob, targetBlock)) {
+            level.destroyBlockProgress(breakId, targetBlock, -1);
+            targetBlock = null;
+            blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
+            blackboard.remove(AiKeys.BREAK_TO_TARGET_SCAN);
+            return ActionStatus.SUCCESS;
+        }
+
         var state = level.getBlockState(targetBlock);
 
         if (state.isAir() || state.getCollisionShape(level, targetBlock).isEmpty()) {
@@ -167,6 +175,21 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
     }
 
     /**
+     * True if {@code pos} is close enough to the mob's body that the mob could plausibly be pressed against it. Without
+     * this gate the action would happily accrue break progress on a block several blocks away — one selected by
+     * {@link #findObstructingBlock}'s ray-march or by a stale path-scan hint — which reads as the mob "reaching through
+     * the world" to dissolve random distant blocks.
+     */
+    private static boolean isWithinReach(AbstractAlienEntity mob, BlockPos pos) {
+        var center = Vec3.atCenterOf(pos);
+        var dx = center.x - mob.getX();
+        var dy = center.y - (mob.getY() + mob.getBbHeight() * 0.5D);
+        var dz = center.z - mob.getZ();
+        var reach = (mob.getBbWidth() / 2.0D) + 2.0D;
+        return dx * dx + dy * dy + dz * dz <= reach * reach;
+    }
+
+    /**
      * Finds the nearest breakable block between the mob and its target using a DDA ray-march.
      * <p>
      * <b>Fix:</b> The original implementation used a signum-step diagonal walk that advanced all three axes
@@ -183,7 +206,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         var to = target.blockPosition();
 
         var distSq = from.distSqr(to);
-        if (distSq > (double) (12 * 12)) {
+        if (distSq > (double) (4 * 4)) {
             return null;
         }
 
@@ -194,8 +217,8 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         var x1 = to.getX();
         var z1 = to.getZ();
 
-        var yMin = Math.min(from.getY(), to.getY());
-        var yMax = Math.max(from.getY(), to.getY()) + 1; // +1 for head height
+        var yMin = from.getY();
+        var yMax = from.getY() + 1; // feet + head only — never scan up a column into overhead foliage/canopy
 
         var dx = Math.abs(x1 - x0);
         var dz = Math.abs(z1 - z0);
