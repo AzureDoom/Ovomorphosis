@@ -6,6 +6,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -61,6 +62,32 @@ public class InfectionScannerItem extends Item {
         return InteractionResultHolder.success(stack);
     }
 
+    @Override
+    public void inventoryTick(@NotNull ItemStack stack, @NotNull Level level, @NotNull Entity entity, int slotId, boolean isSelected) {
+        super.inventoryTick(stack, level, entity, slotId, isSelected);
+
+        if (level.isClientSide()) {
+            return;
+        }
+
+        var tag = stack.getTag();
+        if (tag == null || !tag.contains("CustomModelData") || tag.getInt("CustomModelData") <= MODEL_CLEAR) {
+            return;
+        }
+
+        if (!tag.contains("ScanTime")) {
+            return;
+        }
+
+        if (level.getGameTime() - tag.getLong("ScanTime") >= 100L) {
+            setScannerModel(stack, MODEL_CLEAR);
+            tag.remove("ScanTime");
+            if (stack.getTag() != null && stack.getTag().isEmpty()) {
+                stack.setTag(null);
+            }
+        }
+    }
+
     private void scanEntity(LivingEntity target, Player scanner, ItemStack stack) {
         var level = scanner.level();
         var infected = InfectionManager.isInfected(target);
@@ -84,6 +111,12 @@ public class InfectionScannerItem extends Item {
             };
 
             setScannerModel(stack, modelData);
+
+            if (modelData > MODEL_CLEAR) {
+                stack.getOrCreateTag().putLong("ScanTime", level.getGameTime());
+            } else {
+                stack.getOrCreateTag().remove("ScanTime");
+            }
 
             var who = isSelf
                 ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
@@ -181,7 +214,7 @@ public class InfectionScannerItem extends Item {
         return false;
     }
 
-    private static void setScannerModel(ItemStack stack, int customModelData) {
+    public static void setScannerModel(ItemStack stack, int customModelData) {
         if (customModelData <= 0) {
             stack.getOrCreateTag().remove("CustomModelData");
 
