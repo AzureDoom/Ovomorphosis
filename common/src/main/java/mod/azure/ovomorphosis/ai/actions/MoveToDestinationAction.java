@@ -45,10 +45,10 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     private BlockPos lastPathedDestination = null;
 
     public MoveToDestinationAction(
-            double stopDistance,
-            double speed,
-            int priority,
-            boolean canCrawl
+        double stopDistance,
+        double speed,
+        int priority,
+        boolean canCrawl
     ) {
         this.stopDistanceSqr = stopDistance * stopDistance;
         this.speed = speed;
@@ -97,12 +97,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var mobFeetPos = BlockPos.containing(mob.getX(), mob.getBoundingBox().minY, mob.getZ());
         var groundBlock = mobFeetPos.below();
         var mobOnSolidGround = !mob.level()
-                .getBlockState(groundBlock)
-                .getCollisionShape(mob.level(), groundBlock)
-                .isEmpty();
+            .getBlockState(groundBlock)
+            .getCollisionShape(mob.level(), groundBlock)
+            .isEmpty();
 
         var mobIsInOrAtTunnel = canCrawl
-                && (CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
+            && (CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
                 || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.below())
                 || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.above())
                 || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos)
@@ -113,8 +113,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             for (var li = pathIndex; li < Math.min(path.size(), pathIndex + 3); li++) {
                 var la = path.get(li);
                 if (
-                        CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                    CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
+                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
                 ) {
                     nextWaypointIsTunnel = true;
                     break;
@@ -129,13 +129,13 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var isCrawlingNow = canCrawl && CrawlingMovementManager.isWallCrawling(mob);
 
         var shouldUseCrawlingNow = canCrawl && (isCrawlingNow
-                || mobIsInOrAtTunnel
-                || CrawlingMovementManager.isWallCrawling(mob));
+            || mobIsInOrAtTunnel
+            || CrawlingMovementManager.isWallCrawling(mob));
 
         var repathInterval = isCrawlingNow ? 60 : 30;
 
         var destinationMovedFar = lastPathedDestination == null
-                || lastPathedDestination.distSqr(destination) > 4;
+            || lastPathedDestination.distSqr(destination) > 4;
 
         if ((repathCooldown <= 0 && destinationMovedFar) || path.isEmpty() || pathIndex >= path.size()) {
             lastPathedDestination = destination;
@@ -164,8 +164,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         if (!path.isEmpty()) {
             while (
-                    pathIndex < path.size()
-                            && hasReachedWaypoint(mob, path.get(pathIndex), shouldUseCrawlingNow)
+                pathIndex < path.size()
+                    && hasReachedWaypoint(mob, path.get(pathIndex), shouldUseCrawlingNow)
             ) {
                 pathIndex++;
             }
@@ -175,18 +175,18 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 var waypointCenter = Vec3.atBottomCenterOf(waypointBlock);
 
                 var waypointIsTightPassage =
-                        CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock)
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock)
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
+                    CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock)
+                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock)
+                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
 
                 var approachingTunnel = waypointIsTightPassage;
                 if (!approachingTunnel) {
                     for (var lookahead = pathIndex; lookahead < Math.min(path.size(), pathIndex + 4); lookahead++) {
                         var la = path.get(lookahead);
                         if (
-                                CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
+                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
                         ) {
                             approachingTunnel = true;
                             break;
@@ -199,8 +199,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                     for (var lookahead = pathIndex; lookahead < Math.min(path.size(), pathIndex + 4); lookahead++) {
                         var la = path.get(lookahead);
                         if (
-                                CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
+                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
                         ) {
                             tunnelTargetBlock = la;
                             break;
@@ -209,8 +209,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 }
 
                 var waypoint = shouldUseCrawlingNow && !waypointIsTightPassage
-                        ? snapToNearestWallFace(mob, waypointBlock, waypointCenter)
-                        : waypointCenter;
+                    ? snapToNearestWallFace(mob, waypointBlock, waypointCenter)
+                    : waypointCenter;
 
                 var direction = waypoint.subtract(mob.position());
 
@@ -270,9 +270,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             CrawlingMovementManager.setWallCrawling(mob, false);
         }
         mob.setDeltaMovement(
-                mob.getDeltaMovement().x * 0.25D,
-                mob.getDeltaMovement().y,
-                mob.getDeltaMovement().z * 0.25D
+            mob.getDeltaMovement().x * 0.25D,
+            mob.getDeltaMovement().y,
+            mob.getDeltaMovement().z * 0.25D
         );
     }
 
@@ -287,12 +287,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     }
 
     private void applyPathMovement(
-            E mob,
-            BlockPos destination,
-            BlockPos waypointBlock,
-            Vec3 waypoint,
-            Vec3 direction,
-            boolean shouldUseCrawlingNow
+        E mob,
+        BlockPos destination,
+        BlockPos waypointBlock,
+        Vec3 waypoint,
+        Vec3 direction,
+        boolean shouldUseCrawlingNow
     ) {
         var movedSqr = mob.position().distanceToSqr(lastPos);
         lastPos = mob.position();
@@ -305,11 +305,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var mobFeet = BlockPos.containing(mob.getX(), mob.getBoundingBox().minY, mob.getZ());
 
         var waypointIsVerticalShaft =
-                CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock);
+            CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock);
         var waypointLeadsIntoVerticalShaft =
-                waypointIsVerticalShaft
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
+            waypointIsVerticalShaft
+                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
 
         var verticalStepUp = canCrawl && shouldUseCrawlingNow && needsCrawlStepUp(mob, waypointBlock, mobFeet);
         if (verticalStepUp) {
@@ -324,8 +324,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             if (horizontalToClimb.lengthSqr() > 0.01D) {
                 var horiz = horizontalToClimb.normalize().scale(speed * 0.75D);
                 var corrected = removeBlockedHorizontalComponents(
-                        mob,
-                        new Vec3(horiz.x, Math.max(mob.getDeltaMovement().y, speed * 0.85D), horiz.z)
+                    mob,
+                    new Vec3(horiz.x, Math.max(mob.getDeltaMovement().y, speed * 0.85D), horiz.z)
                 );
                 if (corrected.horizontalDistanceSqr() < 0.0001D) {
                     corrected = findCornerEscapeStepUpVelocity(mob, horizontalToClimb);
@@ -347,10 +347,10 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         if (waypointLeadsIntoVerticalShaft && destination.getY() < mob.getY() - 0.75D) {
             var shaftBlock = waypointIsVerticalShaft
-                    ? waypointBlock
-                    : CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
-                      ? waypointBlock.below()
-                      : waypointBlock.below(2);
+                ? waypointBlock
+                : CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                    ? waypointBlock.below()
+                    : waypointBlock.below(2);
 
             var shaftCenter = Vec3.atBottomCenterOf(shaftBlock);
             var centerError = new Vec3(shaftCenter.x - mob.getX(), 0.0D, shaftCenter.z - mob.getZ());
@@ -378,13 +378,13 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         var waypointIsTunnel = CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock);
         var mobIsInTunnel =
-                CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet)
-                        || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below())
-                        || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.above())
-                        || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below(2))
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet)
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below())
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below(2));
+            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet)
+                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below())
+                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.above())
+                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below(2))
+                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet)
+                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below())
+                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below(2));
 
         if (waypointIsTunnel || mobIsInTunnel) {
             var horizontal = new Vec3(direction.x, 0.0D, direction.z);
@@ -406,9 +406,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
                 var tunnelSpeed = waypointIsTunnel ? speed : speed * 1.25D;
                 var tunnelVelocity = new Vec3(
-                        centerMove.normalize().x * tunnelSpeed,
-                        vertical,
-                        centerMove.normalize().z * tunnelSpeed
+                    centerMove.normalize().x * tunnelSpeed,
+                    vertical,
+                    centerMove.normalize().z * tunnelSpeed
                 );
 
                 if (!descendingInTunnel)
@@ -438,11 +438,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         var waypointIsGroundOnly = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
-                && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
-                && waypointBlock.getY() <= mobFeet.getY();
+            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
+            && waypointBlock.getY() <= mobFeet.getY();
         var canAttachToWall = shouldUseCrawlingNow
-                && !waypointIsGroundOnly
-                && canAttachToClimbSurface(mob, waypoint);
+            && !waypointIsGroundOnly
+            && canAttachToClimbSurface(mob, waypoint);
 
         if (canAttachToWall) {
             var waypointY = waypoint.y;
@@ -563,10 +563,10 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         if (stuckTicks > 10) {
             if (
-                    shouldUseCrawlingNow
-                            && CrawlingMovementManager.isWallCrawling(mob)
-                            && destination.getY() < mob.getY() - 1.0D
-                            && waypointBlock.getY() < mob.blockPosition().getY()
+                shouldUseCrawlingNow
+                    && CrawlingMovementManager.isWallCrawling(mob)
+                    && destination.getY() < mob.getY() - 1.0D
+                    && waypointBlock.getY() < mob.blockPosition().getY()
             ) {
                 CrawlingMovementManager.setWallCrawling(mob, false);
                 var downForward = new Vec3(direction.x, 0.0D, direction.z);
@@ -598,9 +598,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                     if (mob instanceof WallCrawlingMob wc)
                         wc.ovomorphosis$setWallCrawlGraceTicks(0);
                     mob.setDeltaMovement(
-                            nudge.normalize().scale(speed).x,
-                            mob.getDeltaMovement().y,
-                            nudge.normalize().scale(speed).z
+                        nudge.normalize().scale(speed).x,
+                        mob.getDeltaMovement().y,
+                        nudge.normalize().scale(speed).z
                     );
                     mob.hasImpulse = true;
                     stuckTicks = 0;
@@ -686,9 +686,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         var waypointAbove = waypoint.getY() > BlockPos.containing(
-                mob.getX(),
-                mob.getBoundingBox().minY,
-                mob.getZ()
+            mob.getX(),
+            mob.getBoundingBox().minY,
+            mob.getZ()
         ).getY();
 
         var reachRadius = isTunnel ? 0.6D : waypointAbove ? 0.45D : 1.15D;
@@ -857,11 +857,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             return new Vec3(0.0D, speed * 0.85D, 0.0D);
         desired = desired.normalize();
         var candidates = new Vec3[] {
-                new Vec3(desired.x, 0, desired.z),
-                new Vec3(-desired.z, 0, desired.x),
-                new Vec3(desired.z, 0, -desired.x),
-                new Vec3(desired.x - desired.z, 0, desired.z + desired.x),
-                new Vec3(desired.x + desired.z, 0, desired.z - desired.x)
+            new Vec3(desired.x, 0, desired.z),
+            new Vec3(-desired.z, 0, desired.x),
+            new Vec3(desired.z, 0, -desired.x),
+            new Vec3(desired.x - desired.z, 0, desired.z + desired.x),
+            new Vec3(desired.x + desired.z, 0, desired.z - desired.x)
         };
         Vec3 best = Vec3.ZERO;
         var bestScore = -Double.MAX_VALUE;
