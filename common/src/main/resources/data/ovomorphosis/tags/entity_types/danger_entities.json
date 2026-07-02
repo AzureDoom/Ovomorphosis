@@ -3,6 +3,7 @@
   "values": [
     "minecraft:tnt",
     "ovomorphosis:acid",
+    "ovomorphosis:ovomorph",
     {
       "id": "gigeresque:acid",
       "required": false
