@@ -87,6 +87,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         if (mob.distanceToSqr(destVec) <= stopDistanceSqr) {
             mob.setDeltaMovement(mob.getDeltaMovement().scale(0.4D));
+            faceDestination(mob, destination);
             return ActionStatus.SUCCESS;
         }
 
@@ -251,11 +252,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         var directDirection = destVec.subtract(mob.position());
         if (directDirection.lengthSqr() > 0.0001D) {
-            applyFlatFallback(mob, directDirection);
+            applyFlatFallback(mob, destination, directDirection);
             return ActionStatus.RUNNING;
         }
 
         halt(mob);
+        faceDestination(mob, destination);
         return ActionStatus.RUNNING;
     }
 
@@ -430,6 +432,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 CrawlingMovementManager.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
                 mob.hasImpulse = true;
+                faceDestination(mob, destination);
                 return;
             }
         }
@@ -520,10 +523,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                     CrawlingMovementManager.updateCrawlOrientation(mob, pushVelocity);
                     mob.setDeltaMovement(pushVelocity);
                     mob.hasImpulse = true;
+                    faceDestination(mob, destination);
                     return;
                 }
             }
             halt(mob);
+            faceDestination(mob, destination);
             return;
         }
 
@@ -638,7 +643,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         faceDestination(mob, destination);
     }
 
-    private void applyFlatFallback(E mob, Vec3 direction) {
+    private void applyFlatFallback(E mob, BlockPos destination, Vec3 direction) {
         var horizontal = new Vec3(direction.x, 0.0D, direction.z);
         if (horizontal.lengthSqr() > 0.01D) {
             var movement = MovementUtils.steerAwayFromDangerEntities(mob, horizontal.normalize().scale(speed));
@@ -652,6 +657,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         } else {
             halt(mob);
         }
+
+        faceDestination(mob, destination);
     }
 
     private boolean hasReachedWaypoint(E mob, BlockPos waypoint, boolean shouldUseCrawling) {
