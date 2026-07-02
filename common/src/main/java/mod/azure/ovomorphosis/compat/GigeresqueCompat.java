@@ -28,6 +28,7 @@ public class GigeresqueCompat {
     }
 
     public static boolean tryScanGigInfection(LivingEntity target, Player scanner, ItemStack stack) {
+        var level = scanner.level();
         var isSelf = target == scanner;
         var who = isSelf
             ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
@@ -41,7 +42,7 @@ public class GigeresqueCompat {
             true
         );
 
-        scanner.level()
+        level
             .playSound(
                 null,
                 scanner.blockPosition(),
@@ -52,6 +53,7 @@ public class GigeresqueCompat {
             );
 
         InfectionScannerItem.setScannerModel(stack, InfectionScannerItem.MODEL_SYMPTOMATIC);
+        InfectionScannerItem.setScanTime(stack, level.getGameTime());
 
         return hasGigBurster(target);
     }

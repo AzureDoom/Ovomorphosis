@@ -7,11 +7,13 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -65,6 +67,41 @@ public class InfectionScannerItem extends Item {
         return InteractionResultHolder.success(stack);
     }
 
+    /**
+     * Ticks the decay timer while the scanner sits in an inventory. Once the reading has been displayed for
+     * DECAY_TICKS, the model resets to neutral (MODEL_CLEAR / no CustomModelData).
+     */
+    @Override
+    public void inventoryTick(
+        @NotNull ItemStack stack,
+        @NotNull Level level,
+        @NotNull Entity entity,
+        int slotId,
+        boolean isSelected
+    ) {
+        super.inventoryTick(stack, level, entity, slotId, isSelected);
+
+        if (level.isClientSide()) {
+            return;
+        }
+
+        var cmd = stack.get(DataComponents.CUSTOM_MODEL_DATA);
+        if (cmd == null || cmd.value() <= MODEL_CLEAR) {
+            // Already neutral, nothing to decay.
+            return;
+        }
+
+        var scanTime = getScanTime(stack);
+        if (scanTime <= 0) {
+            return;
+        }
+
+        if (level.getGameTime() - scanTime >= 100L) {
+            setScannerModel(stack, MODEL_CLEAR);
+            clearScanTime(stack);
+        }
+    }
+
     private void scanEntity(LivingEntity target, Player scanner, ItemStack stack) {
         var level = scanner.level();
 
@@ -101,6 +138,11 @@ public class InfectionScannerItem extends Item {
             };
 
             setScannerModel(stack, modelData);
+            if (modelData > MODEL_CLEAR) {
+                setScanTime(stack, level.getGameTime());
+            } else {
+                clearScanTime(stack);
+            }
 
             var who = isSelf
                 ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
@@ -203,5 +245,33 @@ public class InfectionScannerItem extends Item {
         }
 
         stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(customModelData));
+    }
+
+    public static void setScanTime(ItemStack stack, long time) {
+        stack.update(DataComponents.CUSTOM_DATA, CustomData.EMPTY, data -> {
+            var tag = data.copyTag();
+            tag.putLong("ScanTime", time);
+            return CustomData.of(tag);
+        });
+    }
+
+    public static long getScanTime(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data == null) {
+            return 0L;
+        }
+        return data.copyTag().getLong("ScanTime");
+    }
+
+    public static void clearScanTime(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data == null) {
+            return;
+        }
+        var tag = data.copyTag();
+        if (tag.contains("ScanTime")) {
+            tag.remove("ScanTime");
+            stack.set(DataComponents.CUSTOM_DATA, tag.isEmpty() ? null : CustomData.of(tag));
+        }
     }
 }

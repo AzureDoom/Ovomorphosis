@@ -22,6 +22,7 @@ public class AVPCompat {
         ) {
             return false;
         }
+        var level = scanner.level();
         var isSelf = target == scanner;
         var who = isSelf
             ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
@@ -35,7 +36,7 @@ public class AVPCompat {
             true
         );
 
-        scanner.level()
+        level
             .playSound(
                 null,
                 scanner.blockPosition(),
@@ -46,6 +47,7 @@ public class AVPCompat {
             );
 
         InfectionScannerItem.setScannerModel(stack, InfectionScannerItem.MODEL_SYMPTOMATIC);
+        InfectionScannerItem.setScanTime(stack, level.getGameTime());
 
         return AlienPredicates.hasEmbryo(target);
     }
