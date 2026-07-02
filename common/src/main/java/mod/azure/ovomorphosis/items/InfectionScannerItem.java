@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.items;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
@@ -45,7 +46,7 @@ public class InfectionScannerItem extends Item {
     ) {
         var stack = player.getItemInHand(hand);
 
-        if (player.getCooldowns().isOnCooldown(this)) {
+        if (player.getCooldowns().isOnCooldown(this) || isScanning(stack)) {
             return InteractionResultHolder.fail(stack);
         }
 
@@ -54,22 +55,108 @@ public class InfectionScannerItem extends Item {
         }
 
         var target = findLookTarget(player, level);
-        scanEntity(Objects.requireNonNullElse(target, player), player, stack);
+        var targetId = Objects.requireNonNullElse(target, player).getUUID();
 
-        stack.hurtAndBreak(1, player, s -> player.broadcastBreakEvent(player.getUsedItemHand()));
-        player.getCooldowns().addCooldown(this, 30);
+        var tag = stack.getOrCreateTag();
+        tag.putLong("ScanStart", level.getGameTime());
+        tag.putUUID("ScanTarget", targetId);
+
+        level.playSound(
+            null,
+            player.blockPosition(),
+            SoundEvents.NOTE_BLOCK_PLING.value(),
+            SoundSource.PLAYERS,
+            0.6F,
+            0.7F
+        );
 
         return InteractionResultHolder.success(stack);
     }
 
     @Override
-    public void inventoryTick(@NotNull ItemStack stack, @NotNull Level level, @NotNull Entity entity, int slotId, boolean isSelected) {
+    public void inventoryTick(
+        @NotNull ItemStack stack,
+        @NotNull Level level,
+        @NotNull Entity entity,
+        int slotId,
+        boolean isSelected
+    ) {
         super.inventoryTick(stack, level, entity, slotId, isSelected);
 
         if (level.isClientSide()) {
             return;
         }
 
+        tickScanProgress(stack, level, entity);
+        tickDecay(stack, level);
+    }
+
+    /**
+     * Advances an in-progress scan: plays periodic beeps while charging, and once SCAN_DELAY_TICKS has elapsed,
+     * resolves the locked-in target and reports the result.
+     */
+    private void tickScanProgress(ItemStack stack, Level level, Entity entity) {
+        if (!isScanning(stack)) {
+            return;
+        }
+
+        if (!(entity instanceof Player player)) {
+            return;
+        }
+
+        var elapsed = level.getGameTime() - stack.getOrCreateTag().getLong("ScanStart");
+
+        if (elapsed >= 60) {
+            finishScan(stack, player, level);
+            return;
+        }
+
+        if (elapsed % 5 == 0) {
+            level.playSound(
+                null,
+                player.blockPosition(),
+                SoundEvents.NOTE_BLOCK_PLING.value(),
+                SoundSource.PLAYERS,
+                0.4F,
+                2.0F
+            );
+        }
+    }
+
+    /**
+     * Resolves the target that was locked in when the scan started, runs the actual infection check, and applies
+     * durability/cooldown now that the reading is complete.
+     */
+    private void finishScan(ItemStack stack, Player player, Level level) {
+        var tag = stack.getOrCreateTag();
+        var targetId = tag.hasUUID("ScanTarget") ? tag.getUUID("ScanTarget") : null;
+
+        tag.remove("ScanStart");
+        tag.remove("ScanTarget");
+        if (stack.getTag() != null && stack.getTag().isEmpty()) {
+            stack.setTag(null);
+        }
+
+        LivingEntity target = player;
+
+        if (targetId != null && !targetId.equals(player.getUUID()) && level instanceof ServerLevel serverLevel) {
+            var resolved = serverLevel.getEntity(targetId);
+            if (resolved instanceof LivingEntity living && living.isAlive()) {
+                target = living;
+            }
+        }
+
+        scanEntity(target, player, stack);
+
+        stack.hurtAndBreak(1, player, s -> player.broadcastBreakEvent(player.getUsedItemHand()));
+        player.getCooldowns().addCooldown(this, 30);
+    }
+
+    /**
+     * Ticks the decay timer for a completed reading. Once the reading has been displayed for DECAY_TICKS, the model
+     * resets to neutral (MODEL_CLEAR / no CustomModelData).
+     */
+    private void tickDecay(ItemStack stack, Level level) {
         var tag = stack.getTag();
         if (tag == null || !tag.contains("CustomModelData") || tag.getInt("CustomModelData") <= MODEL_CLEAR) {
             return;
@@ -145,6 +232,7 @@ public class InfectionScannerItem extends Item {
             );
         } else {
             setScannerModel(stack, MODEL_CLEAR);
+            stack.getOrCreateTag().remove("ScanTime");
 
             var who = isSelf
                 ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
@@ -212,6 +300,11 @@ public class InfectionScannerItem extends Item {
     @Override
     public boolean isEnchantable(@NotNull ItemStack stack) {
         return false;
+    }
+
+    private static boolean isScanning(ItemStack stack) {
+        var tag = stack.getTag();
+        return tag != null && tag.contains("ScanStart");
     }
 
     public static void setScannerModel(ItemStack stack, int customModelData) {
