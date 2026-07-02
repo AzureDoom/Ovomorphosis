@@ -46,6 +46,7 @@ dependencies {
     implementation("com.avp.alien:avp_alien-neoforge-1.21.1:0.2.0-alpha.2") {
         exclude group: 'org.slf4j', module: 'slf4j-api'
     }
+    implementation "curse.maven:spark-361579:6225208"
 }
 
 def keyPropsFile = new File(rootProject.projectDir, "key.properties")

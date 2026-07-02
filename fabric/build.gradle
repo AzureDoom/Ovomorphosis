@@ -17,6 +17,7 @@ dependencies {
     modApi "com.terraformersmc:modmenu:${modmenu_version}"
     modImplementation "maven.modrinth:gigeresque:QXyrUz2p"
     modImplementation "com.avp.alien:avp_alien-fabric-1.21.1:0.2.0-alpha.1"
+    modImplementation "curse.maven:spark-361579:5759670"
 }
 
 loom {
