@@ -648,6 +648,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 CrawlingMovementManager.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
                 mob.hasImpulse = true;
+                faceMovementDirection(mob, tunnelVelocity);
                 return;
             }
         }
@@ -745,10 +746,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     CrawlingMovementManager.updateCrawlOrientation(mob, pushVelocity);
                     mob.setDeltaMovement(pushVelocity);
                     mob.hasImpulse = true;
+                    faceMovementDirection(mob, pushVelocity);
                     return;
                 }
             }
             halt(mob);
+            faceMovementDirection(mob, horizontal);
             return;
         }
 
