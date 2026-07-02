@@ -8,8 +8,10 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ambient.AmbientCreature;
 import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.animal.WaterAnimal;
+import net.minecraft.world.entity.animal.allay.Allay;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Phantom;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
@@ -147,6 +149,12 @@ public final class TargetingUtils {
 
     public static boolean faceHuggerTest(LivingEntity self, LivingEntity target) {
         if (target instanceof AmbientCreature)
+            return false;
+
+        if (target instanceof Allay)
+            return false;
+
+        if (target instanceof Vex)
             return false;
 
         if (target.getType().is(EntityTypeTags.UNDEAD))
