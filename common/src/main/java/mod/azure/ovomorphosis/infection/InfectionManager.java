@@ -248,4 +248,9 @@ public final class InfectionManager {
         var state = INFECTIONS.get(entity.getUUID());
         return state != null ? state.getPhase() : null;
     }
+
+    public static int getInfectionRemainingTime(LivingEntity entity) {
+        var state = INFECTIONS.get(entity.getUUID());
+        return state != null ? Math.max(0, state.duration - state.ticks) : 0;
+    }
 }
