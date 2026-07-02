@@ -105,7 +105,7 @@ public final class PathNodeCache {
         if (cached != 0) {
             return cached == TRUE;
         }
-        var result = MovementUtils.isSafeClimbNode(level, pos);
+        var result = MovementUtils.isSafeClimbNode(level, pos, this);
         climb.put(key, result ? TRUE : FALSE);
         return result;
     }

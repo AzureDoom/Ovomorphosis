@@ -294,7 +294,7 @@ public final class CrawlingMovementManager {
                     }
                     var level = mob.level();
                     var origin = mob.blockPosition();
-                    for (var dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+                    for (var dir : Direction.Plane.HORIZONTAL) {
                         var adj = origin.relative(dir);
                         if (MovementUtils.isSafeClimbNode(level, adj)) {
                             return true;
@@ -306,8 +306,8 @@ public final class CrawlingMovementManager {
             }
         }
 
-        if (absYDiff == 0 && MovementUtils.isClimbable(mob.level(), mob.blockPosition(), true)) {
-            return true;
+        if (absYDiff == 0) {
+            return isWallBlockedBetween(mob, target);
         }
 
         return MovementUtils.isClimbable(mob.level(), target.blockPosition(), false);
@@ -347,15 +347,15 @@ public final class CrawlingMovementManager {
                 continue;
             }
 
-            var feetMaxY = feetShape.max(net.minecraft.core.Direction.Axis.Y);
-            var headMaxY = headShape.max(net.minecraft.core.Direction.Axis.Y);
+            var feetMaxY = feetShape.max(Direction.Axis.Y);
+            var headMaxY = headShape.max(Direction.Axis.Y);
 
             if (feetMaxY <= 0.5D || headMaxY <= 0.5D) {
                 continue;
             }
 
-            var feetMaxX = feetShape.max(net.minecraft.core.Direction.Axis.X);
-            var feetMinX = feetShape.min(net.minecraft.core.Direction.Axis.X);
+            var feetMaxX = feetShape.max(Direction.Axis.X);
+            var feetMinX = feetShape.min(Direction.Axis.X);
             var feetWidth = feetMaxX - feetMinX;
 
             if (feetWidth < 0.9D) {

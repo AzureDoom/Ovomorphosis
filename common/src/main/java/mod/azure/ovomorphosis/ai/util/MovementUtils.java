@@ -382,6 +382,22 @@ public final class MovementUtils {
      * @return {@code true} if the mob can cling at this position
      */
     public static boolean isSafeClimbNode(Level level, BlockPos feet) {
+        return isSafeClimbNode(level, feet, null);
+    }
+
+    /**
+     * Cache-aware variant. The adjacent-surface test is a handful of solidity lookups (routed through {@code cache}
+     * when supplied) instead of the old inflated-AABB {@link #isClimbable} sweep, which walked up to ~27 block shapes
+     * per call and dominated pathfinding CPU. It also no longer treats the floor below the node as a cling surface — an
+     * air cell resting on solid ground is a walk node, not a climb node — which removes a large amount of spurious
+     * climb branching on open terrain.
+     *
+     * @param level the world
+     * @param feet  the candidate feet position
+     * @param cache optional per-pathfind cache for the solidity lookups; may be {@code null}
+     * @return {@code true} if the mob can cling at this position
+     */
+    public static boolean isSafeClimbNode(Level level, BlockPos feet, PathNodeCache cache) {
         var head = feet.above();
 
         if (!isSafeBlock(level, feet)) {
@@ -406,7 +422,31 @@ public final class MovementUtils {
             return false;
         }
 
-        return isClimbable(level, feet, false);
+        return hasAdjacentClingSurface(level, feet, head, cache);
+    }
+
+    /**
+     * Cheap replacement for the old {@code isClimbable(feet, false)} sweep: a wall-crawler only needs a solid face on
+     * one of the four horizontal sides (at feet or head height) or an overhead ceiling to grip. Deliberately excludes
+     * the floor block, so ordinary ground cells are not misclassified as climb nodes. Each lookup is memoized when a
+     * {@link PathNodeCache} is supplied.
+     */
+    private static boolean hasAdjacentClingSurface(Level level, BlockPos feet, BlockPos head, PathNodeCache cache) {
+        return solidAt(level, feet.north(), cache)
+            || solidAt(level, feet.south(), cache)
+            || solidAt(level, feet.east(), cache)
+            || solidAt(level, feet.west(), cache)
+            || solidAt(level, head.north(), cache)
+            || solidAt(level, head.south(), cache)
+            || solidAt(level, head.east(), cache)
+            || solidAt(level, head.west(), cache)
+            || solidAt(level, head.above(), cache);
+    }
+
+    private static boolean solidAt(Level level, BlockPos pos, PathNodeCache cache) {
+        return cache != null
+            ? cache.isPhysicallySolid(level, pos)
+            : CrawlingCustomAStar.isPhysicallySolid(level, pos);
     }
 
     /**
