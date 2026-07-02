@@ -77,7 +77,7 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
                 : Math.max(0f, 80f - (float) (distSq / (20.0 * 20.0)) * 80f);
         }
 
-        if (eatFoodAction.canStart(mob)) {
+        if (eatFoodAction.canStart(mob, blackboard)) {
             var growthFraction = mob.getGrowth() / mob.getMaxGrowth();
             foodScore = 50f + (1f - growthFraction) * (1f / HUNGER_SCORE_SCALE);
         }

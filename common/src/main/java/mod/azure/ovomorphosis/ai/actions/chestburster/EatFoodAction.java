@@ -4,6 +4,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -37,6 +39,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
 
     private boolean consumed;
 
+    private double bestDistSqr = Double.MAX_VALUE;
+
+    private int noProgressTicks;
+
     public EatFoodAction(
         double searchRange,
         double eatDistance,
@@ -56,7 +62,7 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
     @Override
     public void start(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
         cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
-        this.food = findNearestCookedFood(mob);
+        this.food = findNearestCookedFood(mob, ignoredFood(blackboard));
         this.eatTicks = 0;
         this.eatingStarted = false;
         this.consumed = false;
@@ -69,16 +75,29 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
                 return ActionStatus.SUCCESS;
             }
 
-            if (mob.distanceToSqr(this.food) > this.eatDistanceSqr) {
-                moveTowardFood(mob);
-                return ActionStatus.RUNNING;
-            }
+            var d = mob.distanceToSqr(this.food);
 
-            this.eatingStarted = true;
-            this.eatTicks = 0;
-            mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-            mob.hasImpulse = true;
-            this.eatAnimation.accept(mob);
+            if (d <= this.eatDistanceSqr) {
+                beginEating(mob);
+            } else {
+                if (d < this.bestDistSqr - 0.02D) {
+                    this.bestDistSqr = d;
+                    this.noProgressTicks = 0;
+                } else {
+                    this.noProgressTicks++;
+                }
+
+                if (this.noProgressTicks > 20 && d <= 1.44) {
+                    beginEating(mob);
+                } else if (this.noProgressTicks > 40) {
+                    ignoredFood(blackboard).put(this.food.getId(), mob.level().getGameTime() + 200);
+                    cooldowns.set(AiKeys.PASSIVE_DECISION, 60);
+                    return ActionStatus.SUCCESS;
+                } else {
+                    moveTowardFood(mob);
+                    return ActionStatus.RUNNING;
+                }
+            }
         }
 
         this.eatTicks++;
@@ -124,8 +143,16 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
         return this.priority;
     }
 
-    public boolean canStart(ChestbursterEntity mob) {
-        return findNearestCookedFood(mob) != null;
+    private void beginEating(ChestbursterEntity mob) {
+        this.eatingStarted = true;
+        this.eatTicks = 0;
+        mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
+        mob.hasImpulse = true;
+        this.eatAnimation.accept(mob);
+    }
+
+    public boolean canStart(ChestbursterEntity mob, Blackboard blackboard) {
+        return findNearestCookedFood(mob, ignoredFood(blackboard)) != null;
     }
 
     private void moveTowardFood(ChestbursterEntity mob) {
@@ -171,12 +198,18 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
         AiDebugUtils.sendParticlePath(mob, mob.position(), destVec);
     }
 
-    private ItemEntity findNearestCookedFood(ChestbursterEntity mob) {
+    private ItemEntity findNearestCookedFood(ChestbursterEntity mob, Map<Integer, Long> ignored) {
+        var now = mob.level().getGameTime();
+        ignored.values().removeIf(expiry -> expiry <= now);
+
         var items = mob.level()
             .getEntitiesOfClass(
                 ItemEntity.class,
                 mob.getBoundingBox().inflate(this.searchRange),
-                item -> item.isAlive() && !item.getItem().isEmpty() && item.getItem().is(ModTags.BURSTER_FOOD)
+                item -> item.isAlive()
+                    && !item.getItem().isEmpty()
+                    && item.getItem().is(ModTags.BURSTER_FOOD)
+                    && !ignored.containsKey(item.getId())
             );
 
         ItemEntity nearest = null;
@@ -215,5 +248,15 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
                 stack.shrink(1);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Integer, Long> ignoredFood(Blackboard blackboard) {
+        var map = blackboard.get(AiKeys.IGNORED_FOOD, Map.class);
+        if (map == null) {
+            map = new HashMap<Integer, Long>();
+            blackboard.set(AiKeys.IGNORED_FOOD, map);
+        }
+        return (Map<Integer, Long>) map;
     }
 }
