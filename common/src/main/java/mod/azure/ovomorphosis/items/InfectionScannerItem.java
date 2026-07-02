@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.compat.AVPCompat;
 import mod.azure.ovomorphosis.compat.GigeresqueCompat;
 import mod.azure.ovomorphosis.infection.InfectionManager;
@@ -222,15 +223,26 @@ public class InfectionScannerItem extends Item {
                 "item.ovomorphosis.infection_scanner.tooltip.stage." + phaseStr.toLowerCase(Locale.ROOT)
             );
 
-            scanner.displayClientMessage(
-                Component.translatable(
-                    "item.ovomorphosis.infection_scanner.tooltip.infected",
-                    who,
-                    phaseKey,
-                    remainingTicks / 20
-                ).withStyle(ChatFormatting.RED),
-                true
-            );
+            if (CommonMod.getConfig().itemConfigs.disableInfectionScannerTimeOutput) {
+                scanner.displayClientMessage(
+                    Component.translatable(
+                        "item.ovomorphosis.infection_scanner.tooltip.infected",
+                        who,
+                        phaseKey,
+                        remainingTicks / 20
+                    ).withStyle(ChatFormatting.RED),
+                    true
+                );
+            } else {
+                scanner.displayClientMessage(
+                    Component.translatable(
+                        "item.ovomorphosis.infection_scanner.tooltip.infected_no_time",
+                        who,
+                        phaseKey
+                    ).withStyle(ChatFormatting.RED),
+                    true
+                );
+            }
 
             level.playSound(
                 null,
