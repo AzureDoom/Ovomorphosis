@@ -3,6 +3,7 @@ package mod.azure.ovomorphosis.items;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
@@ -22,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 
 import mod.azure.ovomorphosis.compat.AVPCompat;
 import mod.azure.ovomorphosis.compat.GigeresqueCompat;
@@ -50,7 +52,7 @@ public class InfectionScannerItem extends Item {
     ) {
         var stack = player.getItemInHand(hand);
 
-        if (player.getCooldowns().isOnCooldown(this)) {
+        if (player.getCooldowns().isOnCooldown(this) || isScanning(stack)) {
             return InteractionResultHolder.fail(stack);
         }
 
@@ -59,18 +61,22 @@ public class InfectionScannerItem extends Item {
         }
 
         var target = findLookTarget(player, level);
-        scanEntity(Objects.requireNonNullElse(target, player), player, stack);
+        var targetId = Objects.requireNonNullElse(target, player).getUUID();
 
-        stack.hurtAndBreak(1, player, player.getEquipmentSlotForItem(stack));
-        player.getCooldowns().addCooldown(this, 30);
+        beginScan(stack, targetId, level.getGameTime());
+
+        level.playSound(
+            null,
+            player.blockPosition(),
+            SoundEvents.NOTE_BLOCK_PLING.value(),
+            SoundSource.PLAYERS,
+            0.6F,
+            0.7F
+        );
 
         return InteractionResultHolder.success(stack);
     }
 
-    /**
-     * Ticks the decay timer while the scanner sits in an inventory. Once the reading has been displayed for
-     * DECAY_TICKS, the model resets to neutral (MODEL_CLEAR / no CustomModelData).
-     */
     @Override
     public void inventoryTick(
         @NotNull ItemStack stack,
@@ -85,9 +91,72 @@ public class InfectionScannerItem extends Item {
             return;
         }
 
+        tickScanProgress(stack, level, entity);
+        tickDecay(stack, level);
+    }
+
+    /**
+     * Advances an in-progress scan: plays periodic beeps while charging, and once SCAN_DELAY_TICKS has elapsed,
+     * resolves the locked-in target and reports the result.
+     */
+    private void tickScanProgress(ItemStack stack, Level level, Entity entity) {
+        if (!isScanning(stack)) {
+            return;
+        }
+
+        if (!(entity instanceof Player player)) {
+            return;
+        }
+
+        var elapsed = level.getGameTime() - getScanStart(stack);
+
+        if (elapsed >= 60) {
+            finishScan(stack, player, level);
+            return;
+        }
+
+        if (elapsed % 5 == 0) {
+            level.playSound(
+                null,
+                player.blockPosition(),
+                SoundEvents.NOTE_BLOCK_PLING.value(),
+                SoundSource.PLAYERS,
+                0.4F,
+                2.0F
+            );
+        }
+    }
+
+    /**
+     * Resolves the target that was locked in when the scan started, runs the actual infection check, and applies
+     * durability/cooldown now that the reading is complete.
+     */
+    private void finishScan(ItemStack stack, Player player, Level level) {
+        var targetId = getScanTarget(stack);
+        clearScanState(stack);
+
+        LivingEntity target = player;
+
+        if (targetId != null && !targetId.equals(player.getUUID()) && level instanceof ServerLevel serverLevel) {
+            var resolved = serverLevel.getEntity(targetId);
+            if (resolved instanceof LivingEntity living && living.isAlive()) {
+                target = living;
+            }
+        }
+
+        scanEntity(target, player, stack);
+
+        stack.hurtAndBreak(1, player, player.getEquipmentSlotForItem(stack));
+        player.getCooldowns().addCooldown(this, 30);
+    }
+
+    /**
+     * Ticks the decay timer for a completed reading. Once the reading has been displayed for DECAY_TICKS, the model
+     * resets to neutral (MODEL_CLEAR / no CustomModelData).
+     */
+    private void tickDecay(ItemStack stack, Level level) {
         var cmd = stack.get(DataComponents.CUSTOM_MODEL_DATA);
         if (cmd == null || cmd.value() <= MODEL_CLEAR) {
-            // Already neutral, nothing to decay.
             return;
         }
 
@@ -171,6 +240,8 @@ public class InfectionScannerItem extends Item {
             );
         } else {
             setScannerModel(stack, MODEL_CLEAR);
+            clearScanTime(stack);
+
             var who = isSelf
                 ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
                 : target.getDisplayName();
@@ -273,5 +344,51 @@ public class InfectionScannerItem extends Item {
             tag.remove("ScanTime");
             stack.set(DataComponents.CUSTOM_DATA, tag.isEmpty() ? null : CustomData.of(tag));
         }
+    }
+
+    private static boolean isScanning(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        return data != null && data.copyTag().contains("ScanStart");
+    }
+
+    private static void beginScan(ItemStack stack, UUID targetId, long gameTime) {
+        stack.update(DataComponents.CUSTOM_DATA, CustomData.EMPTY, data -> {
+            var tag = data.copyTag();
+            tag.putLong("ScanStart", gameTime);
+            tag.putUUID("ScanTarget", targetId);
+            return CustomData.of(tag);
+        });
+    }
+
+    private static long getScanStart(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data == null) {
+            return 0L;
+        }
+        return data.copyTag().getLong("ScanStart");
+    }
+
+    private static UUID getScanTarget(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data == null) {
+            return null;
+        }
+        var tag = data.copyTag();
+        return tag.hasUUID("ScanTarget") ? tag.getUUID("ScanTarget") : null;
+    }
+
+    private static void clearScanState(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data == null) {
+            return;
+        }
+        var tag = data.copyTag();
+        if (tag.contains("ScanStart")) {
+            tag.remove("ScanStart");
+        }
+        if (tag.contains("ScanTarget")) {
+            tag.remove("ScanTarget");
+        }
+        stack.set(DataComponents.CUSTOM_DATA, tag.isEmpty() ? null : CustomData.of(tag));
     }
 }
