@@ -185,6 +185,7 @@ public class InfectionScannerItem extends Item {
             if (phase == null) {
                 return;
             }
+            var remainingTicks = InfectionManager.getInfectionRemainingTime(target);
             var phaseStr = switch (phase) {
                 case DORMANT -> "DORMANT";
                 case SYMPTOMATIC -> "SYMPTOMATIC";
@@ -217,7 +218,8 @@ public class InfectionScannerItem extends Item {
                 Component.translatable(
                     "item.ovomorphosis.infection_scanner.tooltip.infected",
                     who,
-                    phaseKey
+                    phaseKey,
+                    remainingTicks / 20
                 ).withStyle(ChatFormatting.RED),
                 true
             );
