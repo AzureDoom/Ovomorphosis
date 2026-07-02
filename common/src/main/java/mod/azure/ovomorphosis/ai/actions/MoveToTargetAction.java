@@ -919,7 +919,23 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         if (mobInFluid) {
-            mob.setDeltaMovement(movement.x, mob.getDeltaMovement().y, movement.z);
+            var climbBoost = 0.0D;
+            if (mob.horizontalCollision) {
+                var aboveFeet = mobFeet.above();
+                var headClear = mob.level()
+                    .getBlockState(aboveFeet)
+                    .getCollisionShape(mob.level(), aboveFeet)
+                    .isEmpty();
+                if (headClear) {
+                    climbBoost = 0.4D;
+                }
+            }
+
+            var yVel = climbBoost > 0.0D
+                ? Math.max(mob.getDeltaMovement().y, climbBoost)
+                : mob.getDeltaMovement().y;
+
+            mob.setDeltaMovement(movement.x, yVel, movement.z);
             mob.hasImpulse = true;
             faceTarget(mob, target);
             return;
