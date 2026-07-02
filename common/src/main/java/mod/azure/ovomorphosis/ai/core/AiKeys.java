@@ -188,4 +188,6 @@ public final class AiKeys {
      * {@link XenomorphGoalPlanner}.
      */
     public static final String XENO_ROLE = "xeno_role";
+
+    public static final String IGNORED_FOOD = "burster_ignored_food";
 }

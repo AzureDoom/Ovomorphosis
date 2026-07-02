@@ -115,7 +115,7 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
             || goalType == AiGoalType.NONE;
 
         var reactiveReplan = (isPassive && blackboard.has(AiKeys.TARGET))
-            || (goalType == AiGoalType.GROW_SAFE && eatAction.canStart(this));
+            || (goalType == AiGoalType.GROW_SAFE && eatAction.canStart(this, blackboard));
 
         if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
             return;

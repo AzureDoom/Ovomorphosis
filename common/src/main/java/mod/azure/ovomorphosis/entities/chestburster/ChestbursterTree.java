@@ -70,7 +70,7 @@ public class ChestbursterTree {
                 }
 
                 case FIND_FOOD -> {
-                    if (eatAction.canStart(chestburster)) {
+                    if (eatAction.canStart(chestburster, blackboard)) {
                         yield BehaviorResult.run(eatAction, eatAction.priority());
                     }
                     yield BehaviorResult.run(idle, 8);
