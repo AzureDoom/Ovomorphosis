@@ -42,6 +42,17 @@ public class OvomorphosisConfig {
 
     @Configurable
     @Configurable.Synchronized
+    public ItemConfigs itemConfigs = new ItemConfigs();
+
+    public static class ItemConfigs {
+
+        @Configurable
+        @Configurable.Synchronized
+        public boolean disableInfectionScannerTimeOutput = true;
+    }
+
+    @Configurable
+    @Configurable.Synchronized
     public BlockConfigs blockConfigs = new BlockConfigs();
 
     public static class BlockConfigs {
