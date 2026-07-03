@@ -48,9 +48,11 @@ public class CrawlingCustomAStar extends CustomAStar {
         bestCost.put(startFeet, 0.0D);
 
         var searched = 0;
-        var maxSearched = 1500;
+        var maxSearched = 6000;
         Node bestPartial = null;
         var bestPartialScore = Double.MAX_VALUE;
+
+        var effectiveRange = Math.min(maxRange, 48);
 
         while (!open.isEmpty() && searched++ < maxSearched) {
             var current = open.poll();
@@ -66,7 +68,10 @@ public class CrawlingCustomAStar extends CustomAStar {
                 continue;
             }
 
-            if (isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)) {
+            if (
+                isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)
+                    && !solidlySeparatedVertically(level, current.pos(), goalFeet)
+            ) {
                 var fullPath = filterTransitionNodes(reconstruct(current), level, mob, cache);
                 debugParticlePath(mob, fullPath, true);
                 return fullPath;
@@ -78,7 +83,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                     continue;
                 }
 
-                if (next.distManhattan(startFeet) > maxRange) {
+                if (next.distManhattan(startFeet) > effectiveRange) {
                     continue;
                 }
 
@@ -264,7 +269,7 @@ public class CrawlingCustomAStar extends CustomAStar {
             int[][] hDirs = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
 
             if (!posIsTunnel && !goalIsBelow) {
-                for (var rise = 1; rise <= 4; rise++) {
+                for (var rise = 1; rise <= 2; rise++) {
                     var candidate = pos.above(rise);
                     if (
                         cache.isSafeClimbNode(level, candidate)
@@ -277,7 +282,7 @@ public class CrawlingCustomAStar extends CustomAStar {
 
                 for (var dir : hDirs) {
                     var side = pos.offset(dir[0], 0, dir[1]);
-                    for (var rise = 1; rise <= 4; rise++) {
+                    for (var rise = 1; rise <= 2; rise++) {
                         var candidate = side.above(rise);
                         if (
                             cache.isSafeClimbNode(level, candidate)
@@ -292,7 +297,7 @@ public class CrawlingCustomAStar extends CustomAStar {
 
             for (var dir : hDirs) {
                 var side = pos.offset(dir[0], 0, dir[1]);
-                for (var drop = 1; drop <= 4; drop++) {
+                for (var drop = 1; drop <= 2; drop++) {
                     var candidate = side.below(drop);
                     if (
                         cache.isSafeClimbNode(level, candidate) && hasClimbClearance(level, mob, candidate, cache)
@@ -334,9 +339,39 @@ public class CrawlingCustomAStar extends CustomAStar {
 
     private static float getEffectiveCrawlHeight(Mob mob) {
         if (mob instanceof WallCrawlingMob) {
-            return mob.getBbWidth();
+            return Math.min(mob.getBbWidth(), mob.getBbHeight());
         }
         return mob.getBbHeight();
+    }
+
+    /**
+     * Half-width of the mob's crawl footprint. Tall mobs squeeze to a slim {@code slimCap} profile when crawling; mobs
+     * that are wider than they are tall (e.g. facehuggers) keep their real half-width so the pathfinder does not route
+     * them through gaps narrower than they actually are.
+     */
+    private static double crawlHalfWidth(Mob mob, double slimCap) {
+        var halfW = mob.getBbWidth() / 2.0D;
+        return mob.getBbWidth() > mob.getBbHeight() ? halfW : Math.min(halfW, slimCap);
+    }
+
+    /**
+     * Returns {@code true} if a solid block sits between {@code pos} and {@code goal} in the goal's vertical column. A*
+     * accepts a goal within +/-2 blocks vertically, which lets a short mob (facehugger) stop on the ground directly
+     * beneath a target standing on a raised/floating platform and declare success under the floor. This guard rejects
+     * such arrivals so the search keeps looking for a route that actually reaches the goal's level.
+     */
+    private static boolean solidlySeparatedVertically(Level level, BlockPos pos, BlockPos goal) {
+        if (pos.getY() == goal.getY()) {
+            return false;
+        }
+        var loY = Math.min(pos.getY(), goal.getY());
+        var hiY = Math.max(pos.getY(), goal.getY());
+        for (var y = loY; y < hiY; y++) {
+            if (isPhysicallySolid(level, new BlockPos(goal.getX(), y, goal.getZ()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isPassableForCrawl(Level level, BlockPos pos) {
@@ -384,7 +419,7 @@ public class CrawlingCustomAStar extends CustomAStar {
                 return false;
         }
 
-        var testHalfW = 0.3D;
+        var testHalfW = crawlHalfWidth(mob, 0.3D);
         var mobBox = new AABB(
             feet.getX() + 0.5D - testHalfW,
             feet.getY(),
@@ -400,7 +435,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         var dx = Math.abs(a.getX() - b.getX());
         var dz = Math.abs(a.getZ() - b.getZ());
         var rawDy = b.getY() - a.getY();
-        var yPenalty = rawDy < 0 ? Math.abs(rawDy) * 1.0D : rawDy * 3.0D;
+        var yPenalty = rawDy < 0 ? Math.abs(rawDy) * 0.2D : rawDy * 3.0D;
         var tieBreak = Math.min(dx, dz) * 0.001;
         return dx + dz + yPenalty + tieBreak;
     }
@@ -428,8 +463,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         var bottomY = feet.getY() + belowTopY;
 
         var tight = isTightTunnel(level, feet, cache);
-        var fullHalfW = mob.getBbWidth() / 2.0D;
-        var testHalfW = tight ? Math.min(fullHalfW, 0.35D) : Math.min(fullHalfW, 0.3D);
+        var testHalfW = tight ? crawlHalfWidth(mob, 0.35D) : crawlHalfWidth(mob, 0.3D);
         var testHeight = tight ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
 
         var mobBox = new AABB(
@@ -533,8 +567,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         }
 
         if (toIsClimbable && !toIsWalkable && !toIsTunnelWalk) {
-            var halfW = mob.getBbWidth() / 2.0D;
-            var testHalfW = Math.min(halfW, 0.3D);
+            var testHalfW = crawlHalfWidth(mob, 0.3D);
             var testHeight = isTightTunnel(level, to, cache) ? getEffectiveCrawlHeight(mob) : mob.getBbHeight();
             var belowTo = to.below();
             var belowShape = level.getBlockState(belowTo).getCollisionShape(level, belowTo);
@@ -563,10 +596,10 @@ public class CrawlingCustomAStar extends CustomAStar {
 
         if (toIsTunnelWalk) {
             if (dy > 0)
-                return 1.5D;
+                return 1.6D;
             if (dy < 0)
-                return 1.0D;
-            return 0.15D;
+                return 1.1D;
+            return 1.0D;
         }
 
         if (toIsClimbable && !toIsWalkable) {
@@ -600,7 +633,8 @@ public class CrawlingCustomAStar extends CustomAStar {
             }
         }
 
-        if (!toIsFluid && !hasTransitionClearance(level, mob, from, to, cache)) {
+        var needsTransitionCheck = dy > 0 || toIsTunnelWalk || (toIsClimbable && !toIsWalkable);
+        if (needsTransitionCheck && !toIsFluid && !hasTransitionClearance(level, mob, from, to, cache)) {
             return 9999.0D;
         }
 
@@ -636,7 +670,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         if (!hasSideWall)
             return false;
 
-        var testHalfW = 0.3D;
+        var testHalfW = crawlHalfWidth(mob, 0.3D);
         var mobBox = new AABB(
             feet.getX() + 0.5D - testHalfW,
             feet.getY(),
@@ -666,13 +700,10 @@ public class CrawlingCustomAStar extends CustomAStar {
         for (var x = minX; x <= maxX; x++) {
             for (var z = minZ; z <= maxZ; z++) {
                 var checkFeet = new BlockPos(x, feet.getY(), z);
-                var checkGround = checkFeet.below();
 
                 if (!MovementUtils.isSafeBlock(level, checkFeet))
                     return false;
                 if (!level.getBlockState(checkFeet).getCollisionShape(level, checkFeet).isEmpty())
-                    return false;
-                if (level.getBlockState(checkGround).getCollisionShape(level, checkGround).isEmpty())
                     return false;
 
                 var blocksToCheck = Math.max(1, (int) Math.ceil(crawlHeight));
@@ -685,7 +716,9 @@ public class CrawlingCustomAStar extends CustomAStar {
                 }
             }
         }
-        return true;
+        var feetInFluid = !level.getBlockState(feet).getFluidState().isEmpty();
+        var below = feet.below();
+        return feetInFluid || !level.getBlockState(below).getCollisionShape(level, below).isEmpty();
     }
 
     private static boolean hasTransitionClearance(
@@ -698,7 +731,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         var fromCenter = Vec3.atBottomCenterOf(from);
         var toCenter = Vec3.atBottomCenterOf(to);
 
-        var halfW = Math.min(mob.getBbWidth() / 2.0D, 0.35D);
+        var halfW = crawlHalfWidth(mob, 0.35D);
         var height = getEffectiveCrawlHeight(mob);
         var dy = to.getY() - from.getY();
 

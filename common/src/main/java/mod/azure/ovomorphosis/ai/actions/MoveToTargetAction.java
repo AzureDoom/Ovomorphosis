@@ -182,20 +182,22 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos)
                 || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below()));
 
-        var nextWaypointIsTunnel = false;
+        var nextWaypointNeedsCrawl = false;
         if (canCrawl && !path.isEmpty() && pathIndex < path.size()) {
             for (var li = pathIndex; li < Math.min(path.size(), pathIndex + 3); li++) {
                 var la = path.get(li);
                 if (
                     nodeCache.tunnelCanStandAt(mob.level(), mob, la)
                         || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                        || (nodeCache.isSafeClimbNode(mob.level(), la)
+                            && !nodeCache.canStandAt(mob.level(), mob, la))
                 ) {
-                    nextWaypointIsTunnel = true;
+                    nextWaypointNeedsCrawl = true;
                     break;
                 }
             }
         }
-        if (mobOnSolidGround && !mobIsInOrAtTunnel && !nextWaypointIsTunnel) {
+        if (mobOnSolidGround && !mobIsInOrAtTunnel && !nextWaypointNeedsCrawl) {
             CrawlingMovementManager.setWallCrawling(mob, false);
         }
 
@@ -216,6 +218,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         var shouldUseCrawlingNow = canCrawl && (isCrawlingNow
             || mobIsInOrAtTunnel
+            || nextWaypointNeedsCrawl
             || (nearbyTunnelEntry != null)
             || CrawlingMovementManager.shouldUseWallCrawlingToTarget(mob, target));
 
@@ -522,6 +525,28 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             canCrawl
                 && shouldUseCrawlingNow
                 && needsCrawlStepUp(mob, waypointBlock, mobFeet);
+
+        if (shouldUseCrawlingNow) {
+            var waypointIsTopSurface = nodeCache.canStandAt(mob.level(), mob, waypointBlock)
+                && !nodeCache.isSafeClimbNode(mob.level(), waypointBlock)
+                && waypointBlock.getY() > mobFeet.getY();
+            var horizToWp = new Vec3(waypoint.x - mob.getX(), 0.0D, waypoint.z - mob.getZ());
+            if (
+                waypointIsTopSurface
+                    && waypoint.y > mob.getY() + 0.05D
+                    && waypoint.y <= mob.getY() + 1.4D
+                    && horizToWp.lengthSqr() < 1.6D
+            ) {
+                var overDir = horizToWp.lengthSqr() > 1.0e-4D ? horizToWp.normalize() : Vec3.ZERO;
+                var crest = new Vec3(overDir.x * speed, Math.max(speed * 0.6D, 0.3D), overDir.z * speed);
+                CrawlingMovementManager.setWallCrawling(mob, true);
+                CrawlingMovementManager.updateCrawlOrientation(mob, crest);
+                mob.setDeltaMovement(crest);
+                mob.hasImpulse = true;
+                faceMovementDirection(mob, crest);
+                return;
+            }
+        }
 
         if (verticalStepUp) {
             var climbTarget = findUpcomingHigherPathNode(mobFeet);

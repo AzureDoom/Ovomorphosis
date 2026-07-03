@@ -108,21 +108,23 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos)
                 || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below()));
 
-        var nextWaypointIsTunnel = false;
+        var nextWaypointNeedsCrawl = false;
         if (canCrawl && !path.isEmpty() && pathIndex < path.size()) {
             for (var li = pathIndex; li < Math.min(path.size(), pathIndex + 3); li++) {
                 var la = path.get(li);
                 if (
                     CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
                         || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                        || (MovementUtils.isSafeClimbNode(mob.level(), la)
+                            && !CustomAStar.canStandAt(mob.level(), mob, la))
                 ) {
-                    nextWaypointIsTunnel = true;
+                    nextWaypointNeedsCrawl = true;
                     break;
                 }
             }
         }
 
-        if (mobOnSolidGround && !mobIsInOrAtTunnel && !nextWaypointIsTunnel) {
+        if (mobOnSolidGround && !mobIsInOrAtTunnel && !nextWaypointNeedsCrawl) {
             CrawlingMovementManager.setWallCrawling(mob, false);
         }
 
@@ -130,7 +132,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         var shouldUseCrawlingNow = canCrawl && (isCrawlingNow
             || mobIsInOrAtTunnel
-            || CrawlingMovementManager.isWallCrawling(mob));
+            || nextWaypointNeedsCrawl);
 
         var repathInterval = isCrawlingNow ? 60 : 30;
 
@@ -220,8 +222,16 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                     if (horiz.lengthSqr() > 0.09D) {
                         var toEntrance = horiz.normalize();
                         var move = getTunnelEntryMove(mob, toEntrance, tunnelCenter);
-                        if (canCrawl) {
-                            if (horiz.lengthSqr() < 2.25D) {
+
+                        var entranceYError = tunnelCenter.y - mob.getY();
+                        var closeEnoughToClimb = horiz.lengthSqr() < 2.25D;
+                        if (canCrawl && entranceYError > 0.25D && closeEnoughToClimb) {
+                            var climbY = Mth.clamp(entranceYError * 0.6D, speed * 0.5D, speed);
+                            move = new Vec3(move.x, climbY, move.z);
+                            CrawlingMovementManager.setWallCrawling(mob, true);
+                            CrawlingMovementManager.updateCrawlOrientation(mob, move);
+                        } else if (canCrawl) {
+                            if (closeEnoughToClimb) {
                                 CrawlingMovementManager.setWallCrawling(mob, true);
                                 CrawlingMovementManager.updateCrawlOrientation(mob, move);
                             } else if (mob instanceof WallCrawlingMob wc) {
@@ -310,6 +320,28 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             waypointIsVerticalShaft
                 || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
                 || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
+
+        if (shouldUseCrawlingNow) {
+            var waypointIsTopSurface = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
+                && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
+                && waypointBlock.getY() > mobFeet.getY();
+            var horizToWp = new Vec3(waypoint.x - mob.getX(), 0.0D, waypoint.z - mob.getZ());
+            if (
+                waypointIsTopSurface
+                    && waypoint.y > mob.getY() + 0.05D
+                    && waypoint.y <= mob.getY() + 1.4D
+                    && horizToWp.lengthSqr() < 1.6D
+            ) {
+                var overDir = horizToWp.lengthSqr() > 1.0e-4D ? horizToWp.normalize() : Vec3.ZERO;
+                var crest = new Vec3(overDir.x * speed, Math.max(speed * 0.6D, 0.3D), overDir.z * speed);
+                CrawlingMovementManager.setWallCrawling(mob, true);
+                CrawlingMovementManager.updateCrawlOrientation(mob, crest);
+                mob.setDeltaMovement(crest);
+                mob.hasImpulse = true;
+                faceMovementDirection(mob, crest);
+                return;
+            }
+        }
 
         var verticalStepUp = canCrawl && shouldUseCrawlingNow && needsCrawlStepUp(mob, waypointBlock, mobFeet);
         if (verticalStepUp) {
