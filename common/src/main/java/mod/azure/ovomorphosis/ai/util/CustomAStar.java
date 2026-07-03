@@ -317,7 +317,6 @@ public class CustomAStar {
             for (var z = minZ; z <= maxZ; z++) {
                 var checkFeet = new BlockPos(x, feet.getY(), z);
                 var checkHead = checkFeet.above();
-                var checkGround = checkFeet.below();
 
                 if (!MovementUtils.isSafeBlock(level, checkFeet)) {
                     return false;
@@ -340,18 +339,12 @@ public class CustomAStar {
                 ) {
                     return false;
                 }
-
-                var feetState = level.getBlockState(checkFeet);
-                var isInFluid = !feetState.getFluidState().isEmpty();
-
-                if (!isInFluid) {
-                    if (level.getBlockState(checkGround).getCollisionShape(level, checkGround).isEmpty()) {
-                        return false;
-                    }
-                }
             }
         }
 
-        return true;
+        var feetState = level.getBlockState(feet);
+        var isInFluid = !feetState.getFluidState().isEmpty();
+        var below = feet.below();
+        return isInFluid || !level.getBlockState(below).getCollisionShape(level, below).isEmpty();
     }
 }

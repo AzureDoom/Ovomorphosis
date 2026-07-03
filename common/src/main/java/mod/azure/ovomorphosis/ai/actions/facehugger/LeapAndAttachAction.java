@@ -1,15 +1,15 @@
 package mod.azure.ovomorphosis.ai.actions.facehugger;
 
+import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
+import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
+import mod.azure.ovomorphosis.infection.InfectionManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
-
-import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.util.TargetingUtils;
-import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
-import mod.azure.ovomorphosis.infection.InfectionManager;
 
 public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Action<E> {
 
@@ -33,6 +33,8 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
         windUpTicks = -1;
         inAir = false;
         mob.setAggressive(true);
+        CrawlingMovementManager.setWallCrawling(mob, false);
+        mob.setNoGravity(false);
     }
 
     @Override
@@ -59,6 +61,11 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive()) {
             return ActionStatus.FAILURE;
+        }
+
+        if (CrawlingMovementManager.isWallCrawling(mob)) {
+            CrawlingMovementManager.setWallCrawling(mob, false);
+            mob.setNoGravity(false);
         }
 
         if (
