@@ -82,6 +82,7 @@
   "item.ovomorphosis.motion_tracker.tooltip": "Detects nearby xenomorph movement. Accuracy degrades through solid walls.",
   "msg.ovomorphosis.chest_bursting": "Something is tearing through your chest...",
   "msg.ovomorphosis.eggmorph": "The resin took hold, and you were never seen again...",
+  "msg.ovomorphosis.facehugger_head_locked": "The facehugger has your head pinned!",
   "advancements.ovomorphosis.facehugged.title": "It's in the Throat",
   "advancements.ovomorphosis.facehugged.description": "A facehugger has taken a liking to you.",
   "advancements.ovomorphosis.chestbursted.title": "Unwilling Incubator",

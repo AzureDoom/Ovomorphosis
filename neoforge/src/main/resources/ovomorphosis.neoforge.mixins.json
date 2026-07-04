@@ -28,6 +28,7 @@
   "client": [
     "client.HeldItemRendererMixin",
     "client.LivingEntityRendererMixin",
+    "client.MouseHandlerMixin",
     "client.PlayerRendererMixin"
   ]
 }
