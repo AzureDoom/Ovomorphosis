@@ -1,7 +1,5 @@
 package mod.azure.ovomorphosis.ai.actions;
 
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.util.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
@@ -9,6 +7,9 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Collections;
 import java.util.List;
+
+import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.util.*;
 
 /**
  * Moves the mob to {@link AiKeys#DESTINATION}, using the same A* path-following and wall-crawl logic as
