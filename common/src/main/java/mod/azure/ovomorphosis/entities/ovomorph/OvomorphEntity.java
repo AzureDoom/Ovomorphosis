@@ -8,6 +8,7 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
@@ -196,7 +197,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
             brainRuntime.tick();
         }
         if (tickCount == 1) {
-            moveTo(blockPosition().offset(0, 0, 0), getYRot(), getXRot());
+            moveTo(Mth.floor(getX()) + 0.5, getY(), Mth.floor(getZ()) + 0.5, getYRot(), getXRot());
         }
         this.setDeltaMovement(Vec3.ZERO);
         this.hasImpulse = false;
