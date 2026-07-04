@@ -845,42 +845,42 @@
 				},
 				"gTail1": {
 					"rotation": {
-						"vector": ["-10-math.sin(q.anim_time * 180) * 2.5", "-math.sin(q.anim_time * 90) * 10", "math.sin(q.anim_time * 90) * 10 "]
+						"vector": ["-10-math.sin(query.anim_time * 180) * 2.5", "-math.sin(query.anim_time * 90) * 10", "math.sin(query.anim_time * 90) * 10 "]
 					}
 				},
 				"gTail2": {
 					"rotation": {
-						"vector": [-10, "-math.sin(q.anim_time * 90-22.5) * 10", "math.sin(q.anim_time * 90-22.5) * 10 "]
+						"vector": [-10, "-math.sin(query.anim_time * 90-22.5) * 10", "math.sin(query.anim_time * 90-22.5) * 10 "]
 					}
 				},
 				"gTail3": {
 					"rotation": {
-						"vector": [-12.5, "-math.sin(q.anim_time * 90-45) * 10", "math.sin(q.anim_time * 90-45) * 10 "]
+						"vector": [-12.5, "-math.sin(query.anim_time * 90-45) * 10", "math.sin(query.anim_time * 90-45) * 10 "]
 					}
 				},
 				"gTail4": {
 					"rotation": {
-						"vector": [12.5, "-math.sin(q.anim_time * 90-67.5) * 10", "math.sin(q.anim_time * 90-67.5) * 10 "]
+						"vector": [12.5, "-math.sin(query.anim_time * 90-67.5) * 10", "math.sin(query.anim_time * 90-67.5) * 10 "]
 					}
 				},
 				"gTail5": {
 					"rotation": {
-						"vector": [7.5, "-math.sin(q.anim_time * 90-90) * 10", "math.sin(q.anim_time * 90-90) * 10 "]
+						"vector": [7.5, "-math.sin(query.anim_time * 90-90) * 10", "math.sin(query.anim_time * 90-90) * 10 "]
 					}
 				},
 				"gTail6": {
 					"rotation": {
-						"vector": [12.5, "-math.sin(q.anim_time * 90-112.5) * 10", "math.sin(q.anim_time * 90-112.5) * 10 "]
+						"vector": [12.5, "-math.sin(query.anim_time * 90-112.5) * 10", "math.sin(query.anim_time * 90-112.5) * 10 "]
 					}
 				},
 				"gTail7": {
 					"rotation": {
-						"vector": [15, "-math.sin(q.anim_time * 90-135) * 10", "math.sin(q.anim_time * 90-135) * 10 "]
+						"vector": [15, "-math.sin(query.anim_time * 90-135) * 10", "math.sin(query.anim_time * 90-135) * 10 "]
 					}
 				},
 				"gTail8": {
 					"rotation": {
-						"vector": [-12.5, "-math.sin(q.anim_time * 90-157.5) * 10", "math.sin(q.anim_time * 90-157.5) * 10 "]
+						"vector": [-12.5, "-math.sin(query.anim_time * 90-157.5) * 10", "math.sin(query.anim_time * 90-157.5) * 10 "]
 					}
 				},
 				"gLeftLeg": {
@@ -1948,42 +1948,42 @@
 				},
 				"gTail1": {
 					"rotation": {
-						"vector": ["-10-math.sin(q.anim_time * 180) * 2.5", "-math.sin(q.anim_time * 90) * 10", "math.sin(q.anim_time * 90) * 10 "]
+						"vector": ["-10-math.sin(query.anim_time * 180) * 2.5", "-math.sin(query.anim_time * 90) * 10", "math.sin(query.anim_time * 90) * 10 "]
 					}
 				},
 				"gTail2": {
 					"rotation": {
-						"vector": [-10, "-math.sin(q.anim_time * 90-22.5) * 10", "math.sin(q.anim_time * 90-22.5) * 10 "]
+						"vector": [-10, "-math.sin(query.anim_time * 90-22.5) * 10", "math.sin(query.anim_time * 90-22.5) * 10 "]
 					}
 				},
 				"gTail3": {
 					"rotation": {
-						"vector": [-12.5, "-math.sin(q.anim_time * 90-45) * 10", "math.sin(q.anim_time * 90-45) * 10 "]
+						"vector": [-12.5, "-math.sin(query.anim_time * 90-45) * 10", "math.sin(query.anim_time * 90-45) * 10 "]
 					}
 				},
 				"gTail4": {
 					"rotation": {
-						"vector": [12.5, "-math.sin(q.anim_time * 90-67.5) * 10", "math.sin(q.anim_time * 90-67.5) * 10 "]
+						"vector": [12.5, "-math.sin(query.anim_time * 90-67.5) * 10", "math.sin(query.anim_time * 90-67.5) * 10 "]
 					}
 				},
 				"gTail5": {
 					"rotation": {
-						"vector": [7.5, "-math.sin(q.anim_time * 90-90) * 10", "math.sin(q.anim_time * 90-90) * 10 "]
+						"vector": [7.5, "-math.sin(query.anim_time * 90-90) * 10", "math.sin(query.anim_time * 90-90) * 10 "]
 					}
 				},
 				"gTail6": {
 					"rotation": {
-						"vector": [12.5, "-math.sin(q.anim_time * 90-112.5) * 10", "math.sin(q.anim_time * 90-112.5) * 10 "]
+						"vector": [12.5, "-math.sin(query.anim_time * 90-112.5) * 10", "math.sin(query.anim_time * 90-112.5) * 10 "]
 					}
 				},
 				"gTail7": {
 					"rotation": {
-						"vector": [15, "-math.sin(q.anim_time * 90-135) * 10", "math.sin(q.anim_time * 90-135) * 10 "]
+						"vector": [15, "-math.sin(query.anim_time * 90-135) * 10", "math.sin(query.anim_time * 90-135) * 10 "]
 					}
 				},
 				"gTail8": {
 					"rotation": {
-						"vector": [-12.5, "-math.sin(q.anim_time * 90-157.5) * 10", "math.sin(q.anim_time * 90-157.5) * 10 "]
+						"vector": [-12.5, "-math.sin(query.anim_time * 90-157.5) * 10", "math.sin(query.anim_time * 90-157.5) * 10 "]
 					}
 				},
 				"gLeftLeg": {
