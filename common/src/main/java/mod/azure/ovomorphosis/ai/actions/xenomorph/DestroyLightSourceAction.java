@@ -7,6 +7,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import mod.azure.ovomorphosis.ai.core.Action;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
@@ -37,7 +40,11 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
 
     private int stuckTimer = 0;
 
-    private Vec3 lastPos = Vec3.ZERO;
+    private double lastHorizDistSq = Double.MAX_VALUE;
+
+    private final Set<BlockPos> unreachableLights = new HashSet<>();
+
+    private static final int MAX_BLACKLIST = 64;
 
     public DestroyLightSourceAction(int postBreakCooldownTicks) {
         this.postBreakCooldownTicks = postBreakCooldownTicks;
@@ -49,7 +56,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
         breakProgress = 0f;
         breakId = mob.getId() ^ 0x11AC_0000;
         stuckTimer = 0;
-        lastPos = mob.position();
+        lastHorizDistSq = Double.MAX_VALUE;
     }
 
     @Override
@@ -72,7 +79,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
             cooldowns.set(AiKeys.LIGHT_SCAN_COOLDOWN, 40);
             breakProgress = 0f;
             stuckTimer = 0;
-            lastPos = mob.position();
+            lastHorizDistSq = Double.MAX_VALUE;
         }
 
         var state = level.getBlockState(lightBlock);
@@ -92,14 +99,18 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
         var distSq = mob.distanceToSqr(target);
 
         if (distSq > 6.25D) {
-            if (mob.position().distanceToSqr(lastPos) < 0.001D) {
-                stuckTimer++;
-            } else {
-                stuckTimer = 0;
-            }
-            lastPos = mob.position();
+            var horizDistSq = (target.x - mob.getX()) * (target.x - mob.getX())
+                + (target.z - mob.getZ()) * (target.z - mob.getZ());
 
-            if (stuckTimer > 60) {
+            if (horizDistSq < lastHorizDistSq - 0.02D) {
+                lastHorizDistSq = horizDistSq;
+                stuckTimer = 0;
+            } else {
+                stuckTimer++;
+            }
+
+            if (stuckTimer > 40) {
+                markUnreachable(lightBlock);
                 level.destroyBlockProgress(breakId, lightBlock, -1);
                 lightBlock = null;
                 stuckTimer = 0;
@@ -177,7 +188,20 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
         return 10;
     }
 
-    private static BlockPos findBrightestLightBlock(AbstractAlienEntity mob) {
+    /**
+     * Records a light block as unreachable so future scans skip it. Bounded by {@link #MAX_BLACKLIST}; when the cap is
+     * hit the whole set is cleared, giving previously-unreachable lights another chance rather than growing without
+     * limit.
+     */
+    private void markUnreachable(BlockPos pos) {
+        if (pos == null)
+            return;
+        if (unreachableLights.size() >= MAX_BLACKLIST)
+            unreachableLights.clear();
+        unreachableLights.add(pos.immutable());
+    }
+
+    private BlockPos findBrightestLightBlock(E mob) {
         var level = mob.level();
         var origin = mob.blockPosition();
         var fireHardened = mob.isFireHardened();
@@ -189,6 +213,10 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
             for (var y = -6; y <= 6; y++) {
                 for (var z = -12; z <= 12; z++) {
                     var pos = origin.offset(x, y, z);
+
+                    if (unreachableLights.contains(pos))
+                        continue;
+
                     var state = level.getBlockState(pos);
 
                     if (isLavaOrMagma(state))

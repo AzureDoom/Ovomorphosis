@@ -202,6 +202,22 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         var isCrawlingNow = canCrawl && CrawlingMovementManager.isWallCrawling(mob);
+
+        if (
+            canCrawl
+                && isCrawlingNow
+                && !mobOnSolidGround
+                && !mobIsInOrAtTunnel
+                && !nextWaypointNeedsCrawl
+                && !mob.horizontalCollision
+                && !nodeCache.isSafeClimbNode(mob.level(), mobFeetPos)
+        ) {
+            CrawlingMovementManager.setWallCrawling(mob, false);
+            if (mob instanceof WallCrawlingMob wc) {
+                wc.ovomorphosis$setWallCrawlGraceTicks(0);
+            }
+            isCrawlingNow = false;
+        }
         var nearbyTunnelEntry = canCrawl ? findNearbyTunnelEntry(mob) : null;
         if (nearbyTunnelEntry != null && mobOnSolidGround && !mobIsInOrAtTunnel) {
             var toTunnel = Vec3.atBottomCenterOf(nearbyTunnelEntry).subtract(mob.position());
@@ -1535,10 +1551,22 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         return null;
     }
 
+    /**
+     * A single-block rise onto walkable ground is an ordinary step-up (a hill/slope/stair) that normal ground movement
+     * and the stair-jump recovery handle. It must NOT engage the gravity-suppressed wall-climb: with gravity off there
+     * is nothing to arrest the forced upward velocity, so on open slopes the mob overshoots, cannot settle, and
+     * oscillates/floats in the air. Only rises of 2+ blocks, or nodes with no walkable floor (true wall-cling nodes),
+     * count as needing a vertical climb.
+     */
+    private boolean isOrdinaryStepUp(E mob, BlockPos node, BlockPos mobFeet) {
+        return node.getY() - mobFeet.getY() == 1
+            && nodeCache.canStandAt(mob.level(), mob, node);
+    }
+
     private boolean needsCrawlStepUp(E mob, BlockPos waypointBlock, BlockPos mobFeet) {
         var currentY = mobFeet.getY();
 
-        if (waypointBlock.getY() > currentY) {
+        if (waypointBlock.getY() > currentY && !isOrdinaryStepUp(mob, waypointBlock, mobFeet)) {
             return true;
         }
 
@@ -1551,7 +1579,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         for (var i = pathIndex; i < maxLookahead; i++) {
             var candidate = path.get(i);
 
-            if (candidate.getY() > currentY) {
+            if (candidate.getY() > currentY && !isOrdinaryStepUp(mob, candidate, mobFeet)) {
                 var dx = candidate.getX() + 0.5D - mob.getX();
                 var dz = candidate.getZ() + 0.5D - mob.getZ();
                 var horizontalDistSqr = dx * dx + dz * dz;
