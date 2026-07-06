@@ -163,13 +163,14 @@ public final class TargetingUtils {
         if (target instanceof AbstractAlienEntity)
             return false;
 
-        if (target.getType().is(ModTags.FACEHUGGER_BLACKLIST)) {
+        if (target.getType().is(ModTags.FACEHUGGER_BLACKLIST))
             return false;
-        }
 
-        if (isFacehuggerAttached(target)) {
+        if (!(target.getType().is(ModTags.XENOMORPH_HOST) || target.getType().is(ModTags.RUNNER_HOST)))
             return false;
-        }
+
+        if (isFacehuggerAttached(target))
+            return false;
 
         if (InfectionManager.isInfected(target))
             return false;
