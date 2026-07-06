@@ -130,6 +130,22 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         var isCrawlingNow = canCrawl && CrawlingMovementManager.isWallCrawling(mob);
 
+        if (
+            canCrawl
+                && isCrawlingNow
+                && !mobOnSolidGround
+                && !mobIsInOrAtTunnel
+                && !nextWaypointNeedsCrawl
+                && !mob.horizontalCollision
+                && !MovementUtils.isSafeClimbNode(mob.level(), mobFeetPos)
+        ) {
+            CrawlingMovementManager.setWallCrawling(mob, false);
+            if (mob instanceof WallCrawlingMob wc) {
+                wc.ovomorphosis$setWallCrawlGraceTicks(0);
+            }
+            isCrawlingNow = false;
+        }
+
         var shouldUseCrawlingNow = canCrawl && (isCrawlingNow
             || mobIsInOrAtTunnel
             || nextWaypointNeedsCrawl);
@@ -731,15 +747,27 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         return !(yError < -1.0D);
     }
 
+    /**
+     * A single-block rise onto walkable ground is an ordinary step-up (a hill/slope/stair) that normal ground movement
+     * and the stair-jump recovery handle. It must NOT engage the gravity-suppressed wall-climb: with gravity off there
+     * is nothing to arrest the forced upward velocity, so on open slopes the mob overshoots, cannot settle, and
+     * oscillates/floats in the air. Only rises of 2+ blocks, or nodes with no walkable floor (true wall-cling nodes),
+     * count as needing a vertical climb.
+     */
+    private boolean isOrdinaryStepUp(E mob, BlockPos node, BlockPos mobFeet) {
+        return node.getY() - mobFeet.getY() == 1
+            && CustomAStar.canStandAt(mob.level(), mob, node);
+    }
+
     private boolean needsCrawlStepUp(E mob, BlockPos waypointBlock, BlockPos mobFeet) {
-        if (waypointBlock.getY() > mobFeet.getY())
+        if (waypointBlock.getY() > mobFeet.getY() && !isOrdinaryStepUp(mob, waypointBlock, mobFeet))
             return true;
         if (path == null || path.isEmpty())
             return false;
         var maxLookahead = Math.min(path.size(), pathIndex + 4);
         for (var i = pathIndex; i < maxLookahead; i++) {
             var candidate = path.get(i);
-            if (candidate.getY() > mobFeet.getY()) {
+            if (candidate.getY() > mobFeet.getY() && !isOrdinaryStepUp(mob, candidate, mobFeet)) {
                 var dx = candidate.getX() + 0.5D - mob.getX();
                 var dz = candidate.getZ() + 0.5D - mob.getZ();
                 return (dx * dx + dz * dz) < 4.0D;
