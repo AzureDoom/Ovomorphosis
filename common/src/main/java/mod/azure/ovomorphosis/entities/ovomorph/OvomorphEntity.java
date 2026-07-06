@@ -28,6 +28,7 @@ import mod.azure.ovomorphosis.ai.util.OvomorphHostTargetSelector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.util.ClientAnimState;
 import mod.azure.ovomorphosis.util.OvomorphStructureChecks;
 
@@ -42,6 +43,8 @@ public class OvomorphEntity extends AbstractAlienEntity {
         OvomorphEntity.class,
         EntityDataSerializers.INT
     );
+
+    private int deathTickCounter;
 
     private final MobBrainRuntime<OvomorphEntity> brainRuntime;
 
@@ -194,6 +197,14 @@ public class OvomorphEntity extends AbstractAlienEntity {
     public void tick() {
         super.tick();
         if (!this.level().isClientSide()) {
+            if (this.getEggState() == EggStates.HATCHED.ordinal()) {
+                deathTickCounter++;
+            }
+            if (deathTickCounter >= 600) {
+                this.level()
+                    .setBlockAndUpdate(this.blockPosition(), BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState());
+                this.remove(RemovalReason.DISCARDED);
+            }
             brainRuntime.tick();
         }
         if (tickCount == 1) {
