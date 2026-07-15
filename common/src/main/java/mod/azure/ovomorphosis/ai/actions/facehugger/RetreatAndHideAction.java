@@ -8,6 +8,9 @@ import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 
 public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
@@ -61,7 +64,7 @@ public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
 
         navigateTo(blackboard, dest);
 
-        double distSq = mob.distanceToSqr(Vec3.atCenterOf(dest));
+        var distSq = mob.distanceToSqr(Vec3.atCenterOf(dest));
         if (distSq <= ARRIVED_DIST_SQ) {
             blackboard.remove(AiKeys.DESTINATION);
             phase = Phase.HIDING;
@@ -92,6 +95,14 @@ public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
         if (reason == ActionStatus.FAILURE) {
             var failCount = blackboard.get(AiKeys.FAILED_GOAL_COUNT, Integer.class);
             blackboard.set(AiKeys.FAILED_GOAL_COUNT, failCount == null ? 1 : failCount + 1);
+
+            var tick = (int) mob.level().getGameTime();
+            blackboard.set(
+                AiKeys.LAST_PLAN_FEEDBACK,
+                PlanFeedback.of(PlanFailureReason.FAILED_STUCK, tick, mob.blockPosition(), AiGoalType.RETREAT_AND_HIDE)
+            );
+        } else if (reason == ActionStatus.SUCCESS) {
+            blackboard.set(AiKeys.FAILED_GOAL_COUNT, 0);
         }
     }
 

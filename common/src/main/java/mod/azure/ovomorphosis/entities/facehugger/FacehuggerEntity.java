@@ -54,6 +54,8 @@ public class FacehuggerEntity extends AbstractAlienEntity {
 
     private boolean leapJustFailed = false;
 
+    private int regenCooldown = 0;
+
     public FacehuggerEntity(EntityType<? extends AbstractAlienEntity> entityType, Level level) {
         super(entityType, level);
         this.animationDispatcher = new FacehuggerAnimationDispatcher(this);
@@ -73,6 +75,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         moveAnalysis.update();
 
         if (!this.level().isClientSide()) {
+            tickPassiveRegen();
             tickGoalPlanner();
             brainRuntime.tick();
             tickLeapRecovery();
@@ -311,5 +314,25 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         }
 
         playAnimation(ClientAnimState.IDLE);
+    }
+
+    private void tickPassiveRegen() {
+        if (this.isAttachedToHost() || this.isInfertile() || this.isDeadOrDying()) {
+            regenCooldown = 0;
+            return;
+        }
+
+        if (this.getHealth() >= this.getMaxHealth()) {
+            regenCooldown = 0;
+            return;
+        }
+
+        if (regenCooldown > 0) {
+            regenCooldown--;
+            return;
+        }
+
+        regenCooldown = 40;
+        this.heal(1.0f);
     }
 }
