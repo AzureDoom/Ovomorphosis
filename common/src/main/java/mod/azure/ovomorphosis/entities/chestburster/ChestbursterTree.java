@@ -79,10 +79,12 @@ public class ChestbursterTree {
                 default -> {
                     if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
                         cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
-                        if (chestburster.getRandom().nextFloat() < 0.1F) {
-                            yield BehaviorResult.run(wander, 9);
+                        if (chestburster.getRandom().nextFloat() < 0.65F) {
+                            yield BehaviorResult.run(wander, 10);
                         }
+                        yield BehaviorResult.run(idle, 8);
                     }
+
                     yield BehaviorResult.run(idle, 8);
                 }
             };
