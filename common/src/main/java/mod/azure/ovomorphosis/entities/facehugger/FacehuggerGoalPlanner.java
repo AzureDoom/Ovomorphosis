@@ -58,7 +58,6 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
     ) {
         int tick = (int) mob.level().getGameTime();
 
-        // Already attached — lock in immediately, no scoring needed.
         if (mob.isAttachedToHost()) {
             return PlannedGoal.of(
                 AiGoalType.INFECT_HOST,
@@ -74,7 +73,6 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             );
         }
 
-        // --- Failure cooldown tracker ---
         var gfc = GoalFailureCooldowns.getOrCreate(blackboard);
         gfc.evictExpired(tick);
 
@@ -90,7 +88,13 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
         var healthFraction = mob.getHealth() / mob.getMaxHealth();
         var lowHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
 
-        // --- Base scores ---
+        if (!lowHealth) {
+            var staleFailCount = blackboard.get(AiKeys.FAILED_GOAL_COUNT, Integer.class);
+            if (staleFailCount != null && staleFailCount != 0) {
+                blackboard.set(AiKeys.FAILED_GOAL_COUNT, 0);
+            }
+        }
+
         var infectScore = 0f;
         var stalkScore = 0f;
         var retreatScore = 0f;
@@ -128,7 +132,6 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             investigateDest = lastSeenPos;
         }
 
-        // --- Feedback modifiers + failure recording ---
         if (feedback != null && feedback.isFresh(tick)) {
             var reason = feedback.reason();
             var failedGoal = feedback.failedGoalType();
@@ -142,7 +145,6 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
                 case FAILED_NO_PATH, FAILED_STUCK, FAILED_BLOCKED -> {
                     if (failedGoal == AiGoalType.INFECT_HOST) {
                         infectScore -= PENALTY_FAILED_GOAL;
-                        // Suppress leap attempts for 160 ticks — force stalk before retry.
                         gfc.recordFailure(AiGoalType.INFECT_HOST, tick, 160);
                     }
                     if (failedGoal == AiGoalType.STALK_HOST) {
@@ -151,7 +153,10 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
                     }
                     if (failedGoal == AiGoalType.RETREAT_AND_HIDE) {
                         retreatScore -= PENALTY_FAILED_GOAL;
-                        gfc.recordFailure(AiGoalType.RETREAT_AND_HIDE, tick, 80);
+                        var failCount = blackboard.get(AiKeys.FAILED_GOAL_COUNT, Integer.class);
+                        var count = failCount != null ? Math.max(1, failCount) : 1;
+                        var suppressDuration = Math.min(80 * count, 600);
+                        gfc.recordFailure(AiGoalType.RETREAT_AND_HIDE, tick, suppressDuration);
                     }
                     investigateScore += BOOST_INVESTIGATE * 0.5f;
                 }
@@ -177,19 +182,16 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             }
         }
 
-        // --- Apply per-goal-type decaying penalties ---
         infectScore -= gfc.getPenalty(AiGoalType.INFECT_HOST, tick);
         stalkScore -= gfc.getPenalty(AiGoalType.STALK_HOST, tick);
         retreatScore -= gfc.getPenalty(AiGoalType.RETREAT_AND_HIDE, tick);
         investigateScore -= gfc.getPenalty(AiGoalType.INVESTIGATE, tick);
 
-        // --- Floor at zero ---
         infectScore = Math.max(0f, infectScore);
         stalkScore = Math.max(0f, stalkScore);
         retreatScore = Math.max(0f, retreatScore);
         investigateScore = Math.max(0f, investigateScore);
 
-        // --- Hysteresis: boost the currently active goal type ---
         var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
         if (activeGoalType != null) {
             switch (activeGoalType) {
@@ -202,7 +204,6 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             }
         }
 
-        // --- Pick best ---
         AiGoalType chosen;
         float chosenScore;
         LivingEntity chosenTarget;
