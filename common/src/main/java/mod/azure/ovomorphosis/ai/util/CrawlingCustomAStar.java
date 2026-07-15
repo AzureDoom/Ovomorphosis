@@ -59,7 +59,10 @@ public class CrawlingCustomAStar extends CustomAStar {
 
             var partialScore = heuristic(current.pos(), goalFeet);
 
-            if (partialScore < bestPartialScore) {
+            if (
+                partialScore < bestPartialScore
+                    && !solidlySeparatedVertically(level, current.pos(), goalFeet)
+            ) {
                 bestPartialScore = partialScore;
                 bestPartial = current;
             }
@@ -354,26 +357,6 @@ public class CrawlingCustomAStar extends CustomAStar {
         return mob.getBbWidth() > mob.getBbHeight() ? halfW : Math.min(halfW, slimCap);
     }
 
-    /**
-     * Returns {@code true} if a solid block sits between {@code pos} and {@code goal} in the goal's vertical column. A*
-     * accepts a goal within +/-2 blocks vertically, which lets a short mob (facehugger) stop on the ground directly
-     * beneath a target standing on a raised/floating platform and declare success under the floor. This guard rejects
-     * such arrivals so the search keeps looking for a route that actually reaches the goal's level.
-     */
-    private static boolean solidlySeparatedVertically(Level level, BlockPos pos, BlockPos goal) {
-        if (pos.getY() == goal.getY()) {
-            return false;
-        }
-        var loY = Math.min(pos.getY(), goal.getY());
-        var hiY = Math.max(pos.getY(), goal.getY());
-        for (var y = loY; y < hiY; y++) {
-            if (isPhysicallySolid(level, new BlockPos(goal.getX(), y, goal.getZ()))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static boolean isPassableForCrawl(Level level, BlockPos pos) {
         var state = level.getBlockState(pos);
         if (state.is(Blocks.BARRIER))
@@ -435,7 +418,7 @@ public class CrawlingCustomAStar extends CustomAStar {
         var dx = Math.abs(a.getX() - b.getX());
         var dz = Math.abs(a.getZ() - b.getZ());
         var rawDy = b.getY() - a.getY();
-        var yPenalty = rawDy < 0 ? Math.abs(rawDy) * 0.2D : rawDy * 3.0D;
+        var yPenalty = rawDy < 0 ? Math.abs(rawDy) * 0.6D : rawDy * 1.5D;
         var tieBreak = Math.min(dx, dz) * 0.001;
         return dx + dz + yPenalty + tieBreak;
     }
