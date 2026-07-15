@@ -75,7 +75,10 @@ public class CustomAStar {
 
             var partialScore = heuristic(current.pos(), goalFeet);
 
-            if (partialScore < bestPartialScore) {
+            if (
+                partialScore < bestPartialScore
+                    && !solidlySeparatedVertically(level, current.pos(), goalFeet)
+            ) {
                 bestPartialScore = partialScore;
                 bestPartial = current;
             }
@@ -84,7 +87,10 @@ public class CustomAStar {
                 continue;
             }
 
-            if (isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)) {
+            if (
+                isCloseEnoughToGoal(current.pos(), goalFeet, goalRadius)
+                    && !solidlySeparatedVertically(level, current.pos(), goalFeet)
+            ) {
                 var path = reconstruct(current);
                 if (CommonMod.getConfig().enablePathfindingDebug) {
                     for (var i = 0; i < path.size() - 1; i++) {
@@ -150,6 +156,29 @@ public class CustomAStar {
 
         return dx * dx + dz * dz <= goalRadius * goalRadius
             && Math.abs(pos.getY() - goal.getY()) <= 2;
+    }
+
+    /**
+     * Returns {@code true} if a solid block sits between {@code pos} and {@code goal} in the goal's vertical column. A*
+     * accepts a goal within +/-2 blocks vertically ({@link #isCloseEnoughToGoal}), which lets a short mob (facehugger,
+     * chestburster) stop on the ground directly beneath a target standing on a raised/floating platform and declare
+     * success under the floor. This guard rejects such arrivals — both as a final result and as the "closest so far"
+     * partial-path fallback — so the search keeps looking for (or reports failure to find) a route that actually
+     * reaches the goal's level, instead of silently stopping under solid geometry.
+     */
+    protected static boolean solidlySeparatedVertically(Level level, BlockPos pos, BlockPos goal) {
+        if (pos.getY() == goal.getY()) {
+            return false;
+        }
+        var loY = Math.min(pos.getY(), goal.getY());
+        var hiY = Math.max(pos.getY(), goal.getY());
+        for (var y = loY; y < hiY; y++) {
+            var check = new BlockPos(goal.getX(), y, goal.getZ());
+            if (!level.getBlockState(check).getCollisionShape(level, check).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
