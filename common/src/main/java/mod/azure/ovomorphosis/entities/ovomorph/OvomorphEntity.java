@@ -18,6 +18,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -316,6 +317,11 @@ public class OvomorphEntity extends AbstractAlienEntity {
         if (!level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP)) {
             return false;
         }
+
+        if (!level.getEntitiesOfClass(OvomorphEntity.class, new AABB(pos).inflate(10)).isEmpty()) {
+            return false;
+        }
+
         return OvomorphStructureChecks.isInTargetStructure(level, pos);
     }
 }
