@@ -64,6 +64,11 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
             return ActionStatus.FAILURE;
         }
 
+        if (!TargetingUtils.faceHuggerTest(mob, target)) {
+            blackboard.set(AiKeys.TARGET, null);
+            return ActionStatus.FAILURE;
+        }
+
         if (CrawlingMovementManager.isWallCrawling(mob)) {
             CrawlingMovementManager.setWallCrawling(mob, false);
             mob.setNoGravity(false);
