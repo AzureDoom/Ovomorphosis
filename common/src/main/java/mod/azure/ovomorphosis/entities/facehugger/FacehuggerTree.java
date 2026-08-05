@@ -11,6 +11,7 @@ import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 public class FacehuggerTree {
 
@@ -64,7 +65,7 @@ public class FacehuggerTree {
                 case INFECT_HOST -> {
                     var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
                     if (target == null) {
-                        target = goal.target().filter(LivingEntity::isAlive).orElse(null);
+                        target = resolveFallbackTarget(facehugger, goal);
                     }
 
                     if (target != null && target.isAlive()) {
@@ -82,7 +83,7 @@ public class FacehuggerTree {
                 case STALK_HOST -> {
                     var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
                     if (target == null) {
-                        target = goal.target().filter(LivingEntity::isAlive).orElse(null);
+                        target = resolveFallbackTarget(facehugger, goal);
                     }
 
                     if (target != null && target.isAlive()) {
@@ -133,5 +134,24 @@ public class FacehuggerTree {
                 }
             };
         };
+    }
+
+    /**
+     * Re-validates the goal-captured target before trusting it as a fallback.
+     * <p>
+     * {@link PlannedGoal#target()} is a snapshot taken at plan time and does not track subsequent state changes — most
+     * importantly, another facehugger attaching to the same host mid-commitment-window. Without this check, a
+     * facehugger whose {@link AiKeys#TARGET} blackboard entry has already been correctly nulled out by
+     * {@code FacehuggerGoalPlanner} could still resurrect a now-claimed host from the stale goal snapshot and
+     * repeatedly attempt to leap at it, causing the mob to freeze/lunge in place near a crowded host.
+     */
+    private static LivingEntity resolveFallbackTarget(FacehuggerEntity facehugger, PlannedGoal<FacehuggerEntity> goal) {
+        if (goal == null)
+            return null;
+
+        return goal.target()
+            .filter(LivingEntity::isAlive)
+            .filter(t -> TargetingUtils.faceHuggerTest(facehugger, t))
+            .orElse(null);
     }
 }
