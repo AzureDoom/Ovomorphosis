@@ -1,4 +1,4 @@
-# Ovomorphosis
+![Header](https://wsrv.nl/?url=https%3A%2F%2Fwww.bisecthosting.com%2Fimages%2FCF%2FOVOMORPHOSIS%2FMP_OVOMORPHOSIS_Header.webp&n=-1)
 
 ![Fabric Supported](https://img.shields.io/badge/Fabric-supported-blue?style=for-the-badge)
 ![NeoForge Supported](https://img.shields.io/badge/NeoForge-supported-orange?style=for-the-badge)
@@ -8,11 +8,13 @@
 ![Requires AzureLib](https://img.shields.io/badge/Requires-AzureLib-purple?style=for-the-badge)
 ![License MIT](https://img.shields.io/badge/License-MIT-lightgrey?style=for-the-badge)
 
+![Discord](https://wsrv.nl/?url=https%3A%2F%2Fwww.bisecthosting.com%2Fimages%2FCF%2FOVOMORPHOSIS%2FMP_OVOMORPHOSIS_Discord.webp&n=-1)
+
 Ovomorphosis brings an alien life cycle into Minecraft through exploration, infection, and hive growth. The threat begins in infested structures, where ovomorphs can hatch facehuggers, infected hosts can give rise to chestbursters, and xenomorphs can spread resin-covered hives by capturing mobs for eggmorphing.
 
 This mod is designed for players who want a creature focused horror experience that feels alive in the world. The threat is not just a single mob. It grows, spreads, and becomes harder to ignore the longer it is allowed to survive.
 
-## Features
+![Features](https://wsrv.nl/?url=https%3A%2F%2Fwww.bisecthosting.com%2Fimages%2FCF%2FOVOMORPHOSIS%2FMP_OVOMORPHOSIS_Description.webp&n=-1)
 
 ### Alien life cycle
 
@@ -110,4 +112,4 @@ Looking for a reliable server to run **Ovomorphosis** and other Minecraft mods?
 
 Use code **azuredoom** for **25% off your first month**.
 
-[![BisectHosting](https://www.bisecthosting.com/images/CF/LEVELINGCORE/MP_LEVELINGCORE_Promo.webp)](https://url-shortener.curseforge.com/z2g8c)
+[![BisectHosting](https://www.bisecthosting.com/images/CF/OVOMORPHOSIS/MP_OVOMORPHOSIS_Promo.webp)](https://url-shortener.curseforge.com/z2g8c)
