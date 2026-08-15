@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import mod.azure.ovomorphosis.util.ModTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -359,10 +360,16 @@ public class CrawlingCustomAStar extends CustomAStar {
 
     private static boolean isPassableForCrawl(Level level, BlockPos pos) {
         var state = level.getBlockState(pos);
+
         if (state.is(Blocks.BARRIER))
             return true;
+
         if (state.is(Blocks.STRUCTURE_VOID))
             return true;
+
+        if (state.is(ModTags.RESIN))
+            return true;
+
         return state.getCollisionShape(level, pos).isEmpty();
     }
 
