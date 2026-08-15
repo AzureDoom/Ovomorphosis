@@ -149,7 +149,7 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         BlockPos resinCentre = null;
         var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
         if (memory != null) {
-            var nearest = memory.findNearestWebCross(level, origin, 80.0);
+            var nearest = memory.findNearestOwnedWebCross(level, origin, 80.0);
             if (nearest.isPresent()) {
                 resinCentre = nearest.get();
             }

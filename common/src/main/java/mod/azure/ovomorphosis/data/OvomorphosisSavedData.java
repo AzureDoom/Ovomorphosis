@@ -1,15 +1,21 @@
 package mod.azure.ovomorphosis.data;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.Locale;
+import java.util.*;
 
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.infection.EggmorphTracker;
@@ -18,7 +24,11 @@ import mod.azure.ovomorphosis.infection.InfectionState;
 
 public final class OvomorphosisSavedData extends SavedData {
 
-    private HiveMemory hiveMemory = new HiveMemory();
+    private final Map<ResourceKey<Level>, List<HiveMemory>> hives = new HashMap<>();
+
+    private static final double HIVE_JOIN_RADIUS = 256.0D;
+
+    private static final double HIVE_JOIN_RADIUS_SQR = HIVE_JOIN_RADIUS * HIVE_JOIN_RADIUS;
 
     public static OvomorphosisSavedData get(ServerLevel level) {
         var overworld = level.getServer().overworld();
@@ -31,12 +41,49 @@ public final class OvomorphosisSavedData extends SavedData {
             );
     }
 
-    /**
-     * Returns the shared {@link HiveMemory} for the given level. Convenience shorthand for
-     * {@code OvomorphosisSavedData.get(level).getHiveMemory()}.
-     */
-    public static HiveMemory getHiveMemory(ServerLevel level) {
-        return get(level).hiveMemory;
+    public static HiveMemory getOrCreateHive(ServerLevel level, BlockPos origin) {
+        var data = get(level);
+        var dimension = level.dimension();
+
+        var dimensionHives = data.hives.computeIfAbsent(
+            dimension,
+            key -> new ArrayList<>()
+        );
+
+        var nearest = getNearest(origin, dimensionHives);
+
+        if (nearest != null)
+            return nearest;
+
+        var created = new HiveMemory();
+        created.claimDomeCenter(origin.immutable());
+
+        dimensionHives.add(created);
+        data.setDirty();
+
+        return created;
+    }
+
+    private static @Nullable HiveMemory getNearest(BlockPos origin, List<HiveMemory> dimensionHives) {
+        HiveMemory nearest = null;
+        var nearestDistanceSq = Double.MAX_VALUE;
+
+        for (var hive : dimensionHives) {
+            var center = hive.getDomeCenter().orElse(null);
+            if (center == null)
+                continue;
+
+            var distanceSq = center.distSqr(origin);
+
+            if (
+                distanceSq <= HIVE_JOIN_RADIUS_SQR
+                    && distanceSq < nearestDistanceSq
+            ) {
+                nearest = hive;
+                nearestDistanceSq = distanceSq;
+            }
+        }
+        return nearest;
     }
 
     private static OvomorphosisSavedData createEmpty() {
@@ -47,8 +94,37 @@ public final class OvomorphosisSavedData extends SavedData {
     public @NotNull CompoundTag save(@NotNull CompoundTag tag) {
         tag.put("eggmorph", saveEggmorph());
         tag.put("infections", saveInfections());
-        tag.put("hiveMemory", hiveMemory.save());
+        tag.put("hives", saveHives());
         return tag;
+    }
+
+    private CompoundTag saveHives() {
+        var root = new CompoundTag();
+        var list = new ListTag();
+
+        for (var dimensionEntry : hives.entrySet()) {
+            var dimension = dimensionEntry.getKey();
+
+            for (var hive : dimensionEntry.getValue()) {
+                var hiveTag = new CompoundTag();
+
+                hiveTag.putString(
+                    "dimension",
+                    dimension.location().toString()
+                );
+
+                hiveTag.put("data", hive.save());
+
+                list.add(hiveTag);
+            }
+        }
+
+        root.put("entries", list);
+        return root;
+    }
+
+    public static void markHiveDirty(ServerLevel level) {
+        get(level).setDirty();
     }
 
     private static OvomorphosisSavedData load(CompoundTag tag, ServerLevel level) {
@@ -65,11 +141,56 @@ public final class OvomorphosisSavedData extends SavedData {
             loadInfections(tag.getList("infections", Tag.TAG_COMPOUND));
         }
 
-        if (tag.contains("hiveMemory", Tag.TAG_COMPOUND)) {
-            data.hiveMemory = HiveMemory.load(tag.getCompound("hiveMemory"));
+        if (tag.contains("hives", Tag.TAG_COMPOUND)) {
+            data.loadHives(tag.getCompound("hives"));
+        } else if (tag.contains("hiveMemory", Tag.TAG_COMPOUND)) {
+            var legacyHive = HiveMemory.load(tag.getCompound("hiveMemory"));
+
+            data.hives
+                .computeIfAbsent(
+                    Level.OVERWORLD,
+                    key -> new ArrayList<>()
+                )
+                .add(legacyHive);
+
+            data.setDirty();
         }
 
         return data;
+    }
+
+    private void loadHives(CompoundTag root) {
+        hives.clear();
+
+        var list = root.getList("entries", Tag.TAG_COMPOUND);
+
+        for (var i = 0; i < list.size(); i++) {
+            var entry = list.getCompound(i);
+
+            if (
+                !entry.contains("dimension", Tag.TAG_STRING)
+                    || !entry.contains("data", Tag.TAG_COMPOUND)
+            ) {
+                continue;
+            }
+
+            var dimensionLocation =
+                new ResourceLocation(entry.getString("dimension"));
+
+            var dimension = ResourceKey.create(
+                Registries.DIMENSION,
+                dimensionLocation
+            );
+
+            var hive = HiveMemory.load(
+                entry.getCompound("data")
+            );
+
+            hives.computeIfAbsent(
+                dimension,
+                key -> new ArrayList<>()
+            ).add(hive);
+        }
     }
 
     private static ListTag saveEggmorph() {
@@ -167,5 +288,25 @@ public final class OvomorphosisSavedData extends SavedData {
 
             InfectionManager.restore(uuid, state);
         }
+    }
+
+    public static @Nullable HiveMemory findHiveById(
+        ServerLevel level,
+        UUID hiveId
+    ) {
+        var data = get(level);
+
+        var dimensionHives =
+            data.hives.get(level.dimension());
+
+        if (dimensionHives == null)
+            return null;
+
+        for (var hive : dimensionHives) {
+            if (hive.getHiveId().equals(hiveId))
+                return hive;
+        }
+
+        return null;
     }
 }

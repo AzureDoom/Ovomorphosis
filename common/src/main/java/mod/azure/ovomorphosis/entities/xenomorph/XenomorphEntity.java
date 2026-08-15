@@ -28,6 +28,7 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.UUID;
 import java.util.function.BiConsumer;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -37,10 +38,7 @@ import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
 import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
-import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
-import mod.azure.ovomorphosis.ai.util.EmergencyDetector;
-import mod.azure.ovomorphosis.ai.util.TargetingSystem;
-import mod.azure.ovomorphosis.ai.util.XenomorphHostileTargetSelector;
+import mod.azure.ovomorphosis.ai.util.*;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
@@ -48,6 +46,9 @@ import mod.azure.ovomorphosis.util.ClientAnimState;
 import mod.azure.ovomorphosis.util.Growable;
 
 public class XenomorphEntity extends AbstractAlienEntity implements Growable {
+
+    @Nullable
+    private UUID hiveId;
 
     protected static final EntityDataAccessor<Float> GROWTH = SynchedEntityData.defineId(
         XenomorphEntity.class,
@@ -282,13 +283,11 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     ) {
         if (spawnType == MobSpawnType.SPAWN_EGG || spawnType == MobSpawnType.COMMAND)
             setGrowth(1200);
+
         if (level instanceof ServerLevel serverLevel) {
-            brainRuntime.getBlackboard()
-                .set(
-                    AiKeys.HIVE_MEMORY,
-                    OvomorphosisSavedData.getHiveMemory(serverLevel)
-                );
+            ensureHiveAssignment(serverLevel);
         }
+
         return super.finalizeSpawn(level, difficulty, spawnType, spawnData, dataTag);
     }
 
@@ -333,12 +332,14 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         this.setGrowth(tag.getFloat("growth"));
         this.setIsExecuting(tag.getBoolean("isExecuting"));
 
+        if (tag.hasUUID("HiveId")) {
+            this.hiveId = tag.getUUID("HiveId");
+        } else {
+            this.hiveId = null;
+        }
+
         if (this.level() instanceof ServerLevel serverLevel) {
-            brainRuntime.getBlackboard()
-                .set(
-                    AiKeys.HIVE_MEMORY,
-                    OvomorphosisSavedData.getHiveMemory(serverLevel)
-                );
+            ensureHiveAssignment(serverLevel);
         }
     }
 
@@ -410,6 +411,39 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
         this.heal(1.0833F);
         return super.doHurtTarget(target);
+    }
+
+    private void bindToHive(HiveMemory hive) {
+        this.hiveId = hive.getHiveId();
+
+        brainRuntime.getBlackboard()
+            .set(
+                AiKeys.HIVE_MEMORY,
+                hive
+            );
+    }
+
+    private void ensureHiveAssignment(ServerLevel level) {
+        if (hiveId != null) {
+            var existing =
+                OvomorphosisSavedData.findHiveById(
+                    level,
+                    hiveId
+                );
+
+            if (existing != null) {
+                bindToHive(existing);
+                return;
+            }
+        }
+
+        var hive =
+            OvomorphosisSavedData.getOrCreateHive(
+                level,
+                blockPosition()
+            );
+
+        bindToHive(hive);
     }
 
     private void disarmTarget(LivingEntity livingEntity) {

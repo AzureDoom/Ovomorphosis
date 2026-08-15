@@ -287,7 +287,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         BlockPos best = null;
         var bestDistSq = Double.MAX_VALUE;
 
-        for (var pos : memory.getAllWebCrosses()) {
+        for (var pos : memory.getOwnedWebCrosses()) {
             if (origin.distSqr(pos) > maxRangeSqr)
                 continue;
             if (!level.isLoaded(pos))
@@ -339,7 +339,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         if (memory == null)
             return;
 
-        memory.syncFromRegistry(mob.level(), mob.blockPosition(), 80D);
+        memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80D);
         cooldowns.set(AiKeys.HIVE_SYNC_COOLDOWN, 60);
     }
 

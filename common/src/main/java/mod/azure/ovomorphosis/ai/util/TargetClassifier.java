@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.ai.util;
 
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.BowItem;
@@ -11,6 +12,7 @@ import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
@@ -131,7 +133,7 @@ public final class TargetClassifier {
     private static boolean isNearHive(AbstractAlienEntity mob, LivingEntity target, HiveMemory memory) {
         if (memory == null)
             return false;
-        return memory.findNearestWebCross(mob.level(), target.blockPosition(), 20.0D).isPresent();
+        return memory.findNearestOwnedWebCross(mob.level(), target.blockPosition(), 20.0D).isPresent();
     }
 
     private static boolean isArmored(LivingEntity target) {
@@ -149,7 +151,7 @@ public final class TargetClassifier {
 
     private static int armorPoints(LivingEntity target) {
         var armorAttr = target.getAttributeValue(
-            net.minecraft.world.entity.ai.attributes.Attributes.ARMOR
+            Attributes.ARMOR
         );
         return (int) armorAttr;
     }

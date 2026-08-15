@@ -166,7 +166,8 @@ public class XenomorphTree {
             ) {
                 var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
                 var safeHaven = memory != null
-                    ? memory.findNearestWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D).orElse(null)
+                    ? memory.findNearestOwnedWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D)
+                        .orElse(null)
                     : null;
                 if (safeHaven != null) {
                     blackboard.set(AiKeys.DESTINATION, safeHaven);
@@ -340,7 +341,7 @@ public class XenomorphTree {
 
         var webDistSq = Double.MAX_VALUE;
         if (memory != null) {
-            var nearest = memory.findNearestWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D);
+            var nearest = memory.findNearestOwnedWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D);
             if (nearest.isPresent())
                 webDistSq = xenomorph.blockPosition().distSqr(nearest.get());
         }

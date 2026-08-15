@@ -22,6 +22,7 @@ import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.infection.InfectionManager;
+import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -204,7 +205,8 @@ public final class TargetingUtils {
         var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
         if (memory == null)
             return false;
-        return memory.findNearestWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D).isPresent();
+        return memory.findNearestOwnedWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D)
+            .isPresent();
     }
 
     public static BlockPos findNearbyGroundPos(AbstractAlienEntity mob) {

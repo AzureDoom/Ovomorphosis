@@ -107,7 +107,7 @@ public final class MobBrainRuntime<E extends Mob> {
         if (mob instanceof XenomorphEntity xenomorph && cooldowns.ready(AiKeys.HIVE_SYNC_COOLDOWN)) {
             var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
             if (memory != null) {
-                memory.syncFromRegistry(xenomorph.level(), xenomorph.blockPosition(), 80D);
+                memory.findNearestOwnedWebCross(xenomorph.level(), xenomorph.blockPosition(), 80D);
                 cooldowns.set(AiKeys.HIVE_SYNC_COOLDOWN, 120);
             }
         }
