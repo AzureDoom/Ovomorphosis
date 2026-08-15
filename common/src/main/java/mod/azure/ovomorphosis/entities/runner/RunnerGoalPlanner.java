@@ -72,9 +72,9 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
 
         var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
         var nearWeb = memory != null
-            && memory.findNearestWebCross(mob.level(), mob.blockPosition(), 20.0D).isPresent();
+            && memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 20.0D).isPresent();
         var hasWebInRange = memory != null
-            && memory.findNearestWebCross(mob.level(), mob.blockPosition(), 80.0D).isPresent();
+            && memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D).isPresent();
 
         var ambientLight = mob.level().getMaxLocalRawBrightness(mob.blockPosition());
         var tooBright = ambientLight > 4;
@@ -324,7 +324,7 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
                 reason = "Low health, retreating to resin";
                 chosenTarget = null;
                 if (memory != null) {
-                    var nearest = memory.findNearestWebCross(mob.level(), mob.blockPosition(), 80.0D);
+                    var nearest = memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D);
                     chosenDest = nearest.orElse(null);
                 }
             }

@@ -19,26 +19,6 @@ import mod.azure.ovomorphosis.ai.util.MovementUtils;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 
-/**
- * Carries a grabbed victim to the nearest {@code RESIN_WEB_CROSS} block for deposit.
- * <h3>Web location strategy</h3> Web lookup now goes through {@link HiveMemory} exclusively:
- * <ol>
- * <li>{@link HiveMemory#findNearestWebCross} is tried first against the already-cached set.</li>
- * <li>If that misses, {@link HiveMemory#syncFromRegistry} is called to pull fresh positions from
- * {@link ResinWebRegistry} (a chunk-bucketed index updated by {@code ResinWebFullBlock} on every placement and
- * removal). The expensive O(n³) world-cube scan that previously lived here is gone.</li>
- * </ol>
- * <h3>Sync cooldown</h3> Registry syncs are gated behind {@link AiKeys#HIVE_SYNC_COOLDOWN} (default 60 ticks) so the
- * chunk-bucket iteration does not run every tick when no web is nearby.
- * <h3>Hard termination guarantee</h3> This action must never be able to carry a passenger indefinitely:
- * {@link #STUCK_TICKS_MAX}, {@link #NO_PROGRESS_TICKS_MAX}, {@link #MAX_DURATION_TICKS}, and {@link #MAX_PATH_FAILURES}
- * each independently force a {@link ActionOutcome.Failed} termination (dropping the victim safely first) if crossed.
- * <h3>Early GOAP feedback via BLOCKED</h3> Every individual failed repath attempt, and every tick the mob is
- * meaningfully stuck/making-no-progress (but hasn't hit a hard cap yet), is reported as {@link ActionOutcome.Blocked}
- * rather than silently retried. This lets the planner start down-weighting carry/{@code EXPAND_HIVE}-adjacent
- * strategies in real time — well before the ~5-30 second hard caps below would otherwise force a stop — instead of only
- * learning about the problem once the action finally gives up.
- */
 public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
     /**
@@ -287,7 +267,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         BlockPos best = null;
         var bestDistSq = Double.MAX_VALUE;
 
-        for (var pos : memory.getAllWebCrosses()) {
+        for (var pos : memory.getOwnedWebCrosses()) {
             if (origin.distSqr(pos) > maxRangeSqr)
                 continue;
             if (!level.isLoaded(pos))
@@ -339,7 +319,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         if (memory == null)
             return;
 
-        memory.syncFromRegistry(mob.level(), mob.blockPosition(), 80D);
+        memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80D);
         cooldowns.set(AiKeys.HIVE_SYNC_COOLDOWN, 60);
     }
 

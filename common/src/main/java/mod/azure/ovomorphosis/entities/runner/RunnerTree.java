@@ -145,7 +145,8 @@ public class RunnerTree {
             ) {
                 var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
                 var safeHaven = memory != null
-                    ? memory.findNearestWebCross(runner.level(), runner.blockPosition(), 80.0D).orElse(null)
+                    ? memory.findNearestOwnedWebCross(runner.level(), runner.blockPosition(), 80.0D)
+                        .orElse(null)
                     : null;
                 if (safeHaven != null) {
                     blackboard.set(AiKeys.DESTINATION, safeHaven);

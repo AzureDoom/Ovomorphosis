@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
@@ -18,6 +19,7 @@ import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.blocks.ResinBlock;
+import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -124,7 +126,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         }
 
         if (!placed) {
-            var hiveMemory = getOrCreateHiveMemory(blackboard);
+            var hiveMemory = getOrCreateHiveMemory(mob, blackboard);
             var domeCenter = resolveDomeCenter(mob, hiveMemory);
 
             var count = hiveMemory.isDomeComplete()
@@ -166,13 +168,12 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
      * Returns the shared dome center, claiming the mob's current position as that center if none exists yet.
      */
     private BlockPos resolveDomeCenter(E mob, HiveMemory hiveMemory) {
-        var existing = hiveMemory.getDomeCenter();
-        if (existing.isPresent())
-            return existing.get();
-
-        var claimed = mob.blockPosition().immutable();
-        hiveMemory.claimDomeCenter(claimed);
-        return claimed;
+        return hiveMemory.getDomeCenter().orElseGet(() -> {
+            var claimed = mob.blockPosition().immutable();
+            hiveMemory.claimDomeCenter(claimed);
+            markHiveDirty(mob);
+            return claimed;
+        });
     }
 
     // ------------------------------------------------------------------------------------------------------------
@@ -191,6 +192,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         var count = placeBatch(mob, hiveMemory, candidates);
         if (count > 0) {
             hiveMemory.recordDomeBlocksPlaced(count, DOME_COMPLETE_BLOCK_TARGET);
+            markHiveDirty(mob);
         }
         return count;
     }
@@ -246,7 +248,13 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
             var spawned = spawnTunnel(mob, domeCenter);
             if (spawned != null) {
                 tunnels.add(spawned);
-                return extendTunnel(mob, hiveMemory, spawned);
+
+                var count = extendTunnel(mob, hiveMemory, spawned);
+
+                if (count <= 0 && tunnels.contains(spawned))
+                    markHiveDirty(mob);
+
+                return count;
             }
         }
 
@@ -339,6 +347,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         var level = mob.level();
         var random = mob.getRandom();
         var placedCount = 0;
+        var blocked = false;
 
         for (var step = 0; step < MAX_TUNNEL_STEPS_PER_TICK; step++) {
             if (tunnel.isExhausted())
@@ -352,50 +361,65 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
             var headState = level.getBlockState(head);
 
             if (!isValidReplacementTarget(level, tip) && !tipState.isAir()) {
-                break; // ran into something this tunnel can't carve through — let it die here
+                blocked = true;
+                break;
             }
 
             // Carve a 2-tall passage at the tip so mobs can actually walk through it.
             if (!tipState.isAir())
                 level.setBlockAndUpdate(tip, Blocks.CAVE_AIR.defaultBlockState());
+
             if (!headState.isAir() && isValidReplacementTarget(level, head))
                 level.setBlockAndUpdate(head, Blocks.CAVE_AIR.defaultBlockState());
 
             var floorState = level.getBlockState(floor);
             if (!floorState.isFaceSturdy(level, floor, Direction.UP)) {
-                // No natural floor here (we just carved through open space) — lay a resin floor instead of leaving
-                // the mob to fall through, and occasionally decorate it as a web cross waypoint.
                 var placeCross = random.nextFloat() < 0.10F;
                 var floorBlockState = placeCross
                     ? BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState()
-                    : BlockRegistry.RESIN.get().defaultBlockState().setValue(ResinBlock.LAYERS, 8);
+                    : BlockRegistry.RESIN.get()
+                        .defaultBlockState()
+                        .setValue(ResinBlock.LAYERS, 8);
+
                 level.setBlockAndUpdate(floor, floorBlockState);
+
                 if (placeCross)
-                    hiveMemory.trackBlock(floor);
+                    hiveMemory.trackOwnedWebCross(floor);
             }
 
             placedCount++;
 
-            // Wander the direction a little each step so the tunnel curves organically rather than running
-            // perfectly straight, while keeping the overall heading (renormalized after the jitter).
             var jitter = 0.35D;
             var newDirX = tunnel.dirX() + (random.nextDouble() * 2.0D - 1.0D) * jitter;
-            var newDirY = Mth.clamp(tunnel.dirY() + (random.nextDouble() * 2.0D - 1.0D) * (jitter * 0.4D), -0.6D, 0.3D);
+            var newDirY = Mth.clamp(
+                tunnel.dirY() + (random.nextDouble() * 2.0D - 1.0D) * (jitter * 0.4D),
+                -0.6D,
+                0.3D
+            );
             var newDirZ = tunnel.dirZ() + (random.nextDouble() * 2.0D - 1.0D) * jitter;
 
-            var len = Math.sqrt(newDirX * newDirX + newDirY * newDirY + newDirZ * newDirZ);
+            var len = Math.sqrt(
+                newDirX * newDirX
+                    + newDirY * newDirY
+                    + newDirZ * newDirZ
+            );
+
             if (len < 1.0E-4D) {
                 tunnel.advance(tip, tunnel.dirX(), tunnel.dirY(), tunnel.dirZ());
                 continue;
             }
+
             newDirX /= len;
             newDirY /= len;
             newDirZ /= len;
 
-            var nextTip = BlockPos.containing(tip.getX() + newDirX, tip.getY() + newDirY, tip.getZ() + newDirZ);
+            var nextTip = BlockPos.containing(
+                tip.getX() + newDirX,
+                tip.getY() + newDirY,
+                tip.getZ() + newDirZ
+            );
+
             if (nextTip.equals(tip)) {
-                // Direction too shallow to actually move a full block this step; still count the step so a
-                // pathological run of near-zero movement can't loop forever within this activation.
                 tunnel.advance(tip, newDirX, newDirY, newDirZ);
                 continue;
             }
@@ -403,8 +427,15 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
             tunnel.advance(nextTip, newDirX, newDirY, newDirZ);
         }
 
-        if (tunnel.isExhausted()) {
+        var removed = false;
+
+        if (blocked || tunnel.isExhausted()) {
             hiveMemory.getActiveTunnels().remove(tunnel);
+            removed = true;
+        }
+
+        if (placedCount > 0 || removed) {
+            markHiveDirty(mob);
         }
 
         return placedCount;
@@ -460,7 +491,8 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
                         .setValue(ResinBlock.LAYERS, 1 + mob.getRandom().nextInt(8));
 
                 mob.level().setBlockAndUpdate(pos, newState);
-                hiveMemory.trackBlock(pos);
+                if (placeResinCross)
+                    hiveMemory.trackOwnedWebCross(pos);
                 count++;
             }
         }
@@ -484,12 +516,36 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         return false;
     }
 
-    private HiveMemory getOrCreateHiveMemory(Blackboard blackboard) {
-        var existing = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+    private HiveMemory getOrCreateHiveMemory(
+        E mob,
+        Blackboard blackboard
+    ) {
+        var existing = blackboard.get(
+            AiKeys.HIVE_MEMORY,
+            HiveMemory.class
+        );
+
         if (existing != null)
             return existing;
-        var fresh = new HiveMemory();
-        blackboard.set(AiKeys.HIVE_MEMORY, fresh);
-        return fresh;
+
+        if (mob.level() instanceof ServerLevel serverLevel) {
+            var hive = OvomorphosisSavedData.getOrCreateHive(
+                serverLevel,
+                mob.blockPosition()
+            );
+
+            blackboard.set(AiKeys.HIVE_MEMORY, hive);
+            return hive;
+        }
+
+        var fallback = new HiveMemory();
+        blackboard.set(AiKeys.HIVE_MEMORY, fallback);
+        return fallback;
+    }
+
+    private void markHiveDirty(E mob) {
+        if (mob.level() instanceof ServerLevel serverLevel) {
+            OvomorphosisSavedData.markHiveDirty(serverLevel);
+        }
     }
 }
