@@ -5,6 +5,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 
@@ -42,21 +43,21 @@ public final class FleeAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var threat = blackboard.get(AiKeys.TARGET, LivingEntity.class);
 
         if (threat == null || !threat.isAlive()) {
             slowDown(mob);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         if (mob.distanceToSqr(threat) >= safeDistanceSqr) {
             slowDown(mob);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         var current = mob.position();
@@ -70,7 +71,7 @@ public final class FleeAction<E extends Mob> implements Action<E> {
         }
 
         if (stuckTicks >= STUCK_TICKS_THRESHOLD) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_STUCK);
         }
 
         var awayFromThreat = mob.position().subtract(threat.position());
@@ -86,7 +87,7 @@ public final class FleeAction<E extends Mob> implements Action<E> {
 
         if (safe.equals(Vec3.ZERO)) {
             stuckTicks += 3;
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
@@ -103,7 +104,7 @@ public final class FleeAction<E extends Mob> implements Action<E> {
             mob.position(),
             debugTarget
         );
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

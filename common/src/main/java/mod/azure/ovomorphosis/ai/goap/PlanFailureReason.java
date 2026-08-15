@@ -5,17 +5,18 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
 /**
  * Structured failure codes that actions report back to the GOAP planner.
  * <p>
- * When an action cannot make progress or terminates abnormally it should write one of these values to
- * {@link AiKeys#LAST_FAILURE_REASON} on the blackboard. The planner reads this on the next planning interval and uses
- * it to bias goal scores away from plans that are likely to fail again for the same reason.
+ * As of the {@code ActionOutcome} contract, actions no longer write these to the blackboard themselves. Instead,
+ * {@code Action.tick} returns {@code ActionOutcome.blocked(reason, ...)} or {@code ActionOutcome.failed(reason, ...)},
+ * and {@code MobBrainRuntime} writes {@link AiKeys#LAST_PLAN_FEEDBACK} centrally from that return value. The planner
+ * still reads {@link AiKeys#LAST_PLAN_FEEDBACK} on the next planning interval exactly as before; only how it gets there
+ * has changed.
  *
- * <pre>
- * // Inside any Action.tick() or Action.onEnd():
+ * <pre>{@code
+ * // Inside any Action.tick():
  * if (path == null) {
- *     blackboard.set(AiKeys.LAST_FAILURE_REASON, PlanFailureReason.FAILED_NO_PATH);
- *     return ActionStatus.FAILURE;
+ *     return ActionOutcome.failed(PlanFailureReason.FAILED_NO_PATH, mob.blockPosition());
  * }
- * </pre>
+ * }</pre>
  */
 public enum PlanFailureReason {
 
@@ -83,4 +84,12 @@ public enum PlanFailureReason {
      * (reposition tactically).
      */
     FAILED_OBSTACLE_UNBREAKABLE,
+
+    /**
+     * Resin/web placement found no valid candidate block at all (every scanned position was occupied, unreplaceable, or
+     * lacked a sturdy adjacent face) — as distinct from {@link #FAILED_TOO_BRIGHT}, which means candidates might exist
+     * but the ambient light rules them out. GOAP response: suppress {@link AiGoalType#EXPAND_HIVE} for a cooldown
+     * window and prefer wandering/repositioning before recommitting to hive expansion at the same spot.
+     */
+    FAILED_NO_VALID_PLACEMENT,
 }

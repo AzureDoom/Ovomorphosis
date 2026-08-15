@@ -6,10 +6,12 @@ import net.minecraft.world.phys.Vec3;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.Action;
+import mod.azure.ovomorphosis.ai.core.ActionOutcome;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
@@ -93,13 +95,13 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0)
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive()) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
 
         phaseAge++;
@@ -127,7 +129,7 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
         return priority;
     }
 
-    private ActionStatus tickWindUp(E mob, LivingEntity target) {
+    private ActionOutcome tickWindUp(E mob, LivingEntity target) {
         mob.setDeltaMovement(0, mob.getDeltaMovement().y, 0);
         mob.getLookControl().setLookAt(target, 30f, 30f);
 
@@ -149,30 +151,30 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
             phase = Phase.AIRBORNE;
             phaseAge = 0;
         }
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
-    private ActionStatus tickAirborne(E mob, LivingEntity target, Cooldowns cooldowns) {
+    private ActionOutcome tickAirborne(E mob, LivingEntity target, Cooldowns cooldowns) {
         if (TargetingUtils.isInAttackRange(mob, target, 2.8D)) {
             phase = Phase.LAND;
             phaseAge = 0;
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         if (mob.onGround() && phaseAge > 2) {
             cooldowns.set(AiKeys.LUNGE_COOLDOWN, 80 / 2);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         if (phaseAge >= 30) {
             cooldowns.set(AiKeys.LUNGE_COOLDOWN, 80 / 2);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
-    private ActionStatus tickLand(E mob, LivingEntity target, Blackboard blackboard, Cooldowns cooldowns) {
+    private ActionOutcome tickLand(E mob, LivingEntity target, Blackboard blackboard, Cooldowns cooldowns) {
         if (phaseAge == 1) {
             if (
                 TargetingUtils.isInAttackRange(mob, target, 2.8D)
@@ -188,6 +190,6 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
 
         cooldowns.set(AiKeys.LUNGE_COOLDOWN, 80);
         mob.setAggressive(false);
-        return ActionStatus.SUCCESS;
+        return ActionOutcome.SUCCESS;
     }
 }

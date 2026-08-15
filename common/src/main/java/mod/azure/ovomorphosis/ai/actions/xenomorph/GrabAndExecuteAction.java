@@ -6,6 +6,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
@@ -41,23 +42,23 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive()) {
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         if (!grabbed) {
             if (!TargetingUtils.isInAttackRange(mob, target, 1.5D)) {
-                return ActionStatus.FAILURE;
+                return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
             }
 
             if (!TargetingUtils.hasMeleeLineOfSight(mob, target)) {
-                return ActionStatus.FAILURE;
+                return ActionOutcome.failed(PlanFailureReason.FAILED_BLOCKED);
             }
 
             target.startRiding(mob, true);
@@ -70,7 +71,7 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
         if (target.getVehicle() == mob) {
             target.setDeltaMovement(Vec3.ZERO);
         } else {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
 
         if (!killed && holdTicks >= KILL_TICK) {
@@ -82,10 +83,10 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
             target.stopRiding();
             target.kill();
             cooldowns.set(AiKeys.GRAB_COOLDOWN, 200);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

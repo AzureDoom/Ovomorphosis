@@ -5,15 +5,17 @@ import net.minecraft.core.BlockPos;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 
 /**
- * Immutable snapshot written to the blackboard when an action finishes with a non-{@link PlanFailureReason#NONE}
- * reason.
+ * Immutable snapshot written to the blackboard when an action reports a non-{@link PlanFailureReason#NONE} reason via
+ * {@code ActionOutcome.Blocked} or {@code ActionOutcome.Failed}.
  * <p>
  * Planners read this on the next planning interval to adjust goal scores. The record is intentionally lightweight — it
  * only captures information that is cheap to collect at action termination time.
  * <h3>Lifecycle</h3>
  * <ol>
- * <li>An action calls {@link #of} (or writes directly) on failure or notable termination.</li>
- * <li>It stores the result under {@link AiKeys#LAST_PLAN_FEEDBACK}.</li>
+ * <li>An action's {@code tick()} returns {@code ActionOutcome.blocked(reason, ...)} (still running, early signal) or
+ * {@code ActionOutcome.failed(reason, ...)} (terminating).</li>
+ * <li>{@code MobBrainRuntime} — not the action itself — constructs the {@link PlanFeedback} and stores it under
+ * {@link AiKeys#LAST_PLAN_FEEDBACK}, centralizing this so no action can forget to report.</li>
  * <li>The planner reads the feedback, applies score modifiers, then <b>clears</b> the key so stale feedback does not
  * bleed into future planning cycles.</li>
  * </ol>
@@ -21,11 +23,7 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
  *
  * <pre>{@code
  * if (path == null) {
- *     blackboard.set(
- *         AiKeys.LAST_PLAN_FEEDBACK,
- *         PlanFeedback.of(PlanFailureReason.FAILED_NO_PATH, mob.blockPosition(), activeGoalType)
- *     );
- *     return ActionStatus.FAILURE;
+ *     return ActionOutcome.failed(PlanFailureReason.FAILED_NO_PATH, mob.blockPosition());
  * }
  * }</pre>
  *

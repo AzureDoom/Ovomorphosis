@@ -4,13 +4,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.core.Action;
+import mod.azure.ovomorphosis.ai.core.ActionOutcome;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 
 public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
@@ -47,19 +47,19 @@ public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
     }
 
     @Override
-    public ActionStatus tick(FacehuggerEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(FacehuggerEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
         return switch (phase) {
             case FLEEING -> tickFleeing(mob, blackboard);
             case HIDING -> tickHiding(mob);
         };
     }
 
-    private ActionStatus tickFleeing(FacehuggerEntity mob, Blackboard blackboard) {
+    private ActionOutcome tickFleeing(FacehuggerEntity mob, Blackboard blackboard) {
         var dest = blackboard.get(AiKeys.GOAL_DESTINATION, BlockPos.class);
         if (dest == null) {
             blackboard.remove(AiKeys.DESTINATION);
             phase = Phase.HIDING;
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         navigateTo(blackboard, dest);
@@ -70,37 +70,39 @@ public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
             phase = Phase.HIDING;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
-    private ActionStatus tickHiding(FacehuggerEntity mob) {
+    private ActionOutcome tickHiding(FacehuggerEntity mob) {
         ticksHiding++;
 
         if (ticksHiding > MAX_HIDE_TICKS) {
-            return ActionStatus.FAILURE;
+            // Deliberately attributed to RETREAT_AND_HIDE regardless of whatever ACTIVE_GOAL_TYPE happens to be by
+            // the time this fires, since that's unambiguously what timed out.
+            return ActionOutcome.failed(
+                PlanFailureReason.FAILED_STUCK,
+                mob.blockPosition(),
+                AiGoalType.RETREAT_AND_HIDE
+            );
         }
 
         float healthFraction = mob.getHealth() / mob.getMaxHealth();
         if (healthFraction >= RECOVERY_HEALTH_FRACTION) {
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override
     public void stop(FacehuggerEntity mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
         blackboard.remove(AiKeys.GOAL_DESTINATION);
 
+        // FAILED_GOAL_COUNT is a separate, coarser counter from PlanFeedback (which the runtime now writes
+        // automatically from the ActionOutcome returned by tick()); keep tracking it here.
         if (reason == ActionStatus.FAILURE) {
             var failCount = blackboard.get(AiKeys.FAILED_GOAL_COUNT, Integer.class);
             blackboard.set(AiKeys.FAILED_GOAL_COUNT, failCount == null ? 1 : failCount + 1);
-
-            var tick = (int) mob.level().getGameTime();
-            blackboard.set(
-                AiKeys.LAST_PLAN_FEEDBACK,
-                PlanFeedback.of(PlanFailureReason.FAILED_STUCK, tick, mob.blockPosition(), AiGoalType.RETREAT_AND_HIDE)
-            );
         } else if (reason == ActionStatus.SUCCESS) {
             blackboard.set(AiKeys.FAILED_GOAL_COUNT, 0);
         }

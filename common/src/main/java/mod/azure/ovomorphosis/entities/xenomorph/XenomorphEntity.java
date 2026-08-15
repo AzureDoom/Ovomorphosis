@@ -38,6 +38,7 @@ import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
 import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
+import mod.azure.ovomorphosis.ai.util.EmergencyDetector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.ai.util.XenomorphHostileTargetSelector;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
@@ -91,6 +92,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
                 return 32;
             }
 
+            @Override
             public boolean handleGameEvent(
                 @NotNull ServerLevel serverLevel,
                 @NotNull GameEvent gameEvent,
@@ -160,9 +162,6 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             || event == GameEvent.ENTITY_INTERACT
             || event == GameEvent.ENTITY_DAMAGE
             || event == GameEvent.ENTITY_DIE
-            || event == GameEvent.BLOCK_CHANGE
-            || event == GameEvent.BLOCK_DESTROY
-            || event == GameEvent.BLOCK_PLACE
             || event == GameEvent.PROJECTILE_SHOOT
             || event == GameEvent.PROJECTILE_LAND
             || event == GameEvent.EXPLODE
@@ -201,7 +200,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     }
 
     public void updateScaleFromGrowth() {
-        float newScale = this.getGrowthScale();
+        var newScale = this.getGrowthScale();
 
         if (Math.abs(this.lastGrowthScale - newScale) > 0.001F) {
             this.lastGrowthScale = newScale;
@@ -236,10 +235,17 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             .isSuppressed(AiGoalType.HUNT_TARGET, currentTick);
         var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !huntSuppressed;
 
-        if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+        // Cheap pre-planner emergency probe. GoalApplicator.shouldReplan advertises an EMERGENCY override that
+        // bypasses the min-commit lock, but that override can only fire if something supplies a non-null
+        // candidateUrgency — and nothing upstream of chooseGoal() previously did, since scoring candidates requires
+        // running the planner in the first place. This mirrors the same fire/explosion/critical-health conditions
+        // the reactive tree branches use, without the cost of a full chooseGoal() call.
+        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
+
+        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
             return;
 
-        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick))
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency))
             return;
 
         cooldowns.set(AiKeys.GOAL_REPLAN, 20);

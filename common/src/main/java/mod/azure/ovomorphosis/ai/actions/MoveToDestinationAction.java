@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.*;
 
 /**
@@ -17,6 +18,19 @@ import mod.azure.ovomorphosis.ai.util.*;
  * {@link AiKeys#DESTINATION} on SUCCESS or FAILURE.
  */
 public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
+
+    /**
+     * Hard cap on {@link #noProgressTicks} before this action gives up and bubbles
+     * {@link PlanFailureReason#FAILED_STUCK} up to GOAP, instead of retrying local recovery (detours, jumps) forever.
+     * Mirrors {@link MoveToTargetAction#HARD_NO_PROGRESS_TICKS}.
+     */
+    private static final int HARD_NO_PROGRESS_TICKS = 200;
+
+    /**
+     * Soft threshold on {@link #noProgressTicks}: once crossed (but before the hard cap), the action reports
+     * {@link ActionOutcome.Blocked} every tick so GOAP gets an early, non-terminal signal.
+     */
+    private static final int SOFT_NO_PROGRESS_TICKS = HARD_NO_PROGRESS_TICKS / 2;
 
     private final double stopDistanceSqr;
 
@@ -44,6 +58,18 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
     private BlockPos lastPathedDestination = null;
 
+    private double lastDistSqToDestination = Double.MAX_VALUE;
+
+    private int noProgressTicks = 0;
+
+    /** Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when the hard no-progress cap is hit. */
+    /**
+     * Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when they have an outcome to report this tick (a
+     * hard-cap {@link ActionOutcome.Failed}, or a soft-threshold {@link ActionOutcome.Blocked}) rather than a plain
+     * {@link ActionOutcome#RUNNING}.
+     */
+    private ActionOutcome pendingOutcome = null;
+
     public MoveToDestinationAction(
         double stopDistance,
         double speed,
@@ -68,19 +94,22 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         pathIndex = 0;
         repathCooldown = 0;
         lastPathedDestination = null;
+        lastDistSqToDestination = Double.MAX_VALUE;
+        noProgressTicks = 0;
+        pendingOutcome = null;
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0) {
             mob.setAggressive(false);
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var destination = blackboard.get(AiKeys.DESTINATION, BlockPos.class);
         if (destination == null) {
             mob.setAggressive(false);
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var destVec = Vec3.atBottomCenterOf(destination);
@@ -88,7 +117,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if (mob.distanceToSqr(destVec) <= stopDistanceSqr) {
             mob.setDeltaMovement(mob.getDeltaMovement().scale(0.4D));
             faceDestination(mob, destination);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         if (repathCooldown > 0)
@@ -257,7 +286,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                         mob.setDeltaMovement(move);
                         mob.hasImpulse = true;
                         faceMovementDirection(mob, move);
-                        return ActionStatus.RUNNING;
+                        return ActionOutcome.RUNNING;
                     } else if (waypointIsTightPassage) {
                         pathIndex++;
                         if (pathIndex < path.size()) {
@@ -270,21 +299,39 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 }
 
                 if (direction.lengthSqr() > 0.0001D) {
-                    applyPathMovement(mob, destination, waypointBlock, waypoint, direction, shouldUseCrawlingNow);
-                    return ActionStatus.RUNNING;
+                    applyPathMovement(
+                        blackboard,
+                        mob,
+                        destination,
+                        waypointBlock,
+                        waypoint,
+                        direction,
+                        shouldUseCrawlingNow
+                    );
+                    if (pendingOutcome != null) {
+                        var outcome = pendingOutcome;
+                        pendingOutcome = null;
+                        return outcome;
+                    }
+                    return ActionOutcome.RUNNING;
                 }
             }
         }
 
         var directDirection = destVec.subtract(mob.position());
         if (directDirection.lengthSqr() > 0.0001D) {
-            applyFlatFallback(mob, destination, directDirection);
-            return ActionStatus.RUNNING;
+            applyFlatFallback(blackboard, mob, destination, directDirection);
+            if (pendingOutcome != null) {
+                var outcome = pendingOutcome;
+                pendingOutcome = null;
+                return outcome;
+            }
+            return ActionOutcome.RUNNING;
         }
 
         halt(mob);
         faceDestination(mob, destination);
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override
@@ -313,6 +360,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     }
 
     private void applyPathMovement(
+        Blackboard blackboard,
         E mob,
         BlockPos destination,
         BlockPos waypointBlock,
@@ -327,6 +375,26 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             stuckTicks++;
         else
             stuckTicks = 0;
+
+        var currentDistSqToDest = mob.distanceToSqr(Vec3.atBottomCenterOf(destination));
+        if (currentDistSqToDest < lastDistSqToDestination - 0.1D) {
+            lastDistSqToDestination = currentDistSqToDest;
+            noProgressTicks = 0;
+        } else {
+            noProgressTicks++;
+        }
+
+        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
+            // Hard termination guarantee, mirroring MoveToTargetAction: local recovery (detours, jumps) below keeps
+            // trying and resets noProgressTicks on real progress, but if nothing has actually closed the distance to
+            // the destination in HARD_NO_PROGRESS_TICKS ticks, stop and bubble FAILED_STUCK up to GOAP.
+            pendingOutcome = ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            return;
+        }
+
+        if (noProgressTicks >= SOFT_NO_PROGRESS_TICKS && pendingOutcome == null) {
+            pendingOutcome = ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+        }
 
         var mobFeet = BlockPos.containing(mob.getX(), mob.getBoundingBox().minY, mob.getZ());
 
@@ -691,7 +759,24 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         faceDestination(mob, destination);
     }
 
-    private void applyFlatFallback(E mob, BlockPos destination, Vec3 direction) {
+    private void applyFlatFallback(Blackboard blackboard, E mob, BlockPos destination, Vec3 direction) {
+        var currentDistSqFlat = mob.distanceToSqr(Vec3.atBottomCenterOf(destination));
+        if (currentDistSqFlat < lastDistSqToDestination - 0.1D) {
+            lastDistSqToDestination = currentDistSqFlat;
+            noProgressTicks = 0;
+        } else {
+            noProgressTicks++;
+        }
+
+        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
+            pendingOutcome = ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            return;
+        }
+
+        if (noProgressTicks >= SOFT_NO_PROGRESS_TICKS && pendingOutcome == null) {
+            pendingOutcome = ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+        }
+
         var horizontal = new Vec3(direction.x, 0.0D, direction.z);
         if (horizontal.lengthSqr() > 0.01D) {
             var movement = MovementUtils.steerAwayFromDangerEntities(mob, horizontal.normalize().scale(speed));
@@ -822,12 +907,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         Vec3 best = null;
         var bestDist = Double.MAX_VALUE;
         for (var dir : new Vec3[] { new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1) }) {
-            var hitCurrent = !level.noCollision(mob, box.move(dir.scale(probe)));
-            var hitStanding = !level.noCollision(mob, standingBox.move(dir.scale(probe)));
+            var hitCurrent = !level.noBlockCollision(mob, box.move(dir.scale(probe)));
+            var hitStanding = !level.noBlockCollision(mob, standingBox.move(dir.scale(probe)));
             if (hitCurrent || hitStanding) {
                 var dist = probe;
                 for (var d = 0.1D; d <= probe; d += 0.1D) {
-                    if (!level.noCollision(mob, box.move(dir.scale(d)))) {
+                    if (!level.noBlockCollision(mob, box.move(dir.scale(d)))) {
                         dist = d;
                         break;
                     }
@@ -849,32 +934,32 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var level = mob.level();
         var box = mob.getBoundingBox();
         var d = (mob.getBbWidth() / 2.0D) + 0.5D;
-        if (!level.noCollision(mob, box.move(0, 0, -d)))
+        if (!level.noBlockCollision(mob, box.move(0, 0, -d)))
             return true;
-        if (!level.noCollision(mob, box.move(0, 0, d)))
+        if (!level.noBlockCollision(mob, box.move(0, 0, d)))
             return true;
-        if (!level.noCollision(mob, box.move(-d, 0, 0)))
+        if (!level.noBlockCollision(mob, box.move(-d, 0, 0)))
             return true;
-        if (!level.noCollision(mob, box.move(d, 0, 0)))
+        if (!level.noBlockCollision(mob, box.move(d, 0, 0)))
             return true;
         if (waypoint.y > mob.getY() + 0.5D) {
             var toWaypoint = new Vec3(waypoint.x - mob.getX(), 0.0D, waypoint.z - mob.getZ());
             if (toWaypoint.lengthSqr() < 0.25D) {
                 var sb = box.move(0, 1, 0);
                 var sp = (mob.getBbWidth() / 2.0D) + 0.6D;
-                if (!level.noCollision(mob, sb.move(sp, 0, 0)))
+                if (!level.noBlockCollision(mob, sb.move(sp, 0, 0)))
                     return true;
-                if (!level.noCollision(mob, sb.move(-sp, 0, 0)))
+                if (!level.noBlockCollision(mob, sb.move(-sp, 0, 0)))
                     return true;
-                if (!level.noCollision(mob, sb.move(0, 0, sp)))
+                if (!level.noBlockCollision(mob, sb.move(0, 0, sp)))
                     return true;
-                return !level.noCollision(mob, sb.move(0, 0, -sp));
+                return !level.noBlockCollision(mob, sb.move(0, 0, -sp));
             } else if (toWaypoint.lengthSqr() > 0.0001D) {
                 var pd = toWaypoint.normalize();
                 var pd2 = (mob.getBbWidth() / 2.0D) + 1.0D;
-                if (!level.noCollision(mob, box.move(pd.scale(pd2))))
+                if (!level.noBlockCollision(mob, box.move(pd.scale(pd2))))
                     return true;
-                return !level.noCollision(mob, box.move(0, 1, 0).move(pd.scale(pd2)));
+                return !level.noBlockCollision(mob, box.move(0, 1, 0).move(pd.scale(pd2)));
             }
         }
         return false;
@@ -900,9 +985,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var probe = Math.max(0.08D, mob.getBbWidth() * 0.25D);
         var x = desired.x;
         var z = desired.z;
-        if (Math.abs(x) > 0.0001D && !level.noCollision(mob, box.move(Math.copySign(probe, x), 0, 0)))
+        if (Math.abs(x) > 0.0001D && !level.noBlockCollision(mob, box.move(Math.copySign(probe, x), 0, 0)))
             x = 0.0D;
-        if (Math.abs(z) > 0.0001D && !level.noCollision(mob, box.move(0, 0, Math.copySign(probe, z))))
+        if (Math.abs(z) > 0.0001D && !level.noBlockCollision(mob, box.move(0, 0, Math.copySign(probe, z))))
             z = 0.0D;
         return new Vec3(x, desired.y, z);
     }
@@ -930,7 +1015,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 continue;
             var dir = candidate.normalize();
             var testMove = dir.scale(speed * 0.55D);
-            if (!level.noCollision(mob, box.move(testMove.x, 0.05D, testMove.z)))
+            if (!level.noBlockCollision(mob, box.move(testMove.x, 0.05D, testMove.z)))
                 continue;
             var score = dir.dot(desired);
             if (score > bestScore) {

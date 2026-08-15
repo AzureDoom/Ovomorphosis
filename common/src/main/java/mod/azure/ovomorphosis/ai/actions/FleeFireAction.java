@@ -11,13 +11,13 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.core.Action;
+import mod.azure.ovomorphosis.ai.core.ActionOutcome;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
-import mod.azure.ovomorphosis.ai.goap.AiGoalType;
+import mod.azure.ovomorphosis.ai.core.InterruptCategory;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
@@ -69,15 +69,15 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0)
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
 
         if (
             mob instanceof XenomorphEntity xeno
                 && xeno.isFireHardened()
         ) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed();
         }
 
         var nearestFire = findNearestFire(mob);
@@ -98,7 +98,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
                 (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS
             );
             slowDown(mob);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         mob.setAggressive(false);
@@ -113,7 +113,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
                     (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS
                 );
                 slowDown(mob);
-                return ActionStatus.SUCCESS;
+                return ActionOutcome.SUCCESS;
             }
         }
 
@@ -126,8 +126,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         lastPos = cur;
 
         if (stuckTicks >= STUCK_TICKS_MAX) {
-            writeFeedback(mob, blackboard);
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_STUCK);
         }
 
         if (mob instanceof XenomorphEntity xeno) {
@@ -160,7 +159,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         mob.yBodyRot = yaw;
         mob.yHeadRot = yaw;
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override
@@ -171,6 +170,15 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
     @Override
     public boolean isInterruptible() {
         return true;
+    }
+
+    /**
+     * Fire is a life-threatening emergency: this action must be able to preempt a {@link InterruptCategory#LOCKED}
+     * action (e.g. mid-{@code CarryToWebAction}) rather than waiting for it to finish or expire.
+     */
+    @Override
+    public InterruptCategory interruptCategory() {
+        return InterruptCategory.EMERGENCY;
     }
 
     @Override
@@ -214,7 +222,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             a -> a.isOnFire() && a.getOwner() instanceof LivingEntity
         );
         if (!arrows.isEmpty()) {
-            attacker = (LivingEntity) arrows.get(0).getOwner();
+            attacker = (LivingEntity) arrows.getFirst().getOwner();
         }
 
         if (attacker == null) {
@@ -345,16 +353,4 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         );
     }
 
-    private static <E extends Mob> void writeFeedback(E mob, Blackboard blackboard) {
-        var goalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
-        blackboard.set(
-            AiKeys.LAST_PLAN_FEEDBACK,
-            PlanFeedback.of(
-                PlanFailureReason.FAILED_STUCK,
-                (int) mob.level().getGameTime(),
-                mob.blockPosition(),
-                goalType != null ? goalType : AiGoalType.NONE
-            )
-        );
-    }
 }

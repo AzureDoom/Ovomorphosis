@@ -34,14 +34,14 @@ public final class IdleAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target != null && target.isAlive()) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.SUCCESS;
         }
 
         var dangerMove = MovementUtils.steerAwayFromDangerEntities(mob, Vec3.ZERO);
@@ -52,7 +52,7 @@ public final class IdleAction<E extends Mob> implements Action<E> {
             if (!safe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
                 mob.hasImpulse = true;
-                return ActionStatus.RUNNING;
+                return ActionOutcome.RUNNING;
             }
         }
 
@@ -62,7 +62,7 @@ public final class IdleAction<E extends Mob> implements Action<E> {
             mob.setYRot((float) (mob.getRandom().nextDouble() * 360.0));
         }
 
-        return age >= duration ? ActionStatus.SUCCESS : ActionStatus.RUNNING;
+        return age >= duration ? ActionOutcome.SUCCESS : ActionOutcome.RUNNING;
     }
 
     @Override

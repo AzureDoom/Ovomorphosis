@@ -7,6 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
@@ -69,13 +70,13 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0)
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive())
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
 
         maintainCrawl(mob);
         mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
@@ -106,22 +107,22 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     }
 
     // TODO: Fix me for warning
-    private ActionStatus tickStalk(E mob, LivingEntity target) {
+    private ActionOutcome tickStalk(E mob, LivingEntity target) {
         var distSq = mob.distanceToSqr(target);
 
         if (distSq <= 7D * 7D && isTargetFacingMob(target, mob)) {
             enterPhase(mob, Phase.THREAT_RESPONSE);
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         if (distSq <= 5D * 5D) {
             enterPhase(mob, Phase.STRIKE);
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         if (phaseAge > 140) {
             enterPhase(mob, Phase.STRIKE);
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         if (phaseAge % 14 == 0 && mob.getRandom().nextFloat() < 0.3F) {
@@ -133,10 +134,10 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         var desired = toTarget.scale(0.38D).add(lateral);
         applyDangerSteering(mob, desired);
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
-    private ActionStatus tickStrike(
+    private ActionOutcome tickStrike(
         E mob,
         LivingEntity target,
         Blackboard blackboard,
@@ -160,7 +161,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
                     mob.setTarget(null);
                     cooldowns.set(cooldownKey, cooldownTicks);
                     mob.setAggressive(false);
-                    return ActionStatus.SUCCESS;
+                    return ActionOutcome.SUCCESS;
                 }
             }
         }
@@ -170,10 +171,10 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
             enterPhase(mob, Phase.CIRCLE_OUT);
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
-    private ActionStatus tickCircleOut(E mob, LivingEntity target, Cooldowns cooldowns, boolean isThreatResponse) {
+    private ActionOutcome tickCircleOut(E mob, LivingEntity target, Cooldowns cooldowns, boolean isThreatResponse) {
         mob.setAggressive(false);
 
         var toTarget = target.position().subtract(mob.position());
@@ -205,17 +206,17 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         if (phaseAge >= duration) {
             if (isThreatResponse && mob.getRandom().nextFloat() < 0.30F) {
                 cooldowns.set(cooldownKey, cooldownTicks + 40);
-                return ActionStatus.FAILURE;
+                return ActionOutcome.failed(PlanFailureReason.FAILED_DANGER);
             }
             stalkLateralBias = circleDir;
             cooldowns.set(cooldownKey, cooldownTicks);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
-    private ActionStatus tickThreatResponse(E mob, LivingEntity target, Cooldowns cooldowns) {
+    private ActionOutcome tickThreatResponse(E mob, LivingEntity target, Cooldowns cooldowns) {
         if (phaseAge == 1) {
             mob.setAggressive(false);
             circleDir = mob.getRandom().nextBoolean() ? 1 : -1;

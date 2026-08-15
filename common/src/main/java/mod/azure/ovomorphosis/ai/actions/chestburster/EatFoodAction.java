@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.ai.actions.chestburster;
 
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.Vec3;
@@ -69,10 +70,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
     }
 
     @Override
-    public ActionStatus tick(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (!this.eatingStarted) {
             if (this.food == null || !this.food.isAlive() || this.food.getItem().isEmpty()) {
-                return ActionStatus.SUCCESS;
+                return ActionOutcome.SUCCESS;
             }
 
             var d = mob.distanceToSqr(this.food);
@@ -92,10 +93,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
                 } else if (this.noProgressTicks > 40) {
                     ignoredFood(blackboard).put(this.food.getId(), mob.level().getGameTime() + 200);
                     cooldowns.set(AiKeys.PASSIVE_DECISION, 60);
-                    return ActionStatus.SUCCESS;
+                    return ActionOutcome.SUCCESS;
                 } else {
                     moveTowardFood(mob);
-                    return ActionStatus.RUNNING;
+                    return ActionOutcome.RUNNING;
                 }
             }
         }
@@ -117,10 +118,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
         }
 
         if (this.eatTicks >= animationTicks) {
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override
@@ -229,23 +230,20 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
             return;
         var stack = itemEntity.getItem();
         stack.shrink(1);
-
-        if (stack.isEdible()) {
-            var food = stack.getItem().getFoodProperties();
-            var nutrition = food != null ? food.getNutrition() : 1;
-
-            var growthValue =
-                nutrition + CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterFoodGrowthValue;
-
-            mob.grow(mob, growthValue);
-
-            stack.finishUsingItem(mob.level(), mob);
+        if (itemEntity.getItem().has(DataComponents.FOOD)) {
+            var foodComponent = itemEntity.getItem().get(DataComponents.FOOD);
+            var growthValue = foodComponent != null ? foodComponent.nutrition() : 1;
+            mob.grow(
+                mob,
+                growthValue + CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterFoodGrowthValue
+            );
+            itemEntity.getItem().finishUsingItem(mob.level(), mob);
         } else {
             if (stack.is(ModTags.POTIONS)) {
                 stack.finishUsingItem(mob.level(), mob);
-                stack.shrink(1);
+                stack.consume(1, mob);
             } else {
-                stack.shrink(1);
+                stack.consume(1, mob);
             }
         }
     }

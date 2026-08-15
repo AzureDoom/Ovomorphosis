@@ -7,6 +7,7 @@ import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
@@ -39,9 +40,9 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         if (mob.isAttachedToHost()) {
@@ -51,22 +52,22 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
                 mob.stopRiding();
                 mob.setIsInfertile(true);
                 mob.kill();
-                return ActionStatus.SUCCESS;
+                return ActionOutcome.SUCCESS;
             }
 
             mob.setDeltaMovement(Vec3.ZERO);
             mob.hasImpulse = false;
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive()) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
 
         if (!TargetingUtils.faceHuggerTest(mob, target)) {
             blackboard.set(AiKeys.TARGET, null);
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
 
         if (CrawlingMovementManager.isWallCrawling(mob)) {
@@ -86,11 +87,11 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
                 inAir = false;
                 leapCooldown = 30;
                 mob.playSound(SoundEvents.SHIELD_BLOCK, 1.0F, 1.0F);
-                return ActionStatus.RUNNING;
+                return ActionOutcome.RUNNING;
             }
             if (!TargetingUtils.faceHuggerTest(mob, target)) {
                 blackboard.set(AiKeys.TARGET, null);
-                return ActionStatus.FAILURE;
+                return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
             }
             mob.grabTarget(target);
             attachedTicks = 0;
@@ -100,7 +101,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
                 InfectionManager.infect(target, target.getRandom().nextInt());
             }
 
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         if (inAir && mob.onGround()) {
@@ -109,8 +110,8 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
             leapCooldown = 10;
             blackboard.set(AiKeys.TARGET, target);
             return mob.distanceToSqr(target) <= 1.5D * 1.5D
-                ? ActionStatus.RUNNING
-                : ActionStatus.INTERRUPTED;
+                ? ActionOutcome.RUNNING
+                : ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
 
         if (leapCooldown > 0) {
@@ -122,7 +123,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
         if (windUpTicks >= 0 && distSqr > 4.0D * 4.0D) {
             windUpTicks = -1;
             blackboard.set(AiKeys.TARGET, target);
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
 
         if (mob.isInWater() && distSqr <= 4.0D * 4.0D) {
@@ -132,7 +133,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
                 mob.setDeltaMovement(movement);
                 mob.hasImpulse = true;
             }
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         if (leapCooldown <= 0 && mob.onGround() && distSqr <= 4.0D * 4.0D) {
@@ -144,7 +145,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
                     windUpTicks = 0;
                     mob.animationDispatcher.serverWindUp();
                     mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-                    return ActionStatus.RUNNING;
+                    return ActionOutcome.RUNNING;
                 }
 
                 windUpTicks++;
@@ -159,11 +160,11 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
                     leapCooldown = 15;
                 }
 
-                return ActionStatus.RUNNING;
+                return ActionOutcome.RUNNING;
             }
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

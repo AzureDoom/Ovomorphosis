@@ -9,6 +9,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Comparator;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 
@@ -49,15 +50,15 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var explosive = nearestExplosive(mob, detectionRadius);
         if (explosive == null || mob.distanceToSqr(explosive) >= safeDistanceSqr) {
             slowDown(mob);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         var current = mob.position();
@@ -71,7 +72,7 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
         }
 
         if (stuckTicks >= STUCK_TICKS_THRESHOLD) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_STUCK);
         }
 
         var awayFromExplosive = mob.position().subtract(explosive.position());
@@ -87,7 +88,7 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
 
         if (safe.equals(Vec3.ZERO)) {
             stuckTicks += 3;
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
@@ -105,7 +106,7 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
             mob.position(),
             debugTarget
         );
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override
@@ -118,6 +119,17 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
         return false;
     }
 
+    /**
+     * An imminent explosion is a life-threatening emergency: this action must be able to preempt a
+     * {@link InterruptCategory#LOCKED} action (e.g. mid-{@code CarryToWebAction}) immediately rather than waiting for
+     * it to finish or expire. Once running, it still resists everything except a higher-priority emergency (e.g. being
+     * on fire from the blast).
+     */
+    @Override
+    public InterruptCategory interruptCategory() {
+        return InterruptCategory.EMERGENCY;
+    }
+
     @Override
     public int priority() {
         return priority;
@@ -126,6 +138,19 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
     public boolean hasNearbyExplosive(E mob) {
         Entity explosive = nearestExplosive(mob, detectionRadius);
         return explosive != null;
+    }
+
+    /**
+     * Static, allocation-free check usable from contexts that don't hold an {@link ExplosiveFleeAction} instance (e.g.
+     * a cheap pre-planner emergency probe). Mirrors {@link #hasNearbyExplosive(Mob)} but takes an explicit radius
+     * instead of the instance's configured {@link #detectionRadius}.
+     *
+     * @param mob    the mob to scan around
+     * @param radius the detection radius
+     * @return {@code true} if an active explosive threat is within {@code radius}
+     */
+    public static boolean hasNearbyExplosive(Mob mob, double radius) {
+        return nearestExplosive(mob, radius) != null;
     }
 
     private static Entity nearestExplosive(Mob mob, double radius) {

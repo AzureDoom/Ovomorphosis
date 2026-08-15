@@ -192,8 +192,24 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 }
                 case FAILED_TOO_BRIGHT -> {
                     lightsScore += BOOST_LIGHTS;
-                    huntScore -= PENALTY_FAILED * 0.5f;
-                    gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 60);
+                    if (failedGoal == AiGoalType.EXPAND_HIVE) {
+                        // Resin placement rejected this spot for being too bright: prioritize killing the light
+                        // instead of immediately recommitting to hive expansion here.
+                        hiveScore -= PENALTY_FAILED;
+                        wanderScore += 15f;
+                        gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 150);
+                    } else {
+                        huntScore -= PENALTY_FAILED * 0.5f;
+                        gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 60);
+                    }
+                }
+                case FAILED_NO_VALID_PLACEMENT -> {
+                    // Resin placement found nowhere valid to place at all — suppress EXPAND_HIVE here for a
+                    // cooldown window and nudge the mob toward wandering/repositioning instead of recommitting to
+                    // the same doomed spot next planning cycle.
+                    hiveScore -= PENALTY_FAILED;
+                    wanderScore += 25f;
+                    gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 150);
                 }
                 case FAILED_NO_WEB -> {
                     hiveScore += BOOST_HIVE;

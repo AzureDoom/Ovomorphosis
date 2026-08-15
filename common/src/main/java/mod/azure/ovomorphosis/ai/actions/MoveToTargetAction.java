@@ -13,11 +13,29 @@ import java.util.Collections;
 import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.*;
 import mod.azure.ovomorphosis.level.TunnelEntryRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
 public final class MoveToTargetAction<E extends Mob> implements Action<E> {
+
+    /**
+     * Hard cap on {@link #noProgressTicks} before this action gives up and bubbles
+     * {@link PlanFailureReason#FAILED_STUCK} up to GOAP via
+     * {@link mod.azure.ovomorphosis.ai.core.AiKeys#LAST_PLAN_FEEDBACK}, instead of retrying local recovery (detours,
+     * block breaks, jumps) forever. Local recovery attempts do not reset this counter — only actual distance-to-target
+     * improvement does — so a mob that keeps detouring/jumping/breaking without ever closing the distance will still
+     * terminate and let the planner pick a different goal.
+     */
+    private static final int HARD_NO_PROGRESS_TICKS = 200;
+
+    /**
+     * Soft threshold on {@link #noProgressTicks}: once crossed (but before the hard cap), the action reports
+     * {@link ActionOutcome.Blocked} every tick so GOAP gets an early, non-terminal signal that this strategy isn't
+     * working, well before local recovery (detours, block breaks, jumps) has actually given up.
+     */
+    private static final int SOFT_NO_PROGRESS_TICKS = HARD_NO_PROGRESS_TICKS / 2;
 
     private int dangerLeapCooldown = 0;
 
@@ -50,6 +68,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     private double lastDistSqToTarget = Double.MAX_VALUE;
 
     private int noProgressTicks = 0;
+
+    /**
+     * Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when they have an outcome to report this tick (a
+     * hard-cap {@link ActionOutcome.Failed}, or a soft-threshold {@link ActionOutcome.Blocked}) rather than a plain
+     * {@link ActionOutcome#RUNNING}.
+     */
+    private ActionOutcome pendingOutcome = null;
 
     private final PathNodeCache nodeCache = new PathNodeCache();
 
@@ -94,6 +119,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         repathCooldown = 0;
         lastDistSqToTarget = Double.MAX_VALUE;
         noProgressTicks = 0;
+        pendingOutcome = null;
         nodeCache.clear();
         cachedTunnelEntry = null;
         tunnelScanOrigin = null;
@@ -101,12 +127,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         nodeCache.clear();
 
         if (mob.getHealth() <= 0) {
             mob.setAggressive(false);
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
@@ -115,13 +141,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             if (!canCrawl || !CrawlingMovementManager.isWallCrawling(mob)) {
                 mob.setDeltaMovement(mob.getDeltaMovement().scale(0.5D));
             }
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
 
         var yDiff = target.getY() - mob.getY();
         if (!canCrawl && yDiff > 12.0D) {
             mob.getNavigation().stop();
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
 
         if (mob.distanceToSqr(target) <= stopDistanceSqr && TargetingUtils.hasMeleeLineOfSight(mob, target)) {
@@ -134,13 +160,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
                     mob.hasImpulse = true;
                     faceTarget(mob, target);
-                    return ActionStatus.RUNNING;
+                    return ActionOutcome.RUNNING;
                 }
             }
 
             mob.setDeltaMovement(mob.getDeltaMovement().scale(0.4D));
             faceTarget(mob, target);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         if (repathCooldown > 0) {
@@ -381,7 +407,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                         mob.setDeltaMovement(move);
                         mob.hasImpulse = true;
                         faceMovementDirection(mob, move);
-                        return ActionStatus.RUNNING;
+                        return ActionOutcome.RUNNING;
                     } else if (waypointIsTightPassage) {
                         pathIndex++;
                         if (pathIndex < path.size()) {
@@ -403,7 +429,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                         direction,
                         shouldUseCrawlingNow
                     );
-                    return ActionStatus.RUNNING;
+                    if (pendingOutcome != null) {
+                        var outcome = pendingOutcome;
+                        pendingOutcome = null;
+                        return outcome;
+                    }
+                    return ActionOutcome.RUNNING;
                 }
             }
         }
@@ -412,12 +443,17 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         if (directDirection.lengthSqr() > 0.0001D) {
             applyFlatFallback(mob, blackboard, target, directDirection);
-            return ActionStatus.RUNNING;
+            if (pendingOutcome != null) {
+                var outcome = pendingOutcome;
+                pendingOutcome = null;
+                return outcome;
+            }
+            return ActionOutcome.RUNNING;
         }
 
         halt(mob);
         faceTarget(mob, target);
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     private @NotNull Vec3 getMove(E mob, Vec3 toEntrance, Vec3 tunnelCenter) {
@@ -486,6 +522,21 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             noProgressTicks = 0;
         } else {
             noProgressTicks++;
+        }
+
+        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
+            // Hard termination guarantee: local recovery (detours, jumps, block-breaking) below is allowed to keep
+            // trying, and each successful recovery resets noProgressTicks — but if none of it has actually closed
+            // the distance to the target in HARD_NO_PROGRESS_TICKS ticks, stop retrying locally forever and bubble
+            // FAILED_STUCK up to GOAP so the planner can pick a different goal (e.g. BREAK_OBSTACLE, INVESTIGATE).
+            pendingOutcome = ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            return;
+        }
+
+        if (noProgressTicks >= SOFT_NO_PROGRESS_TICKS && pendingOutcome == null) {
+            // Early, non-terminal GOAP signal: local recovery is still allowed to keep trying below, but the
+            // planner gets a heads-up well before the hard cap forces a stop.
+            pendingOutcome = ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
         }
 
         if (mob.horizontalCollision && blockBreakCooldown <= 0) {
@@ -593,7 +644,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
                 if (corrected.horizontalDistanceSqr() < 0.0001D) {
                     var raisedBox = mob.getBoundingBox().move(horiz.x, 1.05D, horiz.z);
-                    if (mob.level().noCollision(mob, raisedBox)) {
+                    if (mob.level().noBlockCollision(mob, raisedBox)) {
                         corrected = new Vec3(0.0D, Math.max(mob.getDeltaMovement().y, speed * 0.95D), 0.0D);
                     } else {
                         corrected = findCornerEscapeStepUpVelocity(mob, horizontalToClimb);
@@ -1073,6 +1124,15 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             noProgressTicks++;
         }
 
+        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
+            pendingOutcome = ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            return;
+        }
+
+        if (noProgressTicks >= SOFT_NO_PROGRESS_TICKS && pendingOutcome == null) {
+            pendingOutcome = ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+        }
+
         if ((stuckTicks > 10 || noProgressTicks > 20) && blockBreakCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
             if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
                 blockBreakCooldown = 10;
@@ -1197,12 +1257,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             new Vec3(0, 0, -1)
         };
         for (var dir : dirs) {
-            var hitCurrent = !level.noCollision(mob, box.move(dir.scale(probe)));
-            var hitStanding = !level.noCollision(mob, standingBox.move(dir.scale(probe)));
+            var hitCurrent = !level.noBlockCollision(mob, box.move(dir.scale(probe)));
+            var hitStanding = !level.noBlockCollision(mob, standingBox.move(dir.scale(probe)));
             if (hitCurrent || hitStanding) {
                 var dist = probe;
                 for (var d = 0.1D; d <= probe; d += 0.1D) {
-                    if (!level.noCollision(mob, box.move(dir.scale(d)))) {
+                    if (!level.noBlockCollision(mob, box.move(dir.scale(d)))) {
                         dist = d;
                         break;
                     }
@@ -1247,13 +1307,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var box = mob.getBoundingBox();
         var checkDistance = (mob.getBbWidth() / 2.0D) + 0.5D;
 
-        if (!level.noCollision(mob, box.move(0.0D, 0.0D, -checkDistance)))
+        if (!level.noBlockCollision(mob, box.move(0.0D, 0.0D, -checkDistance)))
             return true;
-        if (!level.noCollision(mob, box.move(0.0D, 0.0D, checkDistance)))
+        if (!level.noBlockCollision(mob, box.move(0.0D, 0.0D, checkDistance)))
             return true;
-        if (!level.noCollision(mob, box.move(-checkDistance, 0.0D, 0.0D)))
+        if (!level.noBlockCollision(mob, box.move(-checkDistance, 0.0D, 0.0D)))
             return true;
-        if (!level.noCollision(mob, box.move(checkDistance, 0.0D, 0.0D)))
+        if (!level.noBlockCollision(mob, box.move(checkDistance, 0.0D, 0.0D)))
             return true;
 
         if (waypoint.y > mob.getY() + 0.5D) {
@@ -1262,20 +1322,20 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             if (toWaypoint.lengthSqr() < 0.25D) {
                 var standingBox = box.move(0.0D, 1.0D, 0.0D);
                 var sideProbe = (mob.getBbWidth() / 2.0D) + 0.6D;
-                if (!level.noCollision(mob, standingBox.move(sideProbe, 0.0D, 0.0D)))
+                if (!level.noBlockCollision(mob, standingBox.move(sideProbe, 0.0D, 0.0D)))
                     return true;
-                if (!level.noCollision(mob, standingBox.move(-sideProbe, 0.0D, 0.0D)))
+                if (!level.noBlockCollision(mob, standingBox.move(-sideProbe, 0.0D, 0.0D)))
                     return true;
-                if (!level.noCollision(mob, standingBox.move(0.0D, 0.0D, sideProbe)))
+                if (!level.noBlockCollision(mob, standingBox.move(0.0D, 0.0D, sideProbe)))
                     return true;
-                return !level.noCollision(mob, standingBox.move(0.0D, 0.0D, -sideProbe));
+                return !level.noBlockCollision(mob, standingBox.move(0.0D, 0.0D, -sideProbe));
             } else if (toWaypoint.lengthSqr() > 0.0001D) {
                 var probeDir = toWaypoint.normalize();
                 var probeDistance = (mob.getBbWidth() / 2.0D) + 1.0D;
-                if (!level.noCollision(mob, box.move(probeDir.scale(probeDistance))))
+                if (!level.noBlockCollision(mob, box.move(probeDir.scale(probeDistance))))
                     return true;
                 var standingBox = box.move(0.0D, 1.0D, 0.0D);
-                return !level.noCollision(mob, standingBox.move(probeDir.scale(probeDistance)));
+                return !level.noBlockCollision(mob, standingBox.move(probeDir.scale(probeDistance)));
             }
         }
 
@@ -1621,14 +1681,14 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         if (Math.abs(x) > 0.0001D) {
             var xProbe = box.move(Math.copySign(probe, x), 0.0D, 0.0D);
-            if (!level.noCollision(mob, xProbe)) {
+            if (!level.noBlockCollision(mob, xProbe)) {
                 x = 0.0D;
             }
         }
 
         if (Math.abs(z) > 0.0001D) {
             var zProbe = box.move(0.0D, 0.0D, Math.copySign(probe, z));
-            if (!level.noCollision(mob, zProbe)) {
+            if (!level.noBlockCollision(mob, zProbe)) {
                 z = 0.0D;
             }
         }
@@ -1710,7 +1770,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             var testMove = dir.scale(speed * 0.55D);
             var probeBox = box.move(testMove.x, stepClearY, testMove.z);
 
-            if (!level.noCollision(mob, probeBox)) {
+            if (!level.noBlockCollision(mob, probeBox)) {
                 continue;
             }
 

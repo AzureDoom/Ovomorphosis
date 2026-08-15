@@ -12,9 +12,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.ai.util.CrawlingCustomAStar;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
@@ -32,8 +30,44 @@ import mod.azure.ovomorphosis.registry.BlockRegistry;
  * </ol>
  * <h3>Sync cooldown</h3> Registry syncs are gated behind {@link AiKeys#HIVE_SYNC_COOLDOWN} (default 60 ticks) so the
  * chunk-bucket iteration does not run every tick when no web is nearby.
+ * <h3>Hard termination guarantee</h3> This action must never be able to carry a passenger indefinitely:
+ * {@link #STUCK_TICKS_MAX}, {@link #NO_PROGRESS_TICKS_MAX}, {@link #MAX_DURATION_TICKS}, and {@link #MAX_PATH_FAILURES}
+ * each independently force a {@link ActionOutcome.Failed} termination (dropping the victim safely first) if crossed.
+ * <h3>Early GOAP feedback via BLOCKED</h3> Every individual failed repath attempt, and every tick the mob is
+ * meaningfully stuck/making-no-progress (but hasn't hit a hard cap yet), is reported as {@link ActionOutcome.Blocked}
+ * rather than silently retried. This lets the planner start down-weighting carry/{@code EXPAND_HIVE}-adjacent
+ * strategies in real time — well before the ~5-30 second hard caps below would otherwise force a stop — instead of only
+ * learning about the problem once the action finally gives up.
  */
 public final class CarryToWebAction<E extends Mob> implements Action<E> {
+
+    /**
+     * Ticks without meaningful positional displacement (despite an active path) before the action gives up and drops
+     * the passenger. ~5 seconds.
+     */
+    private static final int STUCK_TICKS_MAX = 100;
+
+    /** Soft threshold: once stuckTicks crosses this, report BLOCKED(FAILED_STUCK) every tick until it clears. */
+    private static final int STUCK_TICKS_SOFT = 25;
+
+    /**
+     * Ticks without the distance-to-web actually shrinking (even if the mob is technically moving, e.g. circling an
+     * obstacle) before giving up. ~8 seconds.
+     */
+    private static final int NO_PROGRESS_TICKS_MAX = 160;
+
+    /** Soft threshold: once noProgressTicks crosses this, report BLOCKED(FAILED_STUCK) every tick until it clears. */
+    private static final int NO_PROGRESS_TICKS_SOFT = 40;
+
+    /**
+     * Absolute hard cap on how long a single carry attempt may run, regardless of whether stuck/no-progress counters
+     * ever individually trip. Guarantees termination even against pathological cases neither counter catches. ~30
+     * seconds.
+     */
+    private static final int MAX_DURATION_TICKS = 600;
+
+    /** Consecutive empty-path results from the pathfinder before giving up as FAILED_NO_PATH. */
+    private static final int MAX_PATH_FAILURES = 5;
 
     private final int priority;
 
@@ -53,6 +87,21 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
     private int revalidateCooldown = 0;
 
+    private Vec3 lastPos = Vec3.ZERO;
+
+    private int stuckTicks = 0;
+
+    private int noProgressTicks = 0;
+
+    private double lastDistSqToWeb = Double.MAX_VALUE;
+
+    private int pathFailureCount = 0;
+
+    private int ticksActive = 0;
+
+    /** Set by {@link #navigate} when the repath attempt taken this tick came back empty. */
+    private boolean pathAttemptFailedThisTick = false;
+
     public CarryToWebAction(
         int priority,
         Consumer<E> onStartCallback,
@@ -71,6 +120,13 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         pathIndex = 0;
         repathCooldown = 0;
         revalidateCooldown = 0;
+        lastPos = mob.position();
+        stuckTicks = 0;
+        noProgressTicks = 0;
+        lastDistSqToWeb = Double.MAX_VALUE;
+        pathFailureCount = 0;
+        ticksActive = 0;
+        pathAttemptFailedThisTick = false;
 
         syncMemoryFromRegistry(mob, blackboard, cooldowns);
         webTarget = resolveWebTarget(mob, blackboard);
@@ -79,14 +135,13 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0)
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
 
         var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (victim == null || !victim.isAlive()) {
-            writeFeedback(mob, blackboard, PlanFailureReason.FAILED_TARGET_LOST);
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
 
         if (webTarget == null) {
@@ -95,10 +150,11 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             }
             webTarget = resolveWebTarget(mob, blackboard);
             if (webTarget == null) {
-                writeFeedback(mob, blackboard, PlanFailureReason.FAILED_NO_WEB);
-                return ActionStatus.FAILURE;
+                dropPassengerSafely(mob, victim);
+                return ActionOutcome.failed(PlanFailureReason.FAILED_NO_WEB);
             }
             path = Collections.emptyList();
+            lastDistSqToWeb = Double.MAX_VALUE;
         } else if (revalidateCooldown <= 0) {
             var chunkLoaded = mob.level().isLoaded(webTarget);
             if (chunkLoaded && !mob.level().getBlockState(webTarget).is(BlockRegistry.RESIN_WEB_CROSS.get())) {
@@ -110,26 +166,75 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             revalidateCooldown--;
         }
 
+        // --- Hard termination guarantee: this action must never be able to carry a passenger indefinitely. ---
+        ticksActive++;
+        if (ticksActive >= MAX_DURATION_TICKS) {
+            dropPassengerSafely(mob, victim);
+            return ActionOutcome.failed(PlanFailureReason.FAILED_STUCK);
+        }
+
+        var movedSqr = mob.position().distanceToSqr(lastPos);
+        lastPos = mob.position();
+        stuckTicks = movedSqr < 0.0025D ? stuckTicks + 1 : 0;
+
+        if (webTarget != null) {
+            var distSqToWebNow = mob.distanceToSqr(Vec3.atBottomCenterOf(webTarget));
+            if (distSqToWebNow < lastDistSqToWeb - 0.1D) {
+                lastDistSqToWeb = distSqToWebNow;
+                noProgressTicks = 0;
+            } else {
+                noProgressTicks++;
+            }
+        }
+
+        if (stuckTicks >= STUCK_TICKS_MAX || noProgressTicks >= NO_PROGRESS_TICKS_MAX) {
+            dropPassengerSafely(mob, victim);
+            return ActionOutcome.failed(PlanFailureReason.FAILED_STUCK);
+        }
+
+        if (pathFailureCount >= MAX_PATH_FAILURES) {
+            dropPassengerSafely(mob, victim);
+            return ActionOutcome.failed(PlanFailureReason.FAILED_NO_PATH);
+        }
+        // --- end hard termination guarantee ---
+
         victim.startRiding(mob, true);
 
         var webVec = Vec3.atBottomCenterOf(webTarget);
         if (mob.distanceToSqr(webVec) <= 1.8D * 1.8D) {
             deposit(mob, victim, blackboard, cooldowns);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
+        pathAttemptFailedThisTick = false;
         navigate(mob);
         faceToward(mob, webVec);
 
-        return ActionStatus.RUNNING;
+        // Early, non-terminal GOAP signal: this tick made no headway (either the repath came back empty, or
+        // stuck/no-progress counters are meaningfully elevated) but hasn't hit a hard cap yet. Reporting this every
+        // such tick — rather than staying silent until MAX_PATH_FAILURES/STUCK_TICKS_MAX/NO_PROGRESS_TICKS_MAX force
+        // a stop — lets the planner start favoring INVESTIGATE/BREAK_OBSTACLE/wandering well before the carry
+        // attempt is actually abandoned.
+        if (pathAttemptFailedThisTick) {
+            return ActionOutcome.blocked(PlanFailureReason.FAILED_NO_PATH, mob.blockPosition());
+        }
+        if (stuckTicks >= STUCK_TICKS_SOFT || noProgressTicks >= NO_PROGRESS_TICKS_SOFT) {
+            return ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+        }
+
+        return ActionOutcome.RUNNING;
     }
 
     @Override
     public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
-        if (reason == ActionStatus.INTERRUPTED) {
+        if (reason == ActionStatus.INTERRUPTED || reason == ActionStatus.FAILURE) {
             var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
-            if (victim != null) {
-                victim.setDeltaMovement(0, -0.1, 0);
+            if (victim != null && victim.isPassenger() && victim.getVehicle() == mob) {
+                // Safety net: if a failure/interruption path above didn't already drop the passenger explicitly
+                // (e.g. an INTERRUPTED status coming from outside this class, such as the brain preempting for an
+                // emergency), make sure the victim is never left permanently attached to a mob that has stopped
+                // trying to carry it.
+                dropPassengerSafely(mob, victim);
             }
         }
         mob.setDeltaMovement(
@@ -147,6 +252,22 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
     @Override
     public int priority() {
         return priority;
+    }
+
+    /**
+     * Safely detaches {@code victim} from {@code mob}, placing it at the mob's current position with a small downward
+     * nudge instead of leaving it riding a mob that has given up carrying it. Called from every hard termination path
+     * (stuck, no-path, no-web, max-duration) as well as the {@link #stop} safety net.
+     */
+    private void dropPassengerSafely(E mob, LivingEntity victim) {
+        if (!victim.isPassenger() || victim.getVehicle() != mob) {
+            return;
+        }
+        victim.stopRiding();
+        var mobPos = mob.position();
+        victim.setPos(mobPos.x, mob.getY(), mobPos.z);
+        victim.setDeltaMovement(0, -0.1, 0);
+        victim.setNoGravity(false);
     }
 
     /**
@@ -246,6 +367,13 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), webTarget, 1024, 2);
             pathIndex = path.size() > 1 ? 1 : 0;
             repathCooldown = 15;
+
+            if (path.isEmpty()) {
+                pathFailureCount++;
+                pathAttemptFailedThisTick = true;
+            } else {
+                pathFailureCount = 0;
+            }
         }
 
         while (
@@ -284,18 +412,5 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         mob.setYRot(yaw);
         mob.yBodyRot = yaw;
         mob.yHeadRot = yaw;
-    }
-
-    private void writeFeedback(E mob, Blackboard blackboard, PlanFailureReason reason) {
-        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
-        blackboard.set(
-            AiKeys.LAST_PLAN_FEEDBACK,
-            PlanFeedback.of(
-                reason,
-                (int) mob.level().getGameTime(),
-                mob.blockPosition(),
-                activeGoalType != null ? activeGoalType : AiGoalType.NONE
-            )
-        );
     }
 }

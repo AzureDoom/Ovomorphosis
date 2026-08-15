@@ -34,6 +34,7 @@ import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
 import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
+import mod.azure.ovomorphosis.ai.util.EmergencyDetector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.ai.util.XenomorphHostileTargetSelector;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
@@ -200,7 +201,7 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     }
 
     public void updateScaleFromGrowth() {
-        float newScale = this.getGrowthScale();
+        var newScale = this.getGrowthScale();
 
         if (Math.abs(this.lastGrowthScale - newScale) > 0.001F) {
             this.lastGrowthScale = newScale;
@@ -367,10 +368,16 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
             .isSuppressed(AiGoalType.HUNT_TARGET, currentTick);
         var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !huntSuppressed;
 
-        if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+        // Cheap pre-planner emergency probe (mirrors XenomorphEntity): without this, a fire/explosion/critical-health
+        // condition can never bypass the min-commit lock to let the planner choose a new strategic goal, since
+        // GoalApplicator.shouldReplan's EMERGENCY override only fires when passed a non-null candidateUrgency, and
+        // nothing upstream of chooseGoal() supplied one.
+        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
+
+        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
             return;
 
-        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick))
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency))
             return;
 
         cooldowns.set(AiKeys.GOAL_REPLAN, 20);
