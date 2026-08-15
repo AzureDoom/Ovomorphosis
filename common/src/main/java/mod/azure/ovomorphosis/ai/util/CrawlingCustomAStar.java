@@ -14,6 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.*;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.util.ModTags;
 
 public class CrawlingCustomAStar extends CustomAStar {
 
@@ -359,10 +360,16 @@ public class CrawlingCustomAStar extends CustomAStar {
 
     private static boolean isPassableForCrawl(Level level, BlockPos pos) {
         var state = level.getBlockState(pos);
+
         if (state.is(Blocks.BARRIER))
             return true;
+
         if (state.is(Blocks.STRUCTURE_VOID))
             return true;
+
+        if (state.is(ModTags.RESIN))
+            return true;
+
         return state.getCollisionShape(level, pos).isEmpty();
     }
 

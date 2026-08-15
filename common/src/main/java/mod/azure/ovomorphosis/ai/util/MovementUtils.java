@@ -88,26 +88,33 @@ public final class MovementUtils {
                 var groundPos = feetPos.below();
                 var headPos = feetPos.above();
 
+                var feetState = level.getBlockState(feetPos);
+                var headState = level.getBlockState(headPos);
+
                 if (!isSafeBlock(level, feetPos))
                     return false;
 
                 if (!isSafeBlock(level, headPos))
                     return false;
 
-                if (!level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty())
+                var feetCollision = feetState.getCollisionShape(level, feetPos);
+                var headCollision = headState.getCollisionShape(level, headPos);
+
+                if (!headCollision.isEmpty() && !headState.is(ModTags.RESIN))
+                    return false;
+
+                if (!feetCollision.isEmpty() && !feetState.is(ModTags.RESIN))
                     return false;
 
                 var feetFluid = level.getBlockState(feetPos).getFluidState();
                 var inWater = feetFluid.is(FluidTags.WATER);
 
                 if (!inWater) {
-                    var feetCollision = level.getBlockState(feetPos).getCollisionShape(level, feetPos);
-                    var isStepUpRiser = !feetCollision.isEmpty()
-                        && level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty();
-                    if (!isStepUpRiser && !feetCollision.isEmpty())
-                        return false;
+                    var feetPassable =
+                        feetCollision.isEmpty()
+                            || feetState.is(ModTags.RESIN);
 
-                    if (!level.getBlockState(headPos).getCollisionShape(level, headPos).isEmpty())
+                    if (!feetPassable)
                         return false;
 
                     if (!hasGroundWithinDrop(level, feetPos, 9))
