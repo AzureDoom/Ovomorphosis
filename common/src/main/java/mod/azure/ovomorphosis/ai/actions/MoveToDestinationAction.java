@@ -22,7 +22,6 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     /**
      * Hard cap on {@link #noProgressTicks} before this action gives up and bubbles
      * {@link PlanFailureReason#FAILED_STUCK} up to GOAP, instead of retrying local recovery (detours, jumps) forever.
-     * Mirrors {@link MoveToTargetAction#HARD_NO_PROGRESS_TICKS}.
      */
     private static final int HARD_NO_PROGRESS_TICKS = 200;
 
@@ -907,12 +906,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         Vec3 best = null;
         var bestDist = Double.MAX_VALUE;
         for (var dir : new Vec3[] { new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1) }) {
-            var hitCurrent = !level.noBlockCollision(mob, box.move(dir.scale(probe)));
-            var hitStanding = !level.noBlockCollision(mob, standingBox.move(dir.scale(probe)));
+            var hitCurrent = !level.noCollision(mob, box.move(dir.scale(probe)));
+            var hitStanding = !level.noCollision(mob, standingBox.move(dir.scale(probe)));
             if (hitCurrent || hitStanding) {
                 var dist = probe;
                 for (var d = 0.1D; d <= probe; d += 0.1D) {
-                    if (!level.noBlockCollision(mob, box.move(dir.scale(d)))) {
+                    if (!level.noCollision(mob, box.move(dir.scale(d)))) {
                         dist = d;
                         break;
                     }
@@ -934,32 +933,32 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var level = mob.level();
         var box = mob.getBoundingBox();
         var d = (mob.getBbWidth() / 2.0D) + 0.5D;
-        if (!level.noBlockCollision(mob, box.move(0, 0, -d)))
+        if (!level.noCollision(mob, box.move(0, 0, -d)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(0, 0, d)))
+        if (!level.noCollision(mob, box.move(0, 0, d)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(-d, 0, 0)))
+        if (!level.noCollision(mob, box.move(-d, 0, 0)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(d, 0, 0)))
+        if (!level.noCollision(mob, box.move(d, 0, 0)))
             return true;
         if (waypoint.y > mob.getY() + 0.5D) {
             var toWaypoint = new Vec3(waypoint.x - mob.getX(), 0.0D, waypoint.z - mob.getZ());
             if (toWaypoint.lengthSqr() < 0.25D) {
                 var sb = box.move(0, 1, 0);
                 var sp = (mob.getBbWidth() / 2.0D) + 0.6D;
-                if (!level.noBlockCollision(mob, sb.move(sp, 0, 0)))
+                if (!level.noCollision(mob, sb.move(sp, 0, 0)))
                     return true;
-                if (!level.noBlockCollision(mob, sb.move(-sp, 0, 0)))
+                if (!level.noCollision(mob, sb.move(-sp, 0, 0)))
                     return true;
-                if (!level.noBlockCollision(mob, sb.move(0, 0, sp)))
+                if (!level.noCollision(mob, sb.move(0, 0, sp)))
                     return true;
-                return !level.noBlockCollision(mob, sb.move(0, 0, -sp));
+                return !level.noCollision(mob, sb.move(0, 0, -sp));
             } else if (toWaypoint.lengthSqr() > 0.0001D) {
                 var pd = toWaypoint.normalize();
                 var pd2 = (mob.getBbWidth() / 2.0D) + 1.0D;
-                if (!level.noBlockCollision(mob, box.move(pd.scale(pd2))))
+                if (!level.noCollision(mob, box.move(pd.scale(pd2))))
                     return true;
-                return !level.noBlockCollision(mob, box.move(0, 1, 0).move(pd.scale(pd2)));
+                return !level.noCollision(mob, box.move(0, 1, 0).move(pd.scale(pd2)));
             }
         }
         return false;
@@ -985,9 +984,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var probe = Math.max(0.08D, mob.getBbWidth() * 0.25D);
         var x = desired.x;
         var z = desired.z;
-        if (Math.abs(x) > 0.0001D && !level.noBlockCollision(mob, box.move(Math.copySign(probe, x), 0, 0)))
+        if (Math.abs(x) > 0.0001D && !level.noCollision(mob, box.move(Math.copySign(probe, x), 0, 0)))
             x = 0.0D;
-        if (Math.abs(z) > 0.0001D && !level.noBlockCollision(mob, box.move(0, 0, Math.copySign(probe, z))))
+        if (Math.abs(z) > 0.0001D && !level.noCollision(mob, box.move(0, 0, Math.copySign(probe, z))))
             z = 0.0D;
         return new Vec3(x, desired.y, z);
     }
@@ -1015,7 +1014,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 continue;
             var dir = candidate.normalize();
             var testMove = dir.scale(speed * 0.55D);
-            if (!level.noBlockCollision(mob, box.move(testMove.x, 0.05D, testMove.z)))
+            if (!level.noCollision(mob, box.move(testMove.x, 0.05D, testMove.z)))
                 continue;
             var score = dir.dot(desired);
             if (score > bestScore) {

@@ -222,7 +222,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             a -> a.isOnFire() && a.getOwner() instanceof LivingEntity
         );
         if (!arrows.isEmpty()) {
-            attacker = (LivingEntity) arrows.getFirst().getOwner();
+            attacker = (LivingEntity) arrows.get(0).getOwner();
         }
 
         if (attacker == null) {

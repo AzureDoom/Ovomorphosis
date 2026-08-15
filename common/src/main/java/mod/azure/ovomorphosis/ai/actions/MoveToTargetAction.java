@@ -644,7 +644,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
                 if (corrected.horizontalDistanceSqr() < 0.0001D) {
                     var raisedBox = mob.getBoundingBox().move(horiz.x, 1.05D, horiz.z);
-                    if (mob.level().noBlockCollision(mob, raisedBox)) {
+                    if (mob.level().noCollision(mob, raisedBox)) {
                         corrected = new Vec3(0.0D, Math.max(mob.getDeltaMovement().y, speed * 0.95D), 0.0D);
                     } else {
                         corrected = findCornerEscapeStepUpVelocity(mob, horizontalToClimb);
@@ -1257,12 +1257,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             new Vec3(0, 0, -1)
         };
         for (var dir : dirs) {
-            var hitCurrent = !level.noBlockCollision(mob, box.move(dir.scale(probe)));
-            var hitStanding = !level.noBlockCollision(mob, standingBox.move(dir.scale(probe)));
+            var hitCurrent = !level.noCollision(mob, box.move(dir.scale(probe)));
+            var hitStanding = !level.noCollision(mob, standingBox.move(dir.scale(probe)));
             if (hitCurrent || hitStanding) {
                 var dist = probe;
                 for (var d = 0.1D; d <= probe; d += 0.1D) {
-                    if (!level.noBlockCollision(mob, box.move(dir.scale(d)))) {
+                    if (!level.noCollision(mob, box.move(dir.scale(d)))) {
                         dist = d;
                         break;
                     }
@@ -1307,13 +1307,13 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         var box = mob.getBoundingBox();
         var checkDistance = (mob.getBbWidth() / 2.0D) + 0.5D;
 
-        if (!level.noBlockCollision(mob, box.move(0.0D, 0.0D, -checkDistance)))
+        if (!level.noCollision(mob, box.move(0.0D, 0.0D, -checkDistance)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(0.0D, 0.0D, checkDistance)))
+        if (!level.noCollision(mob, box.move(0.0D, 0.0D, checkDistance)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(-checkDistance, 0.0D, 0.0D)))
+        if (!level.noCollision(mob, box.move(-checkDistance, 0.0D, 0.0D)))
             return true;
-        if (!level.noBlockCollision(mob, box.move(checkDistance, 0.0D, 0.0D)))
+        if (!level.noCollision(mob, box.move(checkDistance, 0.0D, 0.0D)))
             return true;
 
         if (waypoint.y > mob.getY() + 0.5D) {
@@ -1322,20 +1322,20 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             if (toWaypoint.lengthSqr() < 0.25D) {
                 var standingBox = box.move(0.0D, 1.0D, 0.0D);
                 var sideProbe = (mob.getBbWidth() / 2.0D) + 0.6D;
-                if (!level.noBlockCollision(mob, standingBox.move(sideProbe, 0.0D, 0.0D)))
+                if (!level.noCollision(mob, standingBox.move(sideProbe, 0.0D, 0.0D)))
                     return true;
-                if (!level.noBlockCollision(mob, standingBox.move(-sideProbe, 0.0D, 0.0D)))
+                if (!level.noCollision(mob, standingBox.move(-sideProbe, 0.0D, 0.0D)))
                     return true;
-                if (!level.noBlockCollision(mob, standingBox.move(0.0D, 0.0D, sideProbe)))
+                if (!level.noCollision(mob, standingBox.move(0.0D, 0.0D, sideProbe)))
                     return true;
-                return !level.noBlockCollision(mob, standingBox.move(0.0D, 0.0D, -sideProbe));
+                return !level.noCollision(mob, standingBox.move(0.0D, 0.0D, -sideProbe));
             } else if (toWaypoint.lengthSqr() > 0.0001D) {
                 var probeDir = toWaypoint.normalize();
                 var probeDistance = (mob.getBbWidth() / 2.0D) + 1.0D;
-                if (!level.noBlockCollision(mob, box.move(probeDir.scale(probeDistance))))
+                if (!level.noCollision(mob, box.move(probeDir.scale(probeDistance))))
                     return true;
                 var standingBox = box.move(0.0D, 1.0D, 0.0D);
-                return !level.noBlockCollision(mob, standingBox.move(probeDir.scale(probeDistance)));
+                return !level.noCollision(mob, standingBox.move(probeDir.scale(probeDistance)));
             }
         }
 
@@ -1681,14 +1681,14 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         if (Math.abs(x) > 0.0001D) {
             var xProbe = box.move(Math.copySign(probe, x), 0.0D, 0.0D);
-            if (!level.noBlockCollision(mob, xProbe)) {
+            if (!level.noCollision(mob, xProbe)) {
                 x = 0.0D;
             }
         }
 
         if (Math.abs(z) > 0.0001D) {
             var zProbe = box.move(0.0D, 0.0D, Math.copySign(probe, z));
-            if (!level.noBlockCollision(mob, zProbe)) {
+            if (!level.noCollision(mob, zProbe)) {
                 z = 0.0D;
             }
         }
@@ -1770,7 +1770,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             var testMove = dir.scale(speed * 0.55D);
             var probeBox = box.move(testMove.x, stepClearY, testMove.z);
 
-            if (!level.noBlockCollision(mob, probeBox)) {
+            if (!level.noCollision(mob, probeBox)) {
                 continue;
             }
 

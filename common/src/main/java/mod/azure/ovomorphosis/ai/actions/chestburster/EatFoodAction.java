@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.ai.actions.chestburster;
 
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.Vec3;
@@ -230,20 +229,22 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
             return;
         var stack = itemEntity.getItem();
         stack.shrink(1);
-        if (itemEntity.getItem().has(DataComponents.FOOD)) {
-            var foodComponent = itemEntity.getItem().get(DataComponents.FOOD);
-            var growthValue = foodComponent != null ? foodComponent.nutrition() : 1;
-            mob.grow(
-                mob,
-                growthValue + CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterFoodGrowthValue
-            );
-            itemEntity.getItem().finishUsingItem(mob.level(), mob);
+        if (stack.isEdible()) {
+            var food = stack.getItem().getFoodProperties();
+            var nutrition = food != null ? food.getNutrition() : 1;
+
+            var growthValue =
+                nutrition + CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterFoodGrowthValue;
+
+            mob.grow(mob, growthValue);
+
+            stack.finishUsingItem(mob.level(), mob);
         } else {
             if (stack.is(ModTags.POTIONS)) {
                 stack.finishUsingItem(mob.level(), mob);
-                stack.consume(1, mob);
+                stack.shrink(1);
             } else {
-                stack.consume(1, mob);
+                stack.shrink(1);
             }
         }
     }

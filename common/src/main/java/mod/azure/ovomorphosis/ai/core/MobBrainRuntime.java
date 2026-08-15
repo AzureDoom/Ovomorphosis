@@ -137,26 +137,50 @@ public final class MobBrainRuntime<E extends Mob> {
      *         {@link ActionOutcome.Failed}, in which case {@link #currentAction} is now {@code null})
      */
     private boolean applyOutcome(ActionOutcome outcome) {
-        return switch (outcome) {
-            case ActionOutcome.Running ignored -> true;
-            case ActionOutcome.Blocked blocked -> {
-                // Still running — this is the "hit an obstacle but haven't given up" signal. The action keeps
-                // executing; GOAP just gets an early, non-terminal heads-up.
-                writePlanFeedback(blocked.reason(), blocked.at(), blocked.goalType());
-                yield true;
-            }
-            case ActionOutcome.Success ignored -> {
-                currentAction.stop(mob, blackboard, cooldowns, ActionStatus.SUCCESS);
-                currentAction = null;
-                yield false;
-            }
-            case ActionOutcome.Failed failed -> {
-                writePlanFeedback(failed.reason(), failed.at(), failed.goalType());
-                currentAction.stop(mob, blackboard, cooldowns, ActionStatus.FAILURE);
-                currentAction = null;
-                yield false;
-            }
-        };
+        if (outcome instanceof ActionOutcome.Running) {
+            return true;
+        }
+
+        if (outcome instanceof ActionOutcome.Blocked blocked) {
+            writePlanFeedback(
+                blocked.reason(),
+                blocked.at(),
+                blocked.goalType()
+            );
+            return true;
+        }
+
+        if (outcome instanceof ActionOutcome.Success) {
+            currentAction.stop(
+                mob,
+                blackboard,
+                cooldowns,
+                ActionStatus.SUCCESS
+            );
+            currentAction = null;
+            return false;
+        }
+
+        if (outcome instanceof ActionOutcome.Failed failed) {
+            writePlanFeedback(
+                failed.reason(),
+                failed.at(),
+                failed.goalType()
+            );
+
+            currentAction.stop(
+                mob,
+                blackboard,
+                cooldowns,
+                ActionStatus.FAILURE
+            );
+            currentAction = null;
+            return false;
+        }
+
+        throw new IllegalStateException(
+            "Unhandled ActionOutcome type: " + outcome.getClass().getName()
+        );
     }
 
     /**
