@@ -22,7 +22,6 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     /**
      * Hard cap on {@link #noProgressTicks} before this action gives up and bubbles
      * {@link PlanFailureReason#FAILED_STUCK} up to GOAP, instead of retrying local recovery (detours, jumps) forever.
-     * Mirrors {@link MoveToTargetAction#HARD_NO_PROGRESS_TICKS}.
      */
     private static final int HARD_NO_PROGRESS_TICKS = 200;
 
