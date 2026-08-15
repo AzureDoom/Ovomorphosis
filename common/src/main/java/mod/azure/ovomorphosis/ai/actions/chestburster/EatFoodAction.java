@@ -70,10 +70,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
     }
 
     @Override
-    public ActionStatus tick(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (!this.eatingStarted) {
             if (this.food == null || !this.food.isAlive() || this.food.getItem().isEmpty()) {
-                return ActionStatus.SUCCESS;
+                return ActionOutcome.SUCCESS;
             }
 
             var d = mob.distanceToSqr(this.food);
@@ -93,10 +93,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
                 } else if (this.noProgressTicks > 40) {
                     ignoredFood(blackboard).put(this.food.getId(), mob.level().getGameTime() + 200);
                     cooldowns.set(AiKeys.PASSIVE_DECISION, 60);
-                    return ActionStatus.SUCCESS;
+                    return ActionOutcome.SUCCESS;
                 } else {
                     moveTowardFood(mob);
-                    return ActionStatus.RUNNING;
+                    return ActionOutcome.RUNNING;
                 }
             }
         }
@@ -118,10 +118,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
         }
 
         if (this.eatTicks >= animationTicks) {
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

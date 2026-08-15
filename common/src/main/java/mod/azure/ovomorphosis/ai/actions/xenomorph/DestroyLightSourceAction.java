@@ -11,10 +11,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 import mod.azure.ovomorphosis.ai.core.Action;
+import mod.azure.ovomorphosis.ai.core.ActionOutcome;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 /**
@@ -60,7 +62,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         var level = mob.level();
 
         if (
@@ -68,13 +70,13 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
                 .getGameRules()
                 .getBoolean(GameRules.RULE_MOBGRIEFING)
         ) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
 
         if (lightBlock == null) {
             lightBlock = findBrightestLightBlock(mob);
             if (lightBlock == null) {
-                return ActionStatus.FAILURE;
+                return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
             }
             cooldowns.set(AiKeys.LIGHT_SCAN_COOLDOWN, 40);
             breakProgress = 0f;
@@ -86,13 +88,13 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
         if (state.isAir() || getLightEmission(state) < 8) {
             level.destroyBlockProgress(breakId, lightBlock, -1);
             lightBlock = null;
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         if (isFireBlock(state) && !mob.isFireHardened()) {
             level.destroyBlockProgress(breakId, lightBlock, -1);
             lightBlock = null;
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_DANGER);
         }
 
         var target = Vec3.atCenterOf(lightBlock);
@@ -114,7 +116,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
                 level.destroyBlockProgress(breakId, lightBlock, -1);
                 lightBlock = null;
                 stuckTimer = 0;
-                return ActionStatus.FAILURE;
+                return ActionOutcome.failed(PlanFailureReason.FAILED_STUCK);
             }
 
             var direction = target.subtract(mob.position());
@@ -138,7 +140,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
             }
 
             mob.getLookControl().setLookAt(target.x, target.y, target.z, 30f, 30f);
-            return ActionStatus.RUNNING;
+            return ActionOutcome.RUNNING;
         }
 
         mob.setDeltaMovement(
@@ -163,10 +165,10 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
             lightBlock = null;
             breakProgress = 0f;
             cooldowns.set(AiKeys.LIGHT_SCAN_COOLDOWN, postBreakCooldownTicks);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

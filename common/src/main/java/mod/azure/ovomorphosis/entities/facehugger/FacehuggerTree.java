@@ -15,6 +15,16 @@ import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 public class FacehuggerTree {
 
+    /**
+     * Health fraction at or below which health is treated as a life-threatening emergency capable of preempting a
+     * {@link mod.azure.ovomorphosis.ai.core.InterruptCategory#LOCKED} action (e.g. mid-{@code RetreatAndHideAction}'s
+     * own {@code FLEEING} phase, which is itself {@code LOCKED} once it enters {@code HIDING}). Mirrors
+     * {@code XenomorphTree.CRITICAL_HEALTH_FRACTION} — deliberately lower than the planner's softer
+     * {@code RETREAT_HEALTH_FRACTION} (35%) so the two don't fight: the planner's normal RETREAT_AND_HIDE goal handles
+     * the common case, and this only engages when things are dire enough to justify breaking through a lock.
+     */
+    private static final float CRITICAL_HEALTH_FRACTION = 0.15f;
+
     public static BehaviorNode<FacehuggerEntity> create() {
         var wander = new WanderAction<FacehuggerEntity>(
             0.14D,
@@ -50,6 +60,22 @@ public class FacehuggerTree {
 
             if (FleeFireAction.shouldFleefire(facehugger) || facehugger.isOnFire()) {
                 return BehaviorResult.run(fleeFire, fleeFire.priority());
+            }
+
+            // Critical health emergency: reuse RetreatAndHideAction (also selected via the ordinary, non-emergency
+            // RETREAT_AND_HIDE goal branch below), but tag this particular selection as InterruptCategory.EMERGENCY
+            // so it can preempt a LOCKED action immediately instead of waiting for goal replanning or the current
+            // action to finish on its own. Facehugger has no hive/web system to retreat to, so this reuses the
+            // planner's own "find somewhere dark and enclosed" scan as the safe haven.
+            if (
+                facehugger.getMaxHealth() > 0f
+                    && facehugger.getHealth() <= facehugger.getMaxHealth() * CRITICAL_HEALTH_FRACTION
+            ) {
+                var haven = FacehuggerGoalPlanner.findHidePosition(facehugger);
+                if (haven != null) {
+                    blackboard.set(AiKeys.GOAL_DESTINATION, haven);
+                    return BehaviorResult.runEmergency(retreatAndHide, 108);
+                }
             }
 
             if (facehugger.isInWater() || facehugger.isInLava()) {

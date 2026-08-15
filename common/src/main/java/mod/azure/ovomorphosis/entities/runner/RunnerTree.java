@@ -12,6 +12,7 @@ import mod.azure.ovomorphosis.ai.core.BehaviorResult;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.XenoRole;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
+import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -28,6 +29,15 @@ import mod.azure.ovomorphosis.util.ModTags;
  * are identical in structure and priority to the Xenomorph tree.
  */
 public class RunnerTree {
+
+    /**
+     * Health fraction at or below which health is treated as a life-threatening emergency capable of preempting a
+     * {@link mod.azure.ovomorphosis.ai.core.InterruptCategory#LOCKED} action (e.g. mid-{@code swipeCombo}/
+     * {@code tailPunish}). Mirrors {@code XenomorphTree.CRITICAL_HEALTH_FRACTION} — deliberately lower than the
+     * planner's softer low-health threshold so the two don't fight: the planner's normal RETREAT_TO_RESIN goal handles
+     * the common case, and this only engages when things are dire enough to justify breaking through a lock.
+     */
+    private static final float CRITICAL_HEALTH_FRACTION = 0.15f;
 
     public static BehaviorNode<RunnerEntity> create() {
         var dodge = new DodgeProjectileAction<RunnerEntity>(130);
@@ -121,6 +131,26 @@ public class RunnerTree {
 
             if (fleeExplosive.hasNearbyExplosive(runner)) {
                 return BehaviorResult.run(fleeExplosive, 120);
+            }
+
+            // Critical health emergency: reuse the ordinary destination-move action (also used for the softer,
+            // non-emergency RETREAT_TO_RESIN goal below and for other non-emergency goals), but tag this particular
+            // selection as InterruptCategory.EMERGENCY so it can preempt a LOCKED action (e.g. mid-swipeCombo/
+            // tailPunish) instead of waiting for the goal's max-commit expiry or the attack action to finish on its
+            // own. Runner has no CarryToWebAction, but it still belongs to the hive (HiveMemory is populated the same
+            // way Xenomorph's is), so a nearby web cross is a legitimate safe haven to flee toward.
+            if (
+                runner.getMaxHealth() > 0f
+                    && runner.getHealth() <= runner.getMaxHealth() * CRITICAL_HEALTH_FRACTION
+            ) {
+                var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+                var safeHaven = memory != null
+                    ? memory.findNearestWebCross(runner.level(), runner.blockPosition(), 80.0D).orElse(null)
+                    : null;
+                if (safeHaven != null) {
+                    blackboard.set(AiKeys.DESTINATION, safeHaven);
+                    return BehaviorResult.runEmergency(destinationMove, 122);
+                }
             }
 
             if (goalType == AiGoalType.RETREAT_TO_RESIN) {

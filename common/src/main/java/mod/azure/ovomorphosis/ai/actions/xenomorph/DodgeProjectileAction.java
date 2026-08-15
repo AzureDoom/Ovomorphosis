@@ -13,6 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.Action;
+import mod.azure.ovomorphosis.ai.core.ActionOutcome;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
@@ -43,20 +44,20 @@ public record DodgeProjectileAction<E extends Mob>(int priority) implements Acti
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {}
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0)
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
 
         if (cooldowns.isOnCooldown(AiKeys.DODGE_COOLDOWN))
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed();
 
         var incoming = findIncomingProjectile(mob);
         if (incoming == null)
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed();
 
         applyDodge(mob, incoming);
         cooldowns.set(AiKeys.DODGE_COOLDOWN, DODGE_COOLDOWN_TICKS);
-        return ActionStatus.SUCCESS;
+        return ActionOutcome.SUCCESS;
     }
 
     @Override

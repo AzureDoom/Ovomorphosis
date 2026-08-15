@@ -6,6 +6,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.core.Action;
+import mod.azure.ovomorphosis.ai.core.ActionOutcome;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
@@ -31,7 +32,7 @@ public final class HatchFacehuggerAction implements Action<OvomorphEntity> {
     }
 
     @Override
-    public ActionStatus tick(OvomorphEntity egg, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(OvomorphEntity egg, Blackboard blackboard, Cooldowns cooldowns) {
         ticks++;
 
         if (ticks >= hatchAt) {
@@ -80,10 +81,10 @@ public final class HatchFacehuggerAction implements Action<OvomorphEntity> {
 
                 egg.level().addFreshEntity(facehugger);
             }
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

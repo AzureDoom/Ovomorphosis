@@ -7,6 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
@@ -60,17 +61,17 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         age++;
 
         if (mob.getHealth() <= 0) {
             mob.setAggressive(false);
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive()) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
 
         mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
@@ -109,7 +110,7 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
                     mob.setTarget(null);
                     mob.setAggressive(false);
                     cooldowns.set(cooldownKey, cooldownTicks);
-                    return ActionStatus.SUCCESS;
+                    return ActionOutcome.SUCCESS;
                 }
             }
         }
@@ -117,10 +118,10 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
         if (age >= totalTicks) {
             cooldowns.set(cooldownKey, cooldownTicks);
             mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

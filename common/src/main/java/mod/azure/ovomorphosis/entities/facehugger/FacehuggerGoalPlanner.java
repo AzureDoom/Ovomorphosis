@@ -295,7 +295,11 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
         return base + " [after " + feedback.reason().name() + "]";
     }
 
-    private static BlockPos findHidePosition(FacehuggerEntity mob) {
+    /**
+     * Package-private (not {@code private}) so {@link FacehuggerTree} can reuse the same "find somewhere dark and
+     * enclosed" logic for its own critical-health emergency check, without duplicating this scan.
+     */
+    static BlockPos findHidePosition(FacehuggerEntity mob) {
         var origin = mob.blockPosition();
         var level = mob.level();
         var rng = mob.getRandom();

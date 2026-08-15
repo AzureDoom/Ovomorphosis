@@ -25,6 +25,7 @@ import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
+import mod.azure.ovomorphosis.ai.util.EmergencyDetector;
 import mod.azure.ovomorphosis.ai.util.NearestHostileTargetSelector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
@@ -117,10 +118,16 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         var reactiveReplan = (isPassive && blackboard.has(AiKeys.TARGET))
             || (goalType == AiGoalType.GROW_SAFE && eatAction.canStart(this, blackboard));
 
-        if (!reactiveReplan && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+        // Cheap pre-planner emergency probe (mirrors XenomorphEntity/RunnerEntity/FacehuggerEntity): without this,
+        // a fire/explosion/critical-health condition can never bypass the min-commit lock to let the planner switch
+        // to HIDE, since GoalApplicator.shouldReplan's EMERGENCY override only fires when passed a non-null
+        // candidateUrgency, and nothing upstream of chooseGoal() supplied one.
+        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
+
+        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
             return;
 
-        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick))
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency))
             return;
 
         cooldowns.set(AiKeys.GOAL_REPLAN, 20);

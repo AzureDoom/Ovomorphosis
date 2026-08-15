@@ -9,13 +9,13 @@ import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.actions.MoveToTargetAction;
 import mod.azure.ovomorphosis.ai.core.Action;
+import mod.azure.ovomorphosis.ai.core.ActionOutcome;
 import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -65,10 +65,10 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target == null || !target.isAlive()) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
 
         if (
@@ -76,18 +76,18 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
                 .getGameRules()
                 .getBoolean(GameRules.RULE_MOBGRIEFING)
         ) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
 
         if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)) {
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         var level = mob.level();
 
         if (targetBlock == null) {
             if (cooldowns.isOnCooldown(AiKeys.BREAK_TO_TARGET_SCAN)) {
-                return ActionStatus.RUNNING;
+                return ActionOutcome.RUNNING;
             }
             cooldowns.set(AiKeys.BREAK_TO_TARGET_SCAN, 10);
 
@@ -100,17 +100,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
 
             if (targetBlock == null) {
                 blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
-                var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
-                blackboard.set(
-                    AiKeys.LAST_PLAN_FEEDBACK,
-                    PlanFeedback.of(
-                        PlanFailureReason.FAILED_OBSTACLE_UNBREAKABLE,
-                        (int) mob.level().getGameTime(),
-                        mob.blockPosition(),
-                        activeGoal != null ? activeGoal : AiGoalType.NONE
-                    )
-                );
-                return ActionStatus.FAILURE;
+                return ActionOutcome.failed(PlanFailureReason.FAILED_OBSTACLE_UNBREAKABLE);
             }
             breakProgress = 0f;
         }
@@ -120,7 +110,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             targetBlock = null;
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
             blackboard.remove(AiKeys.BREAK_TO_TARGET_SCAN);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         var state = level.getBlockState(targetBlock);
@@ -129,7 +119,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             level.destroyBlockProgress(breakId, targetBlock, -1);
             targetBlock = null;
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         var center = Vec3.atCenterOf(targetBlock);
@@ -152,7 +142,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
         }
 
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

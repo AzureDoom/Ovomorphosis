@@ -44,6 +44,14 @@ public class XenomorphTree {
 
     private static final double WEB_FAR_SQ = 50.0 * 50.0;
 
+    /**
+     * Health fraction at or below which health is treated as a life-threatening emergency capable of preempting a
+     * {@link mod.azure.ovomorphosis.ai.core.InterruptCategory#LOCKED} action. Deliberately lower than the planner's
+     * softer {@code RETREAT_HEALTH_FRACTION} (30%) so the two don't fight: the planner's normal retreat goal handles
+     * the common case, and this only engages when things are dire enough to justify breaking through a lock.
+     */
+    private static final float CRITICAL_HEALTH_FRACTION = 0.15f;
+
     public static BehaviorNode<XenomorphEntity> create() {
         var dodge = new DodgeProjectileAction<XenomorphEntity>(130);
         var fleeFire = new FleeFireAction<XenomorphEntity>(125);
@@ -146,6 +154,24 @@ public class XenomorphTree {
 
             if (fleeExplosive.hasNearbyExplosive(xenomorph)) {
                 return BehaviorResult.run(fleeExplosive, 120);
+            }
+
+            // Critical health emergency: reuse the ordinary destination-move action (also used for the softer,
+            // non-emergency low-health retreat below and for other non-emergency goals), but tag this particular
+            // selection as InterruptCategory.EMERGENCY so it can preempt a LOCKED action (e.g. mid-carry) instead of
+            // waiting for CarryToWebAction's own termination guarantees or the goal's max-commit expiry.
+            if (
+                xenomorph.getMaxHealth() > 0f
+                    && xenomorph.getHealth() <= xenomorph.getMaxHealth() * CRITICAL_HEALTH_FRACTION
+            ) {
+                var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+                var safeHaven = memory != null
+                    ? memory.findNearestWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D).orElse(null)
+                    : null;
+                if (safeHaven != null) {
+                    blackboard.set(AiKeys.DESTINATION, safeHaven);
+                    return BehaviorResult.runEmergency(destinationMove, 122);
+                }
             }
 
             if (goalType == AiGoalType.RETREAT_TO_RESIN) {

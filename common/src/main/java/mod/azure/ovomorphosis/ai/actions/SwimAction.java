@@ -15,11 +15,11 @@ public record SwimAction<E extends Mob>(int priority) implements Action<E> {
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {}
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.isDeadOrDying())
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         if (!mob.isInWater() && !mob.isInLava())
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         var destPos = target != null && target.isAlive()
@@ -46,7 +46,7 @@ public record SwimAction<E extends Mob>(int priority) implements Action<E> {
         }
 
         mob.setDeltaMovement(mob.getDeltaMovement().multiply(0.8, 0.8, 0.8));
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override

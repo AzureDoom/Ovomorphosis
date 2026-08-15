@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
@@ -67,18 +68,18 @@ public final class WanderAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionStatus tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         if (mob.getHealth() <= 0) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         if (!mob.getPassengers().isEmpty()) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.failed();
         }
 
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         if (target != null && target.isAlive()) {
-            return ActionStatus.INTERRUPTED;
+            return ActionOutcome.SUCCESS;
         }
 
         age++;
@@ -86,20 +87,20 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         if (destination == null) {
             destination = pickDestination(mob, blackboard);
             if (destination == null) {
-                return ActionStatus.RUNNING;
+                return ActionOutcome.RUNNING;
             }
         }
 
         var delta = destination.subtract(mob.position());
         if (delta.lengthSqr() < 0.5D || age >= duration) {
-            return ActionStatus.SUCCESS;
+            return ActionOutcome.SUCCESS;
         }
 
         var movement = delta.normalize().scale(speed);
         var safeMovement = MovementUtils.findSafeMovement(mob, movement, steerBias);
 
         if (safeMovement.equals(Vec3.ZERO)) {
-            return ActionStatus.FAILURE;
+            return ActionOutcome.failed(PlanFailureReason.FAILED_STUCK);
         }
 
         mob.setDeltaMovement(safeMovement.x, mob.getDeltaMovement().y, safeMovement.z);
@@ -107,7 +108,7 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         faceMovementDirection(mob, safeMovement);
 
         AiDebugUtils.sendParticlePath(mob, mob.position(), destination);
-        return ActionStatus.RUNNING;
+        return ActionOutcome.RUNNING;
     }
 
     @Override
