@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.ai.util;
 
-import mod.azure.ovomorphosis.util.ModTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -15,6 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.*;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.util.ModTags;
 
 public class CrawlingCustomAStar extends CustomAStar {
 

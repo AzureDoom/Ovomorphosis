@@ -111,8 +111,8 @@ public final class MovementUtils {
 
                 if (!inWater) {
                     var feetPassable =
-                            feetCollision.isEmpty()
-                                    || feetState.is(ModTags.RESIN);
+                        feetCollision.isEmpty()
+                            || feetState.is(ModTags.RESIN);
 
                     if (!feetPassable)
                         return false;

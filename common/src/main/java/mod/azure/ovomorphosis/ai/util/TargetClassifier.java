@@ -12,7 +12,6 @@ import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
-import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
