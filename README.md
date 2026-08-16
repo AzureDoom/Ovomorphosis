@@ -1,114 +1,185 @@
-![Header](https://wsrv.nl/?url=https%3A%2F%2Fwww.bisecthosting.com%2Fimages%2FCF%2FOVOMORPHOSIS%2FMP_OVOMORPHOSIS_Header.webp&n=-1)
+![Ovomorphosis](https://www.bisecthosting.com/images/CF/OVOMORPHOSIS/MP_OVOMORPHOSIS_Header.webp)
 
 ![Fabric Supported](https://img.shields.io/badge/Fabric-supported-blue?style=for-the-badge)
 ![NeoForge Supported](https://img.shields.io/badge/NeoForge-supported-orange?style=for-the-badge)
 ![Forge Supported](https://img.shields.io/badge/Forge_1.20.1-supported-red?style=for-the-badge)
 
-![Minecraft 1.21.1](https://img.shields.io/badge/Minecraft-1.21.1_1.20.1-green?style=for-the-badge)
+![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1_%7C_1.20.1-green?style=for-the-badge)
 ![Requires AzureLib](https://img.shields.io/badge/Requires-AzureLib-purple?style=for-the-badge)
 ![License MIT](https://img.shields.io/badge/License-MIT-lightgrey?style=for-the-badge)
 
-![Discord](https://wsrv.nl/?url=https%3A%2F%2Fwww.bisecthosting.com%2Fimages%2FCF%2FOVOMORPHOSIS%2FMP_OVOMORPHOSIS_Discord.webp&n=-1)
+![Discord](https://www.bisecthosting.com/images/CF/OVOMORPHOSIS/MP_OVOMORPHOSIS_Discord.webp)
 
-Ovomorphosis brings an alien life cycle into Minecraft through exploration, infection, and hive growth. The threat begins in infested structures, where ovomorphs can hatch facehuggers, infected hosts can give rise to chestbursters, and xenomorphs can spread resin-covered hives by capturing mobs for eggmorphing.
+## An infestation that grows with your world
 
-This mod is designed for players who want a creature focused horror experience that feels alive in the world. The threat is not just a single mob. It grows, spreads, and becomes harder to ignore the longer it is allowed to survive.
+**Ovomorphosis** brings an alien life cycle into Minecraft through exploration, infection, and hive growth.
 
-![Features](https://wsrv.nl/?url=https%3A%2F%2Fwww.bisecthosting.com%2Fimages%2FCF%2FOVOMORPHOSIS%2FMP_OVOMORPHOSIS_Description.webp&n=-1)
+Discover infested structures containing dormant ovomorphs. Survive facehugger attacks. Watch infected hosts give rise to chestbursters. Hunt down xenomorphs before they cover the surrounding area in resin and turn captured mobs into new ovomorphs.
 
-### Alien life cycle
+The threat is not just another hostile mob.
 
-Ovomorphosis focuses on a full creature progression instead of isolated mob spawns. The cycle begins with ovomorphs, continues through facehuggers and infected hosts, and eventually leads to chestbursters and xenomorphs.
+**It grows. It spreads. And the longer it survives, the harder it becomes to contain.**
 
-### Ovomorphs and facehuggers
+---
 
-Ovomorphs act as the beginning of the infestation. When they hatch, they release facehuggers that seek out living hosts and help continue the life cycle.
+![Features](https://www.bisecthosting.com/images/CF/OVOMORPHOSIS/MP_OVOMORPHOSIS_Description.webp)
 
-### Host infection
+## At a glance
 
-Facehuggers can turn ordinary mobs into part of the alien threat. Once a host has been taken, the infestation continues from within and may eventually produce a chestburster.
+* **Full alien life cycle** — Ovomorph → Facehugger → Infected Host → Chestburster → Xenomorph
+* **Host infection** — Facehuggers can use ordinary mobs to continue the life cycle
+* **Hive growth** — Xenomorphs spread resin and transform the surrounding environment
+* **Eggmorphing** — Captured mobs can become part of the infestation
+* **Exploration-driven encounters** — Infestations begin in structures instead of ordinary random mob spawns
+* **Escalating threat** — A small infestation can become a dangerous hive if ignored
+* **Multiplayer support** — Designed for both singleplayer worlds and servers
 
-### Chestbursters and xenomorphs
+---
 
-Chestbursters are an early stage of the creature's growth. If the infestation is not stopped, the threat can mature into xenomorphs that are far more dangerous and capable of expanding the hive.
+## The alien life cycle
 
-### Hive expansion
+### 1. Discover the infestation
 
-Xenomorphs can spread resin and build out a hostile hive environment. As the hive grows, captured mobs can be used for eggmorphing, allowing the infestation to continue spreading through the world.
+The threat begins through exploration.
+
+Certain structures can already show signs of alien activity, including resin growth and dormant ovomorphs. Finding an infestation early gives you the best chance of containing it before the life cycle begins.
+
+### 2. Ovomorphs hatch
+
+Ovomorphs are the starting point of the infestation.
+
+When disturbed or given the opportunity to hatch, they release **facehuggers** that seek out living hosts.
+
+### 3. Hosts become infected
+
+Facehuggers can infect ordinary mobs and turn them into part of the alien life cycle.
+
+An infected host may eventually produce a **chestburster**, allowing the infestation to continue even after the original facehugger is gone.
+
+### 4. Chestbursters mature
+
+Chestbursters represent the early growth stage of the creature.
+
+If they are allowed to survive, the infestation can eventually produce much more dangerous **xenomorphs**.
+
+### 5. The hive expands
+
+Xenomorphs do more than hunt.
+
+They can spread **resin**, expand their territory, and create a hostile hive environment. Captured mobs can be used for **eggmorphing**, creating new opportunities for the infestation to spread.
+
+A single overlooked ovomorph can eventually become an entire hive.
+
+---
+
+## Finding an infestation
+
+Ovomorphosis is designed around **discovery rather than constant random spawning**.
+
+As you explore, watch for:
+
+* Unusual resin growth
+* Ovomorphs
+* Infested structures
+* Captured or infected mobs
+* Signs of an expanding hive
+
+Finding one of these areas early gives you a chance to destroy the infestation before it progresses.
+
+Ignore it for too long, and the life cycle may continue without you.
+
+---
+
+## Supported versions
+
+|  Minecraft | Fabric | NeoForge | Forge |
+| :--------: | :----: | :------: | :---: |
+| **1.21.1** |    ✅   |     ✅    |   ❌   |
+| **1.20.1** |    ✅   |     ❌    |   ✅   |
+
+> **Do not install multiple loader versions of Ovomorphosis at the same time.**
+
+---
 
 ## Requirements
 
 ### Minecraft 1.21.1
 
-| Requirement   | Version           |
-|---------------|-------------------|
-| Minecraft     | 1.21.1            |
-| AzureLib      | 3.1.10 or newer   |
-| Fabric Loader | 0.17.3 or newer   |
-| Fabric API    | 0.116.6 or newer  |
-| NeoForge      | 21.1.224 or newer |
+| Requirement   | Minimum Version |
+| ------------- | --------------: |
+| Minecraft     |          1.21.1 |
+| AzureLib      |         3.1.11+ |
+| Fabric Loader |         0.17.3+ |
+| Fabric API    |        0.116.6+ |
+| NeoForge      |       21.1.224+ |
 
 ### Minecraft 1.20.1
 
-| Requirement   | Version          |
-|---------------|------------------|
-| Minecraft     | 1.20.1           |
-| AzureLib      | 3.1.11 or newer  |
-| Fabric Loader | 0.16.14 or newer |
-| Fabric API    | 0.92.0 or newer  |
-| Forge         | 47.4.0 or newer  |
+| Requirement   | Minimum Version |
+| ------------- | --------------: |
+| Minecraft     |          1.20.1 |
+| AzureLib      |         3.1.12+ |
+| Fabric Loader |        0.16.14+ |
+| Fabric API    |         0.92.0+ |
+| Forge         |         47.4.0+ |
 
-AzureLib is required on both the client and server. Make sure the correct AzureLib file is installed for the loader you are using.
+**AzureLib is required on both the client and server.**
 
-## Supported loaders
+Make sure you install the AzureLib file that matches both your **Minecraft version** and **mod loader**.
 
-Ovomorphosis supports Fabric and NeoForge for Minecraft 1.21.1, and Fabric and Forge for Minecraft 1.20.1.
-
-Use the Fabric file if you are playing on Fabric.
-
-Use the NeoForge file if you are playing on NeoForge (1.21.1 only).
-
-Use the Forge file if you are playing on Forge (1.20.1 only).
-
-Do not install multiple loader versions at the same time.
+---
 
 ## Installation
 
-1. Install Minecraft 1.21.1 or 1.20.1.
-2. Install Fabric, NeoForge, or Forge for your chosen version.
-3. Download the matching version of AzureLib for your loader and Minecraft version.
-4. Download the matching version of Ovomorphosis for your loader and Minecraft version.
-5. Place both files in your `mods` folder.
-6. Start the game.
+1. Install **Minecraft 1.21.1** or **Minecraft 1.20.1**.
+2. Install the supported mod loader for your version:
 
-For multiplayer servers, install Ovomorphosis and AzureLib on the server and on every client joining the server.
+   * **Fabric** — 1.21.1 or 1.20.1
+   * **NeoForge** — 1.21.1
+   * **Forge** — 1.20.1
+3. Download the matching version of **AzureLib**.
+4. Download the matching version of **Ovomorphosis**.
+5. Place both `.jar` files in your `mods` folder.
+6. Launch Minecraft.
 
-## Finding the infestation
+### Multiplayer
 
-Ovomorphosis is introduced through world exploration. Instead of spawning everywhere at random, the alien threat begins in certain structures that have been touched by the infestation.
+For multiplayer, install **Ovomorphosis** and **AzureLib** on:
 
-As you explore your world, keep an eye out for unusual resin growth, ovomorphs, and signs that something has already taken hold. These infected areas are where the life cycle begins. If left alone, an ovomorph can hatch a facehugger, infect nearby mobs, and eventually lead to chestbursters, xenomorphs, and a spreading hive.
+* The server
+* Every client joining the server
 
-The infestation is meant to feel like something discovered in the world rather than a normal mob spawn. Finding one early gives you a chance to contain it. Ignoring it may allow the hive to grow into a much larger threat.
+All players should use compatible Minecraft, loader, and mod versions.
 
-## Gameplay overview
+---
 
-Ovomorphosis is about discovering and stopping an infestation before it becomes a real problem. The threat usually begins when players find an infested structure or an area touched by alien resin. A single ovomorph can lead to facehuggers, infected hosts, chestbursters, and eventually a growing hive.
+## Surviving the infestation
 
-Players should watch for signs of hive growth, deal with infected mobs early, and avoid letting ovomorphs remain unchecked. The longer the life cycle continues, the more serious the threat becomes.
+Ovomorphosis is about recognizing and stopping a threat before it becomes a much larger problem.
+
+Destroy ovomorphs before they hatch. Deal with infected hosts before the life cycle progresses. Hunt chestbursters before they mature. And if resin begins spreading through an area, assume the infestation has already become serious.
+
+The longer a hive is allowed to exist, the more difficult it becomes to remove.
+
+**Contain it early or prepare to deal with what comes next.**
+
+---
 
 ## Credits
 
-Created by AzureDoom.
+**Created by:** AzureDoom
 
-Additional credits for Models/Animations to SiliconianAuthor.
+**Models and animations:** SiliconianAuthor
 
+**Animations:** thekaratcake
+
+---
 
 ## Hosting Partner
 
-Looking for a reliable server to run **Ovomorphosis** and other Minecraft mods?
+Looking for a server to run **Ovomorphosis** with friends?
 
-**BisectHosting** offers pre-configured game servers, fast setup, and solid performance for modded environments.
+**BisectHosting** offers game servers suitable for modded Minecraft with quick setup and support for custom modpacks.
 
 Use code **azuredoom** for **25% off your first month**.
 
