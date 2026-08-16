@@ -92,10 +92,10 @@ Ignore it for too long, and the life cycle may continue without you.
 
 ## Supported versions
 
-|  Minecraft | Fabric | NeoForge | Forge |
-| :--------: | :----: | :------: | :---: |
-| **1.21.1** |    ✅   |     ✅    |   ❌   |
-| **1.20.1** |    ✅   |     ❌    |   ✅   |
+| Minecraft  | Fabric | NeoForge | Forge |
+|:----------:|:------:|:--------:|:-----:|
+| **1.21.1** |   ✅   |    ✅    |  ❌   |
+| **1.20.1** |   ✅   |    ❌    |  ✅   |
 
 > **Do not install multiple loader versions of Ovomorphosis at the same time.**
 
@@ -172,6 +172,8 @@ The longer a hive is allowed to exist, the more difficult it becomes to remove.
 **Models and animations:** SiliconianAuthor
 
 **Animations:** thekaratcake
+
+**Textures/Play Testing:** SwiftSniffer
 
 ---
 
