@@ -92,10 +92,10 @@ Ignore it for too long, and the life cycle may continue without you.
 
 ## Supported versions
 
-|  Minecraft | Fabric | NeoForge | Forge |
-| :--------: | :----: | :------: | :---: |
-| **1.21.1** |    ✅   |     ✅    |   ❌   |
-| **1.20.1** |    ✅   |     ❌    |   ✅   |
+| Minecraft  | Fabric | NeoForge | Forge |
+|:----------:|:------:|:--------:|:-----:|
+| **1.21.1** |   ✅   |    ✅    |  ❌   |
+| **1.20.1** |   ✅   |    ❌    |  ✅   |
 
 > **Do not install multiple loader versions of Ovomorphosis at the same time.**
 
@@ -134,9 +134,9 @@ Make sure you install the AzureLib file that matches both your **Minecraft versi
 1. Install **Minecraft 1.21.1** or **Minecraft 1.20.1**.
 2. Install the supported mod loader for your version:
 
-    * **Fabric** — 1.21.1 or 1.20.1
-    * **NeoForge** — 1.21.1
-    * **Forge** — 1.20.1
+   * **Fabric** — 1.21.1 or 1.20.1
+   * **NeoForge** — 1.21.1
+   * **Forge** — 1.20.1
 3. Download the matching version of **AzureLib**.
 4. Download the matching version of **Ovomorphosis**.
 5. Place both `.jar` files in your `mods` folder.
@@ -172,6 +172,8 @@ The longer a hive is allowed to exist, the more difficult it becomes to remove.
 **Models and animations:** SiliconianAuthor
 
 **Animations:** thekaratcake
+
+**Textures/Play Testing:** SwiftSniffer
 
 ---
 
