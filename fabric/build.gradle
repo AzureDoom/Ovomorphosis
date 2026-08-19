@@ -16,7 +16,7 @@ dependencies {
     modImplementation "mod.azure.azurelib:azurelib-fabric-${minecraft_version}:${azurelib_version}"
     modApi "com.terraformersmc:modmenu:${modmenu_version}"
     modImplementation "maven.modrinth:gigeresque:QXyrUz2p"
-    modImplementation "com.avp.alien:avp_alien-fabric-1.21.1:0.2.0-alpha.1"
+    modImplementation "com.avp.alien:avp_alien-fabric-1.21.1:0.2.0-fork"
     modImplementation "curse.maven:spark-361579:5759670"
 }
 
