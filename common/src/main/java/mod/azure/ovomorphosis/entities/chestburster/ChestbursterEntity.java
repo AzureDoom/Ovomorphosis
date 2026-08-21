@@ -85,7 +85,8 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
                 CommonMod.getConfig().entityConfigs.chestbursterConfigs.chestbursterKnockbackRes
             )
             .add(Attributes.FOLLOW_RANGE, 32)
-            .add(Attributes.MOVEMENT_SPEED, 0.25);
+            .add(Attributes.MOVEMENT_SPEED, 0.25)
+            .add(Attributes.STEP_HEIGHT, 1.25D);
     }
 
     @Override

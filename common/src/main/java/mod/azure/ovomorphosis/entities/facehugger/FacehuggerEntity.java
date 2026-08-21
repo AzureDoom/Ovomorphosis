@@ -263,7 +263,8 @@ public class FacehuggerEntity extends AbstractAlienEntity {
                 CommonMod.getConfig().entityConfigs.facehuggerConfigs.facehuggerKnockbackRes
             )
             .add(Attributes.FOLLOW_RANGE, 32.0)
-            .add(Attributes.MOVEMENT_SPEED, 0.25);
+            .add(Attributes.MOVEMENT_SPEED, 0.25)
+            .add(Attributes.STEP_HEIGHT, 1.25D);
     }
 
     public void resetAnimationState() {
