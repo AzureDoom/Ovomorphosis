@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.ai.util;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -65,7 +66,12 @@ public final class MovementUtils {
      * Returns {@code true} if the path {@code distance} blocks ahead of the mob in the {@code forward} direction is
      * free of danger blocks, solid geometry, and lava, and has ground within nine blocks below.
      * <p>
-     * Samples multiple points across the mob's width to account for its footprint.
+     * Samples multiple points across the mob's width to account for its footprint. Each sample first checks the column
+     * at the mob's current foot height; if that's blocked, it retries one block higher before giving up, since a
+     * one-block rise is exactly what the entity's own step-up assist can climb without help from this function. Without
+     * that retry, any ordinary 1-block terrace/ledge within the lookahead reads as solid wall (because it's tested at
+     * the old, lower height) and the mob refuses to walk toward it at all, even though it's perfectly capable of
+     * stepping up onto it.
      *
      * @param mob      the mob performing the check
      * @param forward  normalized horizontal direction to check
@@ -74,7 +80,7 @@ public final class MovementUtils {
      */
     public static boolean isSafeAhead(Mob mob, Vec3 forward, double distance) {
         var level = mob.level();
-        var feetY = mob.getBoundingBox().minY;
+        var feetY = Mth.floor(mob.getBoundingBox().minY);
         var side = new Vec3(-forward.z, 0.0D, forward.x);
         var halfW = (mob.getBbWidth() / 2.0D) + 0.15D;
 
@@ -84,29 +90,22 @@ public final class MovementUtils {
             for (var s = -halfW; s <= halfW; s += halfW / 2.0D) {
                 var sample = center.add(side.scale(s));
 
-                var feetPos = BlockPos.containing(sample.x, feetY, sample.z);
+                var feetPos = new BlockPos(Mth.floor(sample.x), feetY, Mth.floor(sample.z));
+
+                if (!isPassableColumn(level, feetPos)) {
+                    var stepped = feetPos.above();
+                    if (!isPassableColumn(level, stepped)) {
+                        return false;
+                    }
+                    feetPos = stepped;
+                    feetY = feetPos.getY();
+                }
+
                 var groundPos = feetPos.below();
-                var headPos = feetPos.above();
-
                 var feetState = level.getBlockState(feetPos);
-                var headState = level.getBlockState(headPos);
-
-                if (!isSafeBlock(level, feetPos))
-                    return false;
-
-                if (!isSafeBlock(level, headPos))
-                    return false;
-
                 var feetCollision = feetState.getCollisionShape(level, feetPos);
-                var headCollision = headState.getCollisionShape(level, headPos);
 
-                if (!headCollision.isEmpty() && !headState.is(ModTags.RESIN))
-                    return false;
-
-                if (!feetCollision.isEmpty() && !feetState.is(ModTags.RESIN))
-                    return false;
-
-                var feetFluid = level.getBlockState(feetPos).getFluidState();
+                var feetFluid = feetState.getFluidState();
                 var inWater = feetFluid.is(FluidTags.WATER);
 
                 if (!inWater) {
@@ -121,7 +120,7 @@ public final class MovementUtils {
                         return false;
                 }
 
-                if (level.getBlockState(feetPos).getFluidState().is(FluidTags.LAVA))
+                if (feetFluid.is(FluidTags.LAVA))
                     return false;
                 if (level.getBlockState(groundPos).getFluidState().is(FluidTags.LAVA))
                     return false;
@@ -129,6 +128,32 @@ public final class MovementUtils {
         }
 
         return true;
+    }
+
+    /**
+     * Returns {@code true} if a mob's foot/head cells at {@code feetPos} are clear enough to occupy — not a danger
+     * block, not solid geometry (unless resin, which entities pass through). Used by {@link #isSafeAhead} to test a
+     * column at both the mob's current height and, on retry, one block higher.
+     */
+    private static boolean isPassableColumn(Level level, BlockPos feetPos) {
+        var headPos = feetPos.above();
+
+        if (!isSafeBlock(level, feetPos))
+            return false;
+
+        if (!isSafeBlock(level, headPos))
+            return false;
+
+        var feetState = level.getBlockState(feetPos);
+        var headState = level.getBlockState(headPos);
+
+        var feetCollision = feetState.getCollisionShape(level, feetPos);
+        var headCollision = headState.getCollisionShape(level, headPos);
+
+        if (!headCollision.isEmpty() && !headState.is(ModTags.RESIN))
+            return false;
+
+        return feetCollision.isEmpty() || feetState.is(ModTags.RESIN);
     }
 
     /**
@@ -433,21 +458,22 @@ public final class MovementUtils {
     }
 
     /**
-     * Cheap replacement for the old {@code isClimbable(feet, false)} sweep: a wall-crawler only needs a solid face on
-     * one of the four horizontal sides (at feet or head height) or an overhead ceiling to grip. Deliberately excludes
-     * the floor block, so ordinary ground cells are not misclassified as climb nodes. Each lookup is memoized when a
-     * {@link PathNodeCache} is supplied.
+     * Cheap replacement for the old {@code isClimbable(feet, false)} sweep: a wall-crawler needs a solid face that
+     * spans BOTH feet and head height on the same horizontal side (a genuine 2+-block-tall surface), or an overhead
+     * ceiling to grip. Deliberately excludes the floor block, so ordinary ground cells are not misclassified as climb
+     * nodes. Requiring the pair (rather than either height independently) also excludes single-block-tall lips — the
+     * wall of a 1-deep trench, a stair edge, a fence-height ledge — which are solid at only one of the two heights;
+     * those are ordinary auto-step/fall terrain, not something a mob should be gluing itself to and wall-crawling over.
+     * Each lookup is memoized when a {@link PathNodeCache} is supplied.
      */
     private static boolean hasAdjacentClingSurface(Level level, BlockPos feet, BlockPos head, PathNodeCache cache) {
-        return solidAt(level, feet.north(), cache)
-            || solidAt(level, feet.south(), cache)
-            || solidAt(level, feet.east(), cache)
-            || solidAt(level, feet.west(), cache)
-            || solidAt(level, head.north(), cache)
-            || solidAt(level, head.south(), cache)
-            || solidAt(level, head.east(), cache)
-            || solidAt(level, head.west(), cache)
-            || solidAt(level, head.above(), cache);
+        if (solidAt(level, head.above(), cache)) {
+            return true;
+        }
+        return (solidAt(level, feet.north(), cache) && solidAt(level, head.north(), cache))
+            || (solidAt(level, feet.south(), cache) && solidAt(level, head.south(), cache))
+            || (solidAt(level, feet.east(), cache) && solidAt(level, head.east(), cache))
+            || (solidAt(level, feet.west(), cache) && solidAt(level, head.west(), cache));
     }
 
     private static boolean solidAt(Level level, BlockPos pos, PathNodeCache cache) {
