@@ -190,7 +190,6 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     public void tick() {
         super.tick();
         if (!this.level().isClientSide()) {
-            if (!this.isNoAi() || this.getGrowth() < 600) {
             if (this.level() instanceof ServerLevel serverLevel) {
                 var hiveMemory =
                     brainRuntime.getBlackboard()
@@ -203,6 +202,7 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
                     ensureHiveAssignment(serverLevel);
                 }
             }
+            if (!this.isNoAi() && this.getGrowth() >= 600) {
                 tickGoalPlanner();
                 brainRuntime.tick();
                 CrawlingMovementManager.updateWallCrawlingPhysics(this);
