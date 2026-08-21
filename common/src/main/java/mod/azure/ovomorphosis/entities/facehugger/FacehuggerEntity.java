@@ -122,10 +122,6 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             .isSuppressed(AiGoalType.INFECT_HOST, currentTick);
         var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !infectSuppressed;
 
-        // Cheap pre-planner emergency probe (mirrors XenomorphEntity/RunnerEntity): without this, a fire/explosion
-        // or critical-health condition can never bypass the min-commit lock to let the planner switch to
-        // RETREAT_AND_HIDE, since GoalApplicator.shouldReplan's EMERGENCY override only fires when passed a
-        // non-null candidateUrgency, and nothing upstream of chooseGoal() supplied one.
         var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
 
         if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
