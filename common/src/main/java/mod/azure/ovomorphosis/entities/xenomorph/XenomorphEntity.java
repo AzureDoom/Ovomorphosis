@@ -191,11 +191,11 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         if (!this.level().isClientSide()) {
             if (this.level() instanceof ServerLevel serverLevel) {
                 var hiveMemory =
-                        brainRuntime.getBlackboard()
-                                .get(
-                                        AiKeys.HIVE_MEMORY,
-                                        HiveMemory.class
-                                );
+                    brainRuntime.getBlackboard()
+                        .get(
+                            AiKeys.HIVE_MEMORY,
+                            HiveMemory.class
+                        );
 
                 if (hiveMemory == null) {
                     ensureHiveAssignment(serverLevel);
