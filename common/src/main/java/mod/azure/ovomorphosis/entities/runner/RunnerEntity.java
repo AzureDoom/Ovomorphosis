@@ -191,6 +191,18 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
         super.tick();
         if (!this.level().isClientSide()) {
             if (!this.isNoAi() || this.getGrowth() < 600) {
+            if (this.level() instanceof ServerLevel serverLevel) {
+                var hiveMemory =
+                    brainRuntime.getBlackboard()
+                        .get(
+                            AiKeys.HIVE_MEMORY,
+                            HiveMemory.class
+                        );
+
+                if (hiveMemory == null) {
+                    ensureHiveAssignment(serverLevel);
+                }
+            }
                 tickGoalPlanner();
                 brainRuntime.tick();
                 CrawlingMovementManager.updateWallCrawlingPhysics(this);

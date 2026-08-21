@@ -189,6 +189,18 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     public void tick() {
         super.tick();
         if (!this.level().isClientSide()) {
+            if (this.level() instanceof ServerLevel serverLevel) {
+                var hiveMemory =
+                        brainRuntime.getBlackboard()
+                                .get(
+                                        AiKeys.HIVE_MEMORY,
+                                        HiveMemory.class
+                                );
+
+                if (hiveMemory == null) {
+                    ensureHiveAssignment(serverLevel);
+                }
+            }
             if (!this.isNoAi()) {
                 tickGoalPlanner();
                 brainRuntime.tick();
