@@ -118,10 +118,6 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         var reactiveReplan = (isPassive && blackboard.has(AiKeys.TARGET))
             || (goalType == AiGoalType.GROW_SAFE && eatAction.canStart(this, blackboard));
 
-        // Cheap pre-planner emergency probe (mirrors XenomorphEntity/RunnerEntity/FacehuggerEntity): without this,
-        // a fire/explosion/critical-health condition can never bypass the min-commit lock to let the planner switch
-        // to HIDE, since GoalApplicator.shouldReplan's EMERGENCY override only fires when passed a non-null
-        // candidateUrgency, and nothing upstream of chooseGoal() supplied one.
         var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
 
         if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))

@@ -236,11 +236,6 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             .isSuppressed(AiGoalType.HUNT_TARGET, currentTick);
         var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !huntSuppressed;
 
-        // Cheap pre-planner emergency probe. GoalApplicator.shouldReplan advertises an EMERGENCY override that
-        // bypasses the min-commit lock, but that override can only fire if something supplies a non-null
-        // candidateUrgency — and nothing upstream of chooseGoal() previously did, since scoring candidates requires
-        // running the planner in the first place. This mirrors the same fire/explosion/critical-health conditions
-        // the reactive tree branches use, without the cost of a full chooseGoal() call.
         var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
 
         if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
