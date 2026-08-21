@@ -203,7 +203,7 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
                     ensureHiveAssignment(serverLevel);
                 }
             }
-            if (!this.isNoAi() || this.getGrowth() < 600) {
+            if (!this.isNoAi() && this.getGrowth() >= 600) {
                 tickGoalPlanner();
                 brainRuntime.tick();
                 CrawlingMovementManager.updateWallCrawlingPhysics(this);
