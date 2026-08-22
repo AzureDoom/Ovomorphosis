@@ -173,8 +173,8 @@ public class OvomorphosisConfig {
 
             @Configurable
             @Configurable.Synchronized
-            @Configurable.Range(min = 1)
-            public int chestbursterFoodGrowthValue = 10;
+            @Configurable.DecimalRange(min = 1)
+            public float chestbursterFoodGrowthValue = 10;
         }
 
         @Configurable
