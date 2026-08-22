@@ -202,5 +202,12 @@ public final class AiKeys {
      */
     public static final String XENO_ROLE = "xeno_role";
 
+    /**
+     * Type: {@link WorldStateSnapshot}. The coarse world-state facts on record for whatever plan is currently in
+     * {@link #ACTIVE_GOAL}, captured by {@link GoalApplicator#apply} and compared against live state every tick by
+     * {@link PlanInvalidation} to force a replan the moment they diverge, independent of {@link #LAST_PLAN_FEEDBACK}.
+     */
+    public static final String PLAN_WORLD_STATE = "plan_world_state";
+
     public static final String IGNORED_FOOD = "burster_ignored_food";
 }

@@ -27,27 +27,21 @@ public final class GoalApplicator {
     private GoalApplicator() {}
 
     /**
-     * Returns {@code true} when the planner should be invoked this tick.
-     * <p>
-     * Call this from the entity's planner-invocation site <em>before</em> calling {@code planner.chooseGoal()}:
-     *
-     * <pre>{@code
-     * if (GoalApplicator.shouldReplan(blackboard, currentTick, candidateUrgency)) {
-     *     var newGoal = planner.chooseGoal(mob, blackboard, cooldowns);
-     *     GoalApplicator.apply(mob, blackboard, newGoal);
-     * }
-     * }</pre>
+     * This is a generic, goal-agnostic check that sits <em>above</em> the existing {@code ActionOutcome}-driven
+     * {@link PlanFeedback} loop — it does not require any action to be running or to have reported anything.
      *
      * @param blackboard       the mob's blackboard
      * @param currentTick      current game tick
      * @param candidateUrgency the urgency of the highest-priority candidate goal, if known; pass {@code null} to skip
      *                         the emergency-override check
+     * @param mob              the mob being planned for, used to evaluate world-state invalidation
      * @return {@code true} if replanning should proceed
      */
     public static boolean shouldReplan(
         Blackboard blackboard,
         int currentTick,
-        GoalUrgency candidateUrgency
+        GoalUrgency candidateUrgency,
+        Mob mob
     ) {
         var active = blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
 
@@ -60,6 +54,9 @@ public final class GoalApplicator {
         if (candidateUrgency == GoalUrgency.EMERGENCY)
             return true;
 
+        if (PlanInvalidation.isInvalidated(mob, blackboard))
+            return true;
+
         return active.canReplan(currentTick);
     }
 
@@ -67,8 +64,8 @@ public final class GoalApplicator {
      * Convenience overload that skips the emergency-urgency check. Use when the caller has not yet scored candidates
      * and cannot know the urgency.
      */
-    public static boolean shouldReplan(Blackboard blackboard, int currentTick) {
-        return shouldReplan(blackboard, currentTick, null);
+    public static boolean shouldReplan(Blackboard blackboard, int currentTick, Mob mob) {
+        return shouldReplan(blackboard, currentTick, null, mob);
     }
 
     /**
@@ -95,5 +92,9 @@ public final class GoalApplicator {
         blackboard.set(AiKeys.LAST_FAILURE_REASON, null);
         // A fresh commitment deserves a fresh attempt, even if the new goal is BREAK_OBSTACLE again.
         blackboard.set(AiKeys.BREAK_TO_TARGET_EXHAUSTED, null);
+
+        // Record what the world looked like at the moment this plan was committed, so PlanInvalidation can notice
+        // when it stops looking that way — see WorldStateSnapshot/PlanInvalidation for why this exists.
+        blackboard.set(AiKeys.PLAN_WORLD_STATE, WorldStateSnapshot.capture(mob, blackboard));
     }
 }

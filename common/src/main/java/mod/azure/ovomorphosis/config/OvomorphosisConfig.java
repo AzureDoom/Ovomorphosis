@@ -14,6 +14,19 @@ public class OvomorphosisConfig {
 
     @Configurable
     @Configurable.Synchronized
+    public boolean enableAiDiagnostics = false;
+
+    @Configurable
+    @Configurable.Synchronized
+    public boolean enableIncrementalPathfinding = true;
+
+    @Configurable
+    @Configurable.Synchronized
+    @Configurable.Range(min = 25)
+    public int incrementalPathfindingNodeBudget = 300;
+
+    @Configurable
+    @Configurable.Synchronized
     @Configurable.DecimalRange(min = 1200)
     public float eggmorphTotalTicks = 1200;
 

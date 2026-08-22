@@ -5,12 +5,8 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
-import mod.azure.ovomorphosis.ai.core.Action;
-import mod.azure.ovomorphosis.ai.core.ActionOutcome;
-import mod.azure.ovomorphosis.ai.core.ActionStatus;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
+import mod.azure.ovomorphosis.ai.combat.MeleeHitResolver;
+import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
@@ -176,11 +172,7 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
 
     private ActionOutcome tickLand(E mob, LivingEntity target, Blackboard blackboard, Cooldowns cooldowns) {
         if (phaseAge == 1) {
-            if (
-                TargetingUtils.isInAttackRange(mob, target, 2.8D)
-                    && TargetingUtils.hasMeleeLineOfSight(mob, target)
-            ) {
-                mob.doHurtTarget(target);
+            if (MeleeHitResolver.tryStrike(mob, target, 2.8D)) {
                 if (!target.isAlive()) {
                     blackboard.set(AiKeys.TARGET, null);
                     mob.setTarget(null);

@@ -4,9 +4,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 
+import java.util.List;
+
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.actions.*;
 import mod.azure.ovomorphosis.ai.actions.xenomorph.*;
+import mod.azure.ovomorphosis.ai.combat.AttackProfile;
+import mod.azure.ovomorphosis.ai.combat.AttackSelector;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
@@ -95,6 +99,11 @@ public class XenomorphTree {
             115,
             x -> x.animationDispatcher.serverExecute(),
             x -> x.animationDispatcher.clientIdle()
+        );
+
+        var meleeAttacks = List.of(
+            new AttackProfile<>("tail_attack", tailPunish, "tail_attack", 0.0D, 1.8D, 110),
+            new AttackProfile<>("swipe_combo", swipeCombo, "swipe_combo", 0.0D, 2.5D, 100)
         );
 
         var placeResin = new PlaceResinAction<XenomorphEntity>(3, 200);
@@ -251,20 +260,17 @@ public class XenomorphTree {
                     return BehaviorResult.run(grabAndExecute, 120);
                 }
 
-                if (
-                    canReachVert && hasMeleeLOS
-                        && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 1.8D)
-                        && (defending || cooldowns.ready("tail_attack"))
-                ) {
-                    return BehaviorResult.run(tailPunish, 110);
-                }
-
-                if (
-                    canReachVert && hasMeleeLOS
-                        && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 2.5D)
-                        && (defending || cooldowns.ready("swipe_combo"))
-                ) {
-                    return BehaviorResult.run(swipeCombo, 100);
+                if (canReachVert && hasMeleeLOS) {
+                    var chosenAttack = AttackSelector.select(
+                        xenomorph,
+                        currentTarget,
+                        cooldowns,
+                        defending,
+                        meleeAttacks
+                    );
+                    if (chosenAttack != null) {
+                        return BehaviorResult.run(chosenAttack.action(), chosenAttack.priority());
+                    }
                 }
 
                 if (

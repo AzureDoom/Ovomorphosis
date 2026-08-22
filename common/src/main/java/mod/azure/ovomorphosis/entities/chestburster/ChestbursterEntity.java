@@ -123,7 +123,7 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
             return;
 
-        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency))
+        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency, this))
             return;
 
         cooldowns.set(AiKeys.GOAL_REPLAN, 20);

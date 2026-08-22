@@ -116,7 +116,12 @@ public class CrawlingCustomAStar extends CustomAStar {
         return Collections.emptyList();
     }
 
-    private static List<BlockPos> filterTransitionNodes(
+    /**
+     * Package-visible (not {@code private}) so {@link IncrementalPathSession} can apply the same post-processing to
+     * paths assembled incrementally across several ticks as {@link #findPath} applies to a path found in one
+     * synchronous call.
+     */
+    static List<BlockPos> filterTransitionNodes(
         List<BlockPos> path,
         Level level,
         Mob mob,
@@ -141,7 +146,8 @@ public class CrawlingCustomAStar extends CustomAStar {
         return filtered;
     }
 
-    private static void debugParticlePath(Mob mob, List<BlockPos> path, boolean fullPath) {
+    /** Package-visible so {@link IncrementalPathSession} can reuse it for consistent debug visualization. */
+    static void debugParticlePath(Mob mob, List<BlockPos> path, boolean fullPath) {
         if (!(mob.level() instanceof ServerLevel serverLevel))
             return;
         if (path.isEmpty())
@@ -263,11 +269,14 @@ public class CrawlingCustomAStar extends CustomAStar {
                     continue;
                 }
 
-                if (posIsTunnel && next.getY() > pos.getY() && !cache.tunnelCanStandAt(level, mob, next)) {
-                    continue;
-                }
-
                 tryAddClimb(level, mob, result, next, cache);
+            }
+
+            if (!goalIsBelow && cache.verticalShaftCanCrawlAt(level, mob, pos)) {
+                var shaftUp = pos.above();
+                if (!result.contains(shaftUp)) {
+                    result.add(shaftUp);
+                }
             }
 
             int[][] hDirs = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
