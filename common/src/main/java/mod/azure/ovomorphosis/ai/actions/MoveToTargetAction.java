@@ -73,23 +73,41 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     private int noProgressTicks = 0;
 
     /**
-     * The in-progress incremental search for the primary crawl-aware path, or {@code null} when none is running. See
-     * {@link IncrementalPathSession} and {@code OvomorphosisConfig#enableIncrementalPathfinding}.
+     * The in-progress incremental fallback chain (primary crawl → tunnel-entry retry → relaxed crawl → plain ground A*,
+     * all sharing one per-tick budget), or {@code null} when none is running. See {@link PhasedPathSession},
+     * {@link IncrementalPathSession}, and {@code OvomorphosisConfig#enableIncrementalPathfinding}.
      */
-    private IncrementalPathSession pathSession = null;
+    private PhasedPathSession phasedSession = null;
 
-    /** The {@code pathStart}/{@code crawlGoal} {@link #pathSession} was created for, used to detect staleness. */
-    private BlockPos pathSessionStart = null;
+    /** The {@code pathStart}/{@code crawlGoal} {@link #phasedSession} was created for, used to detect staleness. */
+    private BlockPos phasedSessionStart = null;
 
-    private BlockPos pathSessionGoal = null;
+    private BlockPos phasedSessionGoal = null;
 
-    /** Ticks {@link #pathSession} has been running; a safety valve so a pathological search can't run forever. */
-    private int pathSessionAgeTicks = 0;
+    /** Ticks {@link #phasedSession} has been running; a safety valve so a pathological search can't run forever. */
+    private int phasedSessionAgeTicks = 0;
 
-    /** If the mob's feet moved further than this (blocks, squared) since {@link #pathSession} started, restart it. */
+    /**
+     * A {@link PathNodeCache} dedicated to {@link #phasedSession}'s lifetime, separate from {@link #nodeCache} (which
+     * is cleared every tick for correctness of this action's own live per-tick terrain checks). This one is only
+     * cleared when a new {@link #phasedSession} starts, so a search spanning many ticks keeps the benefit of its own
+     * memoized terrain classifications between steps instead of re-querying the world on every single step. See
+     * {@link PathNodeCache#invalidate} for how known block changes (see {@link #lastBreakToTargetTriggerActive}) are
+     * reflected without discarding the whole thing.
+     */
+    private final PathNodeCache sessionCache = new PathNodeCache();
+
+    /**
+     * Whether {@code AiKeys#BREAK_TO_TARGET_TRIGGER} was set on the previous tick. Used to detect the falling edge — a
+     * break-to-target cycle just finished, successfully or exhausted — so {@link #sessionCache} can be selectively
+     * invalidated around the route instead of continuing to trust classifications computed before the break.
+     */
+    private boolean lastBreakToTargetTriggerActive = false;
+
+    /** If the mob's feet moved further than this (blocks, squared) since {@link #phasedSession} started, restart it. */
     private static final double PATH_SESSION_START_DRIFT_SQ = 3.0D * 3.0D;
 
-    /** If the goal moved further than this (blocks, squared) since {@link #pathSession} started, restart it. */
+    /** If the goal moved further than this (blocks, squared) since {@link #phasedSession} started, restart it. */
     private static final double PATH_SESSION_GOAL_DRIFT_SQ = 4.0D * 4.0D;
 
     /** Hard cap on how many ticks a single incremental session may run before it is abandoned and restarted. */
@@ -150,10 +168,12 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         cachedTunnelEntry = null;
         tunnelScanOrigin = null;
         tunnelRescanCooldown = 0;
-        pathSession = null;
-        pathSessionStart = null;
-        pathSessionGoal = null;
-        pathSessionAgeTicks = 0;
+        phasedSession = null;
+        phasedSessionStart = null;
+        phasedSessionGoal = null;
+        phasedSessionAgeTicks = 0;
+        sessionCache.clear();
+        lastBreakToTargetTriggerActive = false;
     }
 
     @Override
@@ -230,6 +250,18 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 pathStart = mobFeetPos.below();
             }
         }
+
+        // If a break-to-target cycle just finished (successfully or exhausted), the geometry along our route may
+        // have changed — refresh sessionCache around where we are and the upcoming waypoints rather than trusting
+        // classifications an in-progress phased session cached before the break happened.
+        var breakToTargetTriggerActive = blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER);
+        if (lastBreakToTargetTriggerActive && !breakToTargetTriggerActive) {
+            sessionCache.invalidate(pathStart);
+            for (var li = pathIndex; li < Math.min(path.size(), pathIndex + 3); li++) {
+                sessionCache.invalidate(path.get(li));
+            }
+        }
+        lastBreakToTargetTriggerActive = breakToTargetTriggerActive;
 
         var mobIsInOrAtTunnel = canCrawl
             && (nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
@@ -316,83 +348,60 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             }
             var fluidGoalRadius = feetOrBelowInFluid ? 2 : 0;
 
-            // `newPath` is the sentinel for "a result is ready this tick" — null means "an incremental session is
-            // still RUNNING, leave `path`/`pathIndex`/`repathCooldown` untouched and keep driving the mob along
-            // whatever path it already has" (see IncrementalPathSession's usage docs).
+            // pathStart/crawlGoal/nearbyTunnelEntry are all reassigned earlier in this method, so none of them are
+            // effectively final — take fresh copies here so buildPhases's lambdas can capture them.
+            final var searchStart = pathStart;
+            final var searchCrawlGoal = crawlGoal;
+            final var searchTunnelEntry = nearbyTunnelEntry;
+
+            // `newPath` is the sentinel for "a result is ready this tick" — null means "the fallback chain is still
+            // RUNNING, leave `path`/`pathIndex`/`repathCooldown` untouched and keep driving the mob along whatever
+            // path it already has" (see PhasedPathSession/IncrementalPathSession's usage docs).
             List<BlockPos> newPath;
 
-            if (canCrawl && CommonMod.getConfig().enableIncrementalPathfinding) {
-                var stale = pathSession != null
-                    && (pathSessionStart.distSqr(pathStart) > PATH_SESSION_START_DRIFT_SQ
-                        || pathSessionGoal.distSqr(crawlGoal) > PATH_SESSION_GOAL_DRIFT_SQ
-                        || pathSessionAgeTicks > PATH_SESSION_MAX_AGE_TICKS);
+            if (CommonMod.getConfig().enableIncrementalPathfinding) {
+                var stale = phasedSession != null
+                    && (phasedSessionStart.distSqr(searchStart) > PATH_SESSION_START_DRIFT_SQ
+                        || phasedSessionGoal.distSqr(searchCrawlGoal) > PATH_SESSION_GOAL_DRIFT_SQ
+                        || phasedSessionAgeTicks > PATH_SESSION_MAX_AGE_TICKS);
 
-                if (pathSession == null || stale) {
-                    pathSession = new IncrementalPathSession(mob, pathStart, crawlGoal, 96, fluidGoalRadius, nodeCache);
-                    pathSessionStart = pathStart;
-                    pathSessionGoal = crawlGoal;
-                    pathSessionAgeTicks = 0;
+                if (phasedSession == null || stale) {
+                    sessionCache.clear();
+                    phasedSession = new PhasedPathSession(
+                        buildPhases(mob, searchStart, searchCrawlGoal, searchTunnelEntry, target, fluidGoalRadius)
+                    );
+                    phasedSessionStart = searchStart;
+                    phasedSessionGoal = searchCrawlGoal;
+                    phasedSessionAgeTicks = 0;
                 }
 
-                pathSessionAgeTicks++;
-                var status = pathSession.step(CommonMod.getConfig().incrementalPathfindingNodeBudget);
+                phasedSessionAgeTicks++;
+                var status = phasedSession.step(CommonMod.getConfig().incrementalPathfindingNodeBudget);
 
                 newPath = switch (status) {
                     case RUNNING -> null;
-                    case DONE -> pathSession.result();
+                    case DONE -> phasedSession.result();
                     case FAILED -> Collections.emptyList();
                 };
 
-                if (status != IncrementalPathSession.Status.RUNNING) {
-                    pathSession = null;
+                if (status != PhasedPathSession.Status.RUNNING) {
+                    phasedSession = null;
                 }
-            } else if (canCrawl) {
-                newPath = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, fluidGoalRadius, nodeCache);
             } else {
-                newPath = CustomAStar.findPath(
+                // Feature disabled: run the whole fallback chain synchronously in one shot, exactly as before
+                // incremental pathfinding existed.
+                newPath = findPathSynchronously(
                     mob,
-                    pathStart,
-                    target.blockPosition(),
-                    64,
-                    Math.max(fluidGoalRadius, 1)
+                    searchStart,
+                    searchCrawlGoal,
+                    searchTunnelEntry,
+                    target,
+                    fluidGoalRadius
                 );
             }
 
             if (newPath != null) {
                 path = newPath;
-
-                if (canCrawl) {
-                    if (path.isEmpty() && nearbyTunnelEntry != null && !nearbyTunnelEntry.equals(crawlGoal)) {
-                        path = CrawlingCustomAStar.findPath(
-                            mob,
-                            pathStart,
-                            nearbyTunnelEntry,
-                            96,
-                            fluidGoalRadius,
-                            nodeCache
-                        );
-                    }
-                    if (path.isEmpty()) {
-                        path = CrawlingCustomAStar.findPath(
-                            mob,
-                            pathStart,
-                            crawlGoal,
-                            96,
-                            Math.max(fluidGoalRadius, 1),
-                            nodeCache
-                        );
-                    }
-                    if (path.isEmpty()) {
-                        path = CustomAStar.findPath(
-                            mob,
-                            pathStart,
-                            target.blockPosition(),
-                            64,
-                            Math.max(fluidGoalRadius, 1)
-                        );
-                    }
-                }
-
                 pathIndex = path.size() > 1 ? 1 : 0;
                 repathCooldown = repathInterval;
 
@@ -1583,6 +1592,123 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 mob.getEyeY() + movement.y,
                 mob.getZ() + movement.z
             );
+    }
+
+    /**
+     * Builds the fallback chain of {@link PhasedPathSession.Phase}s tried for a repath, in order, all sharing one
+     * per-tick node budget: for a crawling mob, the primary crawl-aware route, then (if a tunnel entry was found) a
+     * route to that entry specifically, then a relaxed-goal-radius crawl route, then a plain ground A* route as a last
+     * resort; for a non-crawling mob, just the plain ground A* route. Each phase is lazily constructed — a fallback
+     * phase's {@link IncrementalPathSession} isn't built (and doesn't pay for its own initial node) unless the chain
+     * actually reaches it.
+     */
+    private List<PhasedPathSession.Phase> buildPhases(
+        E mob,
+        BlockPos searchStart,
+        BlockPos crawlGoal,
+        BlockPos nearbyTunnelEntry,
+        LivingEntity target,
+        int fluidGoalRadius
+    ) {
+        var normalAstar = new PhasedPathSession.Phase(
+            "NORMAL_ASTAR",
+            () -> IncrementalPathSession.normal(
+                mob,
+                searchStart,
+                target.blockPosition(),
+                64,
+                Math.max(fluidGoalRadius, 1)
+            )
+        );
+        if (!canCrawl) {
+            return List.of(
+                normalAstar
+            );
+        }
+
+        List<PhasedPathSession.Phase> phases = new ArrayList<>(4);
+
+        phases.add(
+            new PhasedPathSession.Phase(
+                "PRIMARY_CRAWL",
+                () -> IncrementalPathSession.crawling(mob, searchStart, crawlGoal, 96, fluidGoalRadius, sessionCache)
+            )
+        );
+
+        if (nearbyTunnelEntry != null && !nearbyTunnelEntry.equals(crawlGoal)) {
+            phases.add(
+                new PhasedPathSession.Phase(
+                    "TUNNEL_ENTRY_CRAWL",
+                    () -> IncrementalPathSession.crawling(
+                        mob,
+                        searchStart,
+                        nearbyTunnelEntry,
+                        96,
+                        fluidGoalRadius,
+                        sessionCache
+                    )
+                )
+            );
+        }
+
+        phases.add(
+            new PhasedPathSession.Phase(
+                "RELAXED_CRAWL",
+                () -> IncrementalPathSession.crawling(
+                    mob,
+                    searchStart,
+                    crawlGoal,
+                    96,
+                    Math.max(fluidGoalRadius, 1),
+                    sessionCache
+                )
+            )
+        );
+
+        phases.add(
+            normalAstar
+        );
+
+        return phases;
+    }
+
+    /**
+     * Runs the exact same fallback chain as {@link #buildPhases} synchronously in one call, for when
+     * {@code enableIncrementalPathfinding} is disabled. Uses {@link #nodeCache} (the per-tick live cache) rather than
+     * {@link #sessionCache}, matching this action's original pre-incremental-pathfinding behavior exactly.
+     */
+    private List<BlockPos> findPathSynchronously(
+        E mob,
+        BlockPos searchStart,
+        BlockPos crawlGoal,
+        BlockPos nearbyTunnelEntry,
+        LivingEntity target,
+        int fluidGoalRadius
+    ) {
+        if (!canCrawl) {
+            return CustomAStar.findPath(mob, searchStart, target.blockPosition(), 64, Math.max(fluidGoalRadius, 1));
+        }
+
+        var found = CrawlingCustomAStar.findPath(mob, searchStart, crawlGoal, 96, fluidGoalRadius, nodeCache);
+
+        if (found.isEmpty() && nearbyTunnelEntry != null && !nearbyTunnelEntry.equals(crawlGoal)) {
+            found = CrawlingCustomAStar.findPath(mob, searchStart, nearbyTunnelEntry, 96, fluidGoalRadius, nodeCache);
+        }
+        if (found.isEmpty()) {
+            found = CrawlingCustomAStar.findPath(
+                mob,
+                searchStart,
+                crawlGoal,
+                96,
+                Math.max(fluidGoalRadius, 1),
+                nodeCache
+            );
+        }
+        if (found.isEmpty()) {
+            found = CustomAStar.findPath(mob, searchStart, target.blockPosition(), 64, Math.max(fluidGoalRadius, 1));
+        }
+
+        return found;
     }
 
     private BlockPos findBestTunnelBiasedGoal(E mob, LivingEntity target) {

@@ -46,6 +46,31 @@ public final class PathNodeCache {
         climb.clear();
     }
 
+    /**
+     * Invalidates cached classifications for {@code pos} and every position within one block of it in every direction,
+     * rather than the whole cache. The classifiers this cache memoizes — tight-tunnel confinement, climb-surface
+     * adjacency, and so on — all query positions up to one block away from the one being classified, so a block change
+     * at {@code pos} can silently invalidate a neighbor's cached result too.
+     * <p>
+     * Use this on a long-lived, session-scoped cache (see {@link IncrementalPathSession}) when something specific is
+     * known to have changed — e.g. a mob's own {@code BreakToTargetAction} clearing an obstruction — so the rest of an
+     * in-progress search stays warm instead of being thrown away wholesale via {@link #clear()}.
+     */
+    public void invalidate(BlockPos pos) {
+        for (var dx = -1; dx <= 1; dx++) {
+            for (var dy = -1; dy <= 1; dy++) {
+                for (var dz = -1; dz <= 1; dz++) {
+                    var key = pos.offset(dx, dy, dz).asLong();
+                    solid.remove(key);
+                    walk.remove(key);
+                    tunnel.remove(key);
+                    shaft.remove(key);
+                    climb.remove(key);
+                }
+            }
+        }
+    }
+
     /** Memoized {@link CrawlingCustomAStar#isPhysicallySolid}. */
     public boolean isPhysicallySolid(Level level, BlockPos pos) {
         var key = pos.asLong();
