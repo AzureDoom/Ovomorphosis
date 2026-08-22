@@ -6,9 +6,11 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
+import mod.azure.ovomorphosis.ai.util.AiDiagnostics;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
@@ -127,6 +129,22 @@ public final class MobBrainRuntime<E extends Mob> {
                 currentAction.start(mob, blackboard, cooldowns);
             }
         }
+
+        logDiagnosticsIfEnabled();
+    }
+
+    /**
+     * Periodically logs the one-line {@code AiDiagnostics} summary for this mob when
+     * {@code CommonMod.getConfig().enableAiDiagnostics} is on. Rate-limited to once every 40 ticks per mob (rather than
+     * every tick) so enabling it doesn't flood the log for a world full of mobs.
+     */
+    private void logDiagnosticsIfEnabled() {
+        if (!CommonMod.getConfig().enableAiDiagnostics)
+            return;
+        if (mob.level().getGameTime() % 40 != 0)
+            return;
+
+        CommonMod.LOGGER.info("[{}] {}", mob.getStringUUID(), AiDiagnostics.describe(mob, blackboard, currentAction));
     }
 
     /**

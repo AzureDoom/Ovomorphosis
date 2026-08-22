@@ -4,8 +4,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 
+import java.util.List;
+
 import mod.azure.ovomorphosis.ai.actions.*;
 import mod.azure.ovomorphosis.ai.actions.xenomorph.*;
+import mod.azure.ovomorphosis.ai.combat.AttackProfile;
+import mod.azure.ovomorphosis.ai.combat.AttackSelector;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.BehaviorNode;
 import mod.azure.ovomorphosis.ai.core.BehaviorResult;
@@ -72,6 +76,11 @@ public class RunnerTree {
         var breakToTarget = new BreakToTargetAction<RunnerEntity>();
         var wander = new WanderAction<RunnerEntity>(0.06D, 10, 6.0D, 60, 160, true);
         var idle = new IdleAction<RunnerEntity>(40, 100, 2);
+
+        var meleeAttacks = List.of(
+            new AttackProfile<>("tail_attack", tailPunish, "tail_attack", 0.0D, 1.8D, 110),
+            new AttackProfile<>("swipe_combo", swipeCombo, "swipe_combo", 0.0D, 2.5D, 100)
+        );
 
         return (runner, blackboard, cooldowns) -> {
 
@@ -193,20 +202,17 @@ public class RunnerTree {
                 var combatCoolsFree = cooldowns.ready("swipe_combo") && cooldowns.ready("tail_attack");
                 var defending = goalType == AiGoalType.DEFEND_HIVE;
 
-                if (
-                    canReachVert && hasMeleeLOS
-                        && TargetingUtils.isInAttackRange(runner, currentTarget, 1.8D)
-                        && (defending || cooldowns.ready("tail_attack"))
-                ) {
-                    return BehaviorResult.run(tailPunish, 110);
-                }
-
-                if (
-                    canReachVert && hasMeleeLOS
-                        && TargetingUtils.isInAttackRange(runner, currentTarget, 2.5D)
-                        && (defending || cooldowns.ready("swipe_combo"))
-                ) {
-                    return BehaviorResult.run(swipeCombo, 100);
+                if (canReachVert && hasMeleeLOS) {
+                    var chosenAttack = AttackSelector.select(
+                        runner,
+                        currentTarget,
+                        cooldowns,
+                        defending,
+                        meleeAttacks
+                    );
+                    if (chosenAttack != null) {
+                        return BehaviorResult.run(chosenAttack.action(), chosenAttack.priority());
+                    }
                 }
 
                 if (

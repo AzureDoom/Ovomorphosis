@@ -6,11 +6,11 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
+import mod.azure.ovomorphosis.ai.combat.MeleeHitResolver;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
-import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
@@ -106,6 +106,11 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         return priority;
     }
 
+    @Override
+    public String debugName() {
+        return cooldownKey;
+    }
+
     // TODO: Fix me for warning
     private ActionOutcome tickStalk(E mob, LivingEntity target) {
         var distSq = mob.distanceToSqr(target);
@@ -149,11 +154,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         }
 
         if (!didStrike && phaseAge == 5) {
-            if (
-                mob.getBoundingBox().inflate(2.8D).intersects(target.getBoundingBox())
-                    && TargetingUtils.hasMeleeLineOfSight(mob, target)
-            ) {
-                mob.doHurtTarget(target);
+            if (MeleeHitResolver.tryStrike(mob, target, 2.8D)) {
                 didStrike = true;
 
                 if (!target.isAlive()) {

@@ -6,11 +6,11 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
+import mod.azure.ovomorphosis.ai.combat.MeleeHitResolver;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
-import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 public final class TimedAttackAction<E extends Mob> implements Action<E> {
 
@@ -98,13 +98,7 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
         mob.hasImpulse = true;
 
         if (age == damageTick) {
-            if (
-                mob.getBoundingBox().inflate(2.5D).intersects(target.getBoundingBox())
-                    && TargetingUtils.hasMeleeLineOfSight(mob, target)
-            ) {
-                mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
-                mob.doHurtTarget(target);
-
+            if (MeleeHitResolver.tryStrike(mob, target, 2.5D)) {
                 if (!target.isAlive()) {
                     blackboard.set(AiKeys.TARGET, null);
                     mob.setTarget(null);
@@ -137,5 +131,10 @@ public final class TimedAttackAction<E extends Mob> implements Action<E> {
     @Override
     public int priority() {
         return priority;
+    }
+
+    @Override
+    public String debugName() {
+        return cooldownKey;
     }
 }

@@ -77,4 +77,16 @@ public interface Action<E> {
      * @return this action's priority
      */
     int priority();
+
+    /**
+     * A short, stable name for this action used by diagnostics (see {@code AiDiagnostics}) and log output. Defaults to
+     * the simple class name, which is fine for most actions; override when a class is reused generically for several
+     * conceptually different attacks/behaviors (e.g. {@code TimedAttackAction} backing both a tail punish and, later, a
+     * bite) and a more specific label would make diagnostic output actually useful.
+     *
+     * @return a short human-readable identifier for this action
+     */
+    default String debugName() {
+        return getClass().getSimpleName();
+    }
 }

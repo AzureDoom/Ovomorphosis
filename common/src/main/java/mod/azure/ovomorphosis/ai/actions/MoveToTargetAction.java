@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.*;
@@ -72,6 +73,29 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     private int noProgressTicks = 0;
 
     /**
+     * The in-progress incremental search for the primary crawl-aware path, or {@code null} when none is running. See
+     * {@link IncrementalPathSession} and {@code OvomorphosisConfig#enableIncrementalPathfinding}.
+     */
+    private IncrementalPathSession pathSession = null;
+
+    /** The {@code pathStart}/{@code crawlGoal} {@link #pathSession} was created for, used to detect staleness. */
+    private BlockPos pathSessionStart = null;
+
+    private BlockPos pathSessionGoal = null;
+
+    /** Ticks {@link #pathSession} has been running; a safety valve so a pathological search can't run forever. */
+    private int pathSessionAgeTicks = 0;
+
+    /** If the mob's feet moved further than this (blocks, squared) since {@link #pathSession} started, restart it. */
+    private static final double PATH_SESSION_START_DRIFT_SQ = 3.0D * 3.0D;
+
+    /** If the goal moved further than this (blocks, squared) since {@link #pathSession} started, restart it. */
+    private static final double PATH_SESSION_GOAL_DRIFT_SQ = 4.0D * 4.0D;
+
+    /** Hard cap on how many ticks a single incremental session may run before it is abandoned and restarted. */
+    private static final int PATH_SESSION_MAX_AGE_TICKS = 100;
+
+    /**
      * Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when they have an outcome to report this tick (a
      * hard-cap {@link ActionOutcome.Failed}, or a soft-threshold {@link ActionOutcome.Blocked}) rather than a plain
      * {@link ActionOutcome#RUNNING}.
@@ -126,6 +150,10 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         cachedTunnelEntry = null;
         tunnelScanOrigin = null;
         tunnelRescanCooldown = 0;
+        pathSession = null;
+        pathSessionStart = null;
+        pathSessionGoal = null;
+        pathSessionAgeTicks = 0;
     }
 
     @Override
@@ -288,52 +316,95 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             }
             var fluidGoalRadius = feetOrBelowInFluid ? 2 : 0;
 
-            if (canCrawl) {
-                path = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, fluidGoalRadius, nodeCache);
-                if (path.isEmpty() && nearbyTunnelEntry != null && !nearbyTunnelEntry.equals(crawlGoal)) {
-                    path = CrawlingCustomAStar.findPath(
-                        mob,
-                        pathStart,
-                        nearbyTunnelEntry,
-                        96,
-                        fluidGoalRadius,
-                        nodeCache
-                    );
+            // `newPath` is the sentinel for "a result is ready this tick" — null means "an incremental session is
+            // still RUNNING, leave `path`/`pathIndex`/`repathCooldown` untouched and keep driving the mob along
+            // whatever path it already has" (see IncrementalPathSession's usage docs).
+            List<BlockPos> newPath;
+
+            if (canCrawl && CommonMod.getConfig().enableIncrementalPathfinding) {
+                var stale = pathSession != null
+                    && (pathSessionStart.distSqr(pathStart) > PATH_SESSION_START_DRIFT_SQ
+                        || pathSessionGoal.distSqr(crawlGoal) > PATH_SESSION_GOAL_DRIFT_SQ
+                        || pathSessionAgeTicks > PATH_SESSION_MAX_AGE_TICKS);
+
+                if (pathSession == null || stale) {
+                    pathSession = new IncrementalPathSession(mob, pathStart, crawlGoal, 96, fluidGoalRadius, nodeCache);
+                    pathSessionStart = pathStart;
+                    pathSessionGoal = crawlGoal;
+                    pathSessionAgeTicks = 0;
                 }
-                if (path.isEmpty()) {
-                    path = CrawlingCustomAStar.findPath(
-                        mob,
-                        pathStart,
-                        crawlGoal,
-                        96,
-                        Math.max(fluidGoalRadius, 1),
-                        nodeCache
-                    );
+
+                pathSessionAgeTicks++;
+                var status = pathSession.step(CommonMod.getConfig().incrementalPathfindingNodeBudget);
+
+                newPath = switch (status) {
+                    case RUNNING -> null;
+                    case DONE -> pathSession.result();
+                    case FAILED -> Collections.emptyList();
+                };
+
+                if (status != IncrementalPathSession.Status.RUNNING) {
+                    pathSession = null;
                 }
-                if (path.isEmpty()) {
-                    path = CustomAStar.findPath(
-                        mob,
-                        pathStart,
-                        target.blockPosition(),
-                        64,
-                        Math.max(fluidGoalRadius, 1)
-                    );
-                }
+            } else if (canCrawl) {
+                newPath = CrawlingCustomAStar.findPath(mob, pathStart, crawlGoal, 96, fluidGoalRadius, nodeCache);
             } else {
-                path = CustomAStar.findPath(mob, pathStart, target.blockPosition(), 64, Math.max(fluidGoalRadius, 1));
+                newPath = CustomAStar.findPath(
+                    mob,
+                    pathStart,
+                    target.blockPosition(),
+                    64,
+                    Math.max(fluidGoalRadius, 1)
+                );
             }
 
-            pathIndex = path.size() > 1 ? 1 : 0;
-            repathCooldown = repathInterval;
+            if (newPath != null) {
+                path = newPath;
 
-            if (isCrawlingNow && pathIndex < path.size()) {
-                while (pathIndex < path.size() && hasReachedWaypoint(mob, path.get(pathIndex), true)) {
-                    pathIndex++;
+                if (canCrawl) {
+                    if (path.isEmpty() && nearbyTunnelEntry != null && !nearbyTunnelEntry.equals(crawlGoal)) {
+                        path = CrawlingCustomAStar.findPath(
+                            mob,
+                            pathStart,
+                            nearbyTunnelEntry,
+                            96,
+                            fluidGoalRadius,
+                            nodeCache
+                        );
+                    }
+                    if (path.isEmpty()) {
+                        path = CrawlingCustomAStar.findPath(
+                            mob,
+                            pathStart,
+                            crawlGoal,
+                            96,
+                            Math.max(fluidGoalRadius, 1),
+                            nodeCache
+                        );
+                    }
+                    if (path.isEmpty()) {
+                        path = CustomAStar.findPath(
+                            mob,
+                            pathStart,
+                            target.blockPosition(),
+                            64,
+                            Math.max(fluidGoalRadius, 1)
+                        );
+                    }
                 }
-            }
 
-            if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER) && !path.isEmpty()) {
-                checkPathForBreakableWall(mob, blackboard, path, pathIndex);
+                pathIndex = path.size() > 1 ? 1 : 0;
+                repathCooldown = repathInterval;
+
+                if (isCrawlingNow && pathIndex < path.size()) {
+                    while (pathIndex < path.size() && hasReachedWaypoint(mob, path.get(pathIndex), true)) {
+                        pathIndex++;
+                    }
+                }
+
+                if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER) && !path.isEmpty()) {
+                    checkPathForBreakableWall(mob, blackboard, path, pathIndex);
+                }
             }
         }
 
