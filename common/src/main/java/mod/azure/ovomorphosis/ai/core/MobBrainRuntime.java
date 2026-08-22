@@ -4,6 +4,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
+
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
@@ -139,61 +141,37 @@ public final class MobBrainRuntime<E extends Mob> {
     private boolean applyOutcome(ActionOutcome outcome) {
         if (outcome instanceof ActionOutcome.Running) {
             return true;
-        }
-
-        if (outcome instanceof ActionOutcome.Blocked blocked) {
-            writePlanFeedback(
-                blocked.reason(),
-                blocked.at(),
-                blocked.goalType()
-            );
+        } else if (outcome instanceof ActionOutcome.Blocked blocked) {
+            // Still running — this is the "hit an obstacle but haven't given up" signal. The action keeps
+            // executing; GOAP just gets an early, non-terminal heads-up.
+            writePlanFeedback(blocked.reason(), blocked.at(), blocked.goalType(), blocked.blockingPositions());
             return true;
-        }
-
-        if (outcome instanceof ActionOutcome.Success) {
-            currentAction.stop(
-                mob,
-                blackboard,
-                cooldowns,
-                ActionStatus.SUCCESS
-            );
+        } else if (outcome instanceof ActionOutcome.Success) {
+            currentAction.stop(mob, blackboard, cooldowns, ActionStatus.SUCCESS);
             currentAction = null;
             return false;
-        }
-
-        if (outcome instanceof ActionOutcome.Failed failed) {
-            writePlanFeedback(
-                failed.reason(),
-                failed.at(),
-                failed.goalType()
-            );
-
-            currentAction.stop(
-                mob,
-                blackboard,
-                cooldowns,
-                ActionStatus.FAILURE
-            );
+        } else if (outcome instanceof ActionOutcome.Failed failed) {
+            writePlanFeedback(failed.reason(), failed.at(), failed.goalType(), failed.blockingPositions());
+            currentAction.stop(mob, blackboard, cooldowns, ActionStatus.FAILURE);
             currentAction = null;
             return false;
+        } else {
+            throw new IllegalStateException("Unhandled ActionOutcome: " + outcome);
         }
-
-        throw new IllegalStateException(
-            "Unhandled ActionOutcome type: " + outcome.getClass().getName()
-        );
     }
 
     /**
-     * Writes {@link AiKeys#LAST_PLAN_FEEDBACK} from a raw reason/position/goal-type triple, defaulting the position to
-     * the mob's current block position when {@code at} is {@code null} and the goal-type attribution to whatever
-     * {@link AiKeys#ACTIVE_GOAL_TYPE} currently is when {@code goalTypeOverride} is {@code null}. A {@code null} reason
-     * or {@link PlanFailureReason#NONE} writes nothing, matching the historical behavior of actions that failed without
-     * anything worth reporting.
+     * Writes {@link AiKeys#LAST_PLAN_FEEDBACK} from a raw reason/position/goal-type/blocking-positions tuple,
+     * defaulting the position to the mob's current block position when {@code at} is {@code null} and the goal-type
+     * attribution to whatever {@link AiKeys#ACTIVE_GOAL_TYPE} currently is when {@code goalTypeOverride} is
+     * {@code null}. A {@code null} reason or {@link PlanFailureReason#NONE} writes nothing, matching the historical
+     * behavior of actions that failed without anything worth reporting.
      */
     private void writePlanFeedback(
         @Nullable PlanFailureReason reason,
         @Nullable BlockPos at,
-        @Nullable AiGoalType goalTypeOverride
+        @Nullable AiGoalType goalTypeOverride,
+        List<BlockPos> blockingPositions
     ) {
         if (reason == null || reason == PlanFailureReason.NONE)
             return;
@@ -208,7 +186,8 @@ public final class MobBrainRuntime<E extends Mob> {
                 reason,
                 (int) mob.level().getGameTime(),
                 at != null ? at : mob.blockPosition(),
-                goalType != null ? goalType : AiGoalType.NONE
+                goalType != null ? goalType : AiGoalType.NONE,
+                blockingPositions
             )
         );
     }

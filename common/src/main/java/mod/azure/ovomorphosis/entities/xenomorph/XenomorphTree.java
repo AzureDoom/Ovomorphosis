@@ -52,6 +52,13 @@ public class XenomorphTree {
      */
     private static final float CRITICAL_HEALTH_FRACTION = 0.15f;
 
+    /**
+     * Max local light level a hive position can have and still count as a viable dark hideout. Mirrors
+     * {@code XenomorphGoalPlanner.DARK_HAVEN_MAX_LIGHT} so the tree's emergency interrupt and the planner's ordinary
+     * retreat goal agree on where "safety" actually is.
+     */
+    private static final int DARK_HAVEN_MAX_LIGHT = 4;
+
     public static BehaviorNode<XenomorphEntity> create() {
         var dodge = new DodgeProjectileAction<XenomorphEntity>(130);
         var fleeFire = new FleeFireAction<XenomorphEntity>(125);
@@ -165,8 +172,16 @@ public class XenomorphTree {
                     && xenomorph.getHealth() <= xenomorph.getMaxHealth() * CRITICAL_HEALTH_FRACTION
             ) {
                 var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+                // Prefer a genuinely dark hideout over just "the closest bit of hive" — falls back to any owned web
+                // cross if nothing dark enough is in range, since some cover beats none.
                 var safeHaven = memory != null
-                    ? memory.findNearestOwnedWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D)
+                    ? memory.findNearestDarkOwnedWebCross(
+                        xenomorph.level(),
+                        xenomorph.blockPosition(),
+                        80.0D,
+                        DARK_HAVEN_MAX_LIGHT
+                    )
+                        .or(() -> memory.findNearestOwnedWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D))
                         .orElse(null)
                     : null;
                 if (safeHaven != null) {
@@ -262,7 +277,8 @@ public class XenomorphTree {
                 }
 
                 if (
-                    goalType == AiGoalType.BREAK_OBSTACLE
+                    (goalType == AiGoalType.BREAK_OBSTACLE
+                        && !blackboard.has(AiKeys.BREAK_TO_TARGET_EXHAUSTED))
                         || blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)
                 ) {
                     return BehaviorResult.run(breakToTarget, 15);

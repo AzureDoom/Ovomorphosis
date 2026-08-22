@@ -82,6 +82,19 @@ public final class AiKeys {
     /** BlockPos of the specific block that {@code BreakToTargetAction} is currently targeting. */
     public static final String BREAK_TO_TARGET_SCAN = "break_to_target_scan";
 
+    /**
+     * Set to {@code true} by {@code BreakToTargetAction} whenever it finishes resolving an attempt entered purely
+     * because {@code ACTIVE_GOAL_TYPE == BREAK_OBSTACLE} (as opposed to a fresh, concrete
+     * {@link #BREAK_TO_TARGET_TRIGGER}). {@code ACTIVE_GOAL_TYPE} stays {@code BREAK_OBSTACLE} for the planner's whole
+     * commit window regardless of whether the obstruction was already cleared, so without this flag the tree would
+     * re-enter {@code BreakToTargetAction} on that stale goal type every tick — forever restarting an action with
+     * nothing left to do, and never falling through to movement/combat branches. Cleared by
+     * {@code GoalApplicator.apply} whenever a fresh goal is committed. A genuinely new {@link #BREAK_TO_TARGET_TRIGGER}
+     * (set by {@code MoveToTargetAction} detecting a real, current obstruction) always bypasses this flag entirely — it
+     * only gates the stale-goal-type fallback path.
+     */
+    public static final String BREAK_TO_TARGET_EXHAUSTED = "break_to_target_exhausted";
+
     /** Type: {@link HiveMemory}. Shared hive state read by WanderAction (dark preference) and hive-building actions. */
     public static final String HIVE_MEMORY = "hive_memory";
 

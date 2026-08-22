@@ -93,5 +93,7 @@ public final class GoalApplicator {
 
         blackboard.set(AiKeys.LAST_PLAN_FEEDBACK, null);
         blackboard.set(AiKeys.LAST_FAILURE_REASON, null);
+        // A fresh commitment deserves a fresh attempt, even if the new goal is BREAK_OBSTACLE again.
+        blackboard.set(AiKeys.BREAK_TO_TARGET_EXHAUSTED, null);
     }
 }

@@ -2,9 +2,11 @@ package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.actions.MoveToTargetAction;
@@ -16,6 +18,7 @@ import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -59,7 +62,18 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         breakId = mob.getId() ^ 0x3A7F_0000;
 
         var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
-        if (activeGoal == AiGoalType.BREAK_OBSTACLE && !blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)) {
+        // Fix: only auto-arm on a stale BREAK_OBSTACLE goal type if this specific commitment hasn't already been
+        // resolved. ACTIVE_GOAL_TYPE stays BREAK_OBSTACLE for the planner's whole commit window (40-200 ticks)
+        // regardless of whether this action already broke the one real obstruction (or gave up) — without this
+        // guard, the tree would restart this action every tick for the rest of that window with nothing left to
+        // do, and movement/combat actions would never get a turn. A genuinely fresh BREAK_TO_TARGET_TRIGGER (set by
+        // MoveToTargetAction detecting a real, current obstruction — e.g. the second block of a 2-tall wall) still
+        // arms normally regardless of this flag, since that check comes first.
+        if (
+            activeGoal == AiGoalType.BREAK_OBSTACLE
+                && !blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)
+                && !blackboard.has(AiKeys.BREAK_TO_TARGET_EXHAUSTED)
+        ) {
             blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
         }
     }
@@ -76,7 +90,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
                 .getGameRules()
                 .getBoolean(GameRules.RULE_MOBGRIEFING)
         ) {
-            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
+            return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION, AiGoalType.BREAK_OBSTACLE);
         }
 
         if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)) {
@@ -95,12 +109,32 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             if (hint != null && isBreakable(level, hint, level.getBlockState(hint))) {
                 targetBlock = hint;
             } else {
+                // Prefer the exact blocking position(s) MoveToTargetAction traced and attached to a fresh
+                // FAILED_BLOCKED feedback over independently re-deriving a guess via our own ray-march below — the
+                // movement action already knows precisely what stopped it.
+                targetBlock = pickFromFeedback(mob, blackboard);
+            }
+            if (targetBlock == null) {
+                // Cheap fast path: a single ray toward the target resolves the common case (one wall block
+                // directly on the line to the target) with one clip() call instead of the full block-by-block
+                // march below. Only falls through to the march when the ray misses, hits something unbreakable,
+                // or the geometry is too indirect for a straight line to find (e.g. around a corner).
+                targetBlock = findObstructingBlockViaRay(mob, target);
+            }
+            if (targetBlock == null) {
                 targetBlock = findObstructingBlock(mob, target);
             }
 
             if (targetBlock == null) {
                 blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
-                return ActionOutcome.failed(PlanFailureReason.FAILED_OBSTACLE_UNBREAKABLE);
+                // Explicitly attribute to BREAK_OBSTACLE, not whatever goal happened to be active. This action is
+                // frequently auto-triggered opportunistically by MoveToTargetAction mid-chase (via
+                // BREAK_TO_TARGET_TRIGGER) while HUNT_TARGET is still the active goal — without this override, a
+                // failed break attempt would default to attributing the failure to HUNT_TARGET, which the planner's
+                // FAILED_OBSTACLE_UNBREAKABLE handling then heavily penalizes (huntScore -40, suppressed for 120
+                // ticks), making the mob refuse to press an otherwise perfectly viable attack for six real seconds
+                // just because an unrelated break attempt didn't pan out.
+                return ActionOutcome.failed(PlanFailureReason.FAILED_OBSTACLE_UNBREAKABLE, AiGoalType.BREAK_OBSTACLE);
             }
             breakProgress = 0f;
         }
@@ -140,6 +174,10 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             targetBlock = null;
             breakProgress = 0f;
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
+            // Fix: report SUCCESS the instant the break completes, instead of falling through to RUNNING and
+            // waiting a further tick for the top-of-tick "no trigger" check to catch up. One idle tick isn't much
+            // on its own, but it's one more tick a higher-priority combat action has to wait to preempt this one.
+            return ActionOutcome.SUCCESS;
         }
 
         return ActionOutcome.RUNNING;
@@ -152,6 +190,12 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         }
         targetBlock = null;
         breakProgress = 0f;
+        // Mark this BREAK_OBSTACLE commitment as resolved, regardless of why we're stopping. Safe even for a genuine
+        // mid-break INTERRUPTED: if the obstruction is still real, BREAK_TO_TARGET_TRIGGER is still set (tick()'s own
+        // cleanup only clears it on an actual SUCCESS/FAILURE resolution), and a set trigger bypasses this flag
+        // entirely in the tree's routing condition — so an interrupted-but-still-real obstruction can still be
+        // re-entered once whatever preempted this action clears.
+        blackboard.set(AiKeys.BREAK_TO_TARGET_EXHAUSTED, Boolean.TRUE);
     }
 
     @Override
@@ -177,6 +221,80 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         var dz = center.z - mob.getZ();
         var reach = (mob.getBbWidth() / 2.0D) + 2.0D;
         return dx * dx + dy * dy + dz * dz <= reach * reach;
+    }
+
+    /**
+     * Fast-path obstruction check inspired by Gigeresque's {@code BreakBlocksGoal}: a single ray toward the target
+     * doing double duty as both a line-of-sight probe and an obstruction finder, instead of stepping every block column
+     * the way {@link #findObstructingBlock}'s DDA march does. Covers the common case cheaply — a single wall block
+     * sitting directly on the line between mob and target — and leaves the fuller (and pricier) march to handle
+     * geometry a straight ray can't, like a corner the mob has to path around.
+     * <p>
+     * <b>Fix:</b> traces from feet level ({@link net.minecraft.world.entity.Entity#position()}), not eye level. Every
+     * other obstruction-finder in this system — the DDA march below, and {@code MoveToTargetAction}'s own collision
+     * recovery — checks feet before head, since a solid foot-level block is what actually stops a mob from walking
+     * forward. Tracing eye-to-eye only ever found whatever happened to be at eye height, so on a 2-tall wall it would
+     * repeatedly clear only the top block and never the one actually blocking movement.
+     *
+     * @return the first solid, breakable block the ray hits before reaching the target, or {@code null} if the ray
+     *         missed, hit something unbreakable, or reached the target directly (nothing in the way)
+     */
+    private static BlockPos findObstructingBlockViaRay(AbstractAlienEntity mob, LivingEntity target) {
+        var level = mob.level();
+        var from = mob.position();
+        var to = target.position();
+
+        if (from.distanceToSqr(to) > (double) (6 * 6)) {
+            return null;
+        }
+
+        var hit = level.clip(
+            new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                mob
+            )
+        );
+
+        if (hit.getType() != HitResult.Type.BLOCK) {
+            return null;
+        }
+
+        var pos = hit.getBlockPos();
+        if (pos.equals(target.blockPosition())) {
+            return null;
+        }
+
+        var state = level.getBlockState(pos);
+        return isBreakable(level, pos, state) ? pos : null;
+    }
+
+    /**
+     * Consumes the block position(s) {@link MoveToTargetAction} traced and attached to a fresh
+     * {@link PlanFailureReason#FAILED_BLOCKED} {@link PlanFeedback} — the exact obstruction the movement action
+     * identified, rather than something this action has to separately re-derive via {@link #findObstructingBlock}.
+     * Returns the first breakable position from that trace, or {@code null} if there's no fresh FAILED_BLOCKED
+     * feedback, or none of its traced positions turn out to be breakable (in which case the caller falls back to its
+     * own ray-march).
+     */
+    private static BlockPos pickFromFeedback(AbstractAlienEntity mob, Blackboard blackboard) {
+        var feedback = blackboard.get(AiKeys.LAST_PLAN_FEEDBACK, PlanFeedback.class);
+        if (feedback == null || feedback.reason() != PlanFailureReason.FAILED_BLOCKED)
+            return null;
+
+        var tick = (int) mob.level().getGameTime();
+        if (!feedback.isFresh(tick))
+            return null;
+
+        var level = mob.level();
+        for (var pos : feedback.blockingPositions()) {
+            var state = level.getBlockState(pos);
+            if (isBreakable(level, pos, state))
+                return pos;
+        }
+        return null;
     }
 
     /**
