@@ -2,6 +2,9 @@ package mod.azure.ovomorphosis.entities.facehugger;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.actions.*;
 import mod.azure.ovomorphosis.ai.actions.facehugger.LeapAndAttachAction;
@@ -96,7 +99,8 @@ public class FacehuggerTree {
 
                     if (target != null && target.isAlive()) {
                         var distSq = facehugger.distanceToSqr(target);
-                        if (distSq <= 1.25 * 1.25 || !facehugger.onGround()) {
+
+                        if (distSq <= 1.25 * 1.25 || (!facehugger.onGround() && distSq <= 4.0 * 4.0)) {
                             yield BehaviorResult.run(leapAndAttach, 30);
                         }
                         blackboard.set(AiKeys.DESTINATION, target.blockPosition());
@@ -122,8 +126,27 @@ public class FacehuggerTree {
                             var tx = target.getX() + Math.cos(angle) * radius;
                             var tz = target.getZ() + Math.sin(angle) * radius;
                             var circlePos = net.minecraft.core.BlockPos.containing(tx, target.getY(), tz);
-                            blackboard.set(AiKeys.DESTINATION, circlePos);
-                            yield BehaviorResult.run(moveToDestination, 20);
+                            var circleState = facehugger.level().getBlockState(circlePos);
+                            var circleAboveState = facehugger.level().getBlockState(circlePos.above());
+                            var circleIsOpen = circleState.getCollisionShape(facehugger.level(), circlePos).isEmpty()
+                                && circleAboveState.getCollisionShape(facehugger.level(), circlePos.above()).isEmpty();
+                            var circleIsReachable = circleIsOpen
+                                && facehugger.level()
+                                    .clip(
+                                        new ClipContext(
+                                            facehugger.position(),
+                                            Vec3.atBottomCenterOf(circlePos),
+                                            ClipContext.Block.COLLIDER,
+                                            ClipContext.Fluid.NONE,
+                                            facehugger
+                                        )
+                                    )
+                                    .getType() == HitResult.Type.MISS;
+
+                            if (circleIsReachable) {
+                                blackboard.set(AiKeys.DESTINATION, circlePos);
+                                yield BehaviorResult.run(moveToDestination, 20);
+                            }
                         }
 
                         blackboard.set(AiKeys.DESTINATION, target.blockPosition());

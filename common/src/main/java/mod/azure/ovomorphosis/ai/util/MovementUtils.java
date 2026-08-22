@@ -82,7 +82,7 @@ public final class MovementUtils {
         var level = mob.level();
         var feetY = Mth.floor(mob.getBoundingBox().minY);
         var side = new Vec3(-forward.z, 0.0D, forward.x);
-        var halfW = (mob.getBbWidth() / 2.0D) + 0.15D;
+        var halfW = (mob.getBbWidth() / 2.0D) + 0.02D;
 
         for (var d = 0.25D; d <= distance; d += 0.25D) {
             var center = mob.position().add(forward.scale(d));

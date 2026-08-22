@@ -164,7 +164,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
             }
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
     }
 
     @Override

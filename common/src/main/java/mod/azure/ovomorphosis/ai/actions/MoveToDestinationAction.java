@@ -133,16 +133,22 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             && (CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
                 || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.below())
                 || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.above())
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos)
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below()));
+                || (!mobOnSolidGround && CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos))
+                || (!mobOnSolidGround
+                    && CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below())));
 
         var nextWaypointNeedsCrawl = false;
         if (canCrawl && !path.isEmpty() && pathIndex < path.size()) {
             for (var li = pathIndex; li < Math.min(path.size(), pathIndex + 3); li++) {
                 var la = path.get(li);
+                var belowLa = la.below();
+                var laHasGroundBelow = !mob.level()
+                    .getBlockState(belowLa)
+                    .getCollisionShape(mob.level(), belowLa)
+                    .isEmpty();
                 if (
                     CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                        || (!laHasGroundBelow && CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la))
                         || (MovementUtils.isSafeClimbNode(mob.level(), la)
                             && !CustomAStar.canStandAt(mob.level(), mob, la))
                 ) {
