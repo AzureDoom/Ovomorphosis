@@ -18,6 +18,7 @@ import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.goap.XenoRole;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetClassifier;
+import mod.azure.ovomorphosis.util.ModTags;
 
 /**
  * GOAP planner for {@link XenomorphEntity}.
@@ -43,7 +44,21 @@ import mod.azure.ovomorphosis.ai.util.TargetClassifier;
  */
 public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> {
 
+    /** Health fraction at/below which survival overrides everything else ("critical" tier). */
     private static final float RETREAT_HEALTH_FRACTION = 0.30f;
+
+    /**
+     * Health fraction above which the mob is considered "wounded" rather than critical (between this and
+     * {@link #RETREAT_HEALTH_FRACTION} is the contextual-retreat band). Above this fraction the mob is healthy enough
+     * to stay aggressive regardless of opponent.
+     */
+    private static final float WOUNDED_HEALTH_FRACTION = 0.60f;
+
+    /** Max local light level a hive position can have and still count as a viable dark hideout. */
+    private static final int DARK_HAVEN_MAX_LIGHT = 4;
+
+    /** Squared distance at which the mob is considered to have "arrived" at its dark hideout. */
+    private static final double DARK_HAVEN_ARRIVAL_RANGE_SQR = 6.0 * 6.0;
 
     private static final float BOOST_BREAK = 55f;
 
@@ -78,13 +93,31 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         var hasTarget = target != null && target.isAlive();
 
         var healthFraction = mob.getHealth() / mob.getMaxHealth();
-        var lowHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
+
+        // Three-tier health posture:
+        // > 60% -> healthyAggressive: press the fight regardless of opponent.
+        // 30% - 60% -> woundedHealth: contextual — retreat only if this particular opponent warrants it.
+        // < 30% -> criticalHealth: survival overrides everything; strongly favor escape/darkness/hive.
+        var criticalHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
+        var woundedHealth = !criticalHealth && healthFraction <= WOUNDED_HEALTH_FRACTION;
+        var healthyAggressive = healthFraction > WOUNDED_HEALTH_FRACTION;
 
         var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        if (memory != null) {
+            memory.recomputeNeedsIfDue(mob.level(), tick);
+        }
         var nearWeb = memory != null
             && memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 20.0D).isPresent();
         var hasWebInRange = memory != null
             && memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D).isPresent();
+
+        // Known dark hive position — this is the piece a Gigeresque mob has no equivalent of: it isn't just fleeing
+        // blindly, it's routing toward a remembered hideout in its own territory.
+        var darkHaven = memory != null
+            ? memory.findNearestDarkOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D, DARK_HAVEN_MAX_LIGHT)
+            : java.util.Optional.<BlockPos>empty();
+        var atDarkHaven = darkHaven.isPresent()
+            && mob.blockPosition().distSqr(darkHaven.get()) <= DARK_HAVEN_ARRIVAL_RANGE_SQR;
 
         var ambientLight = mob.level().getMaxLocalRawBrightness(mob.blockPosition());
         var tooBright = ambientLight > 4;
@@ -125,6 +158,11 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             }
             if (targetIsNearHive || nearWeb) {
                 defendScore = 85f;
+                if (memory != null) {
+                    // A hostile target inside hive territory is an incursion — record it so repeated attacks (as
+                    // opposed to one-off skirmishes) can raise the hive's baseline defensive aggression below.
+                    memory.recordThreat(target.blockPosition(), tick);
+                }
             }
             if (!targetFacingMob && distSq > 8.0 * 8.0) {
                 ambushScore += 25f;
@@ -138,18 +176,47 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         if (tooBright && !hasTarget) {
             seekDarknessScore = 30f + ambientLight * 2f;
         }
-        if (lowHealth && ambientLight > 2) {
-            seekDarknessScore += 25f;
-        }
         if (hasTarget && tooBright) {
             ambushFromDarknessScore = 45f + ambientLight * 2f;
             huntScore -= 20f;
         }
 
-        if (lowHealth && hasWebInRange) {
-            retreatScore = 80f;
-        } else if (lowHealth) {
-            retreatScore = 40f;
+        // --- Health-tiered retreat/darkness posture ------------------------------------------------------------
+        // healthyAggressive : health alone never pulls toward retreat/darkness; hunt/ambush stand on their own.
+        // woundedHealth : contextual — only pull toward retreat if *this particular* opponent warrants it.
+        // criticalHealth : survival overrides everything; strongly favor escape, darkness, and the known hive.
+        // A target counts as "threatening" if it's already flagged too dangerous to grab, uses ranged attacks, or
+        // carries the danger-entity tag; a target flagged isolated and NOT threatening counts as "weak" prey.
+        var opponentIsThreatening = hasTarget
+            && (targetTooDangerous || targetIsRanged || target.getType().is(ModTags.DANGER_ENTITIES));
+        var opponentIsWeak = hasTarget && targetIsIsolated && !opponentIsThreatening;
+
+        if (healthyAggressive) {
+            // No health-driven retreat/darkness pull at all — huntScore/ambushScore stand on their own merits.
+        } else if (woundedHealth) {
+            if (opponentIsThreatening) {
+                retreatScore = hasWebInRange ? 55f : 30f;
+                seekDarknessScore += ambientLight > 2 ? 20f : 10f;
+                huntScore -= 15f;
+            } else if (hasTarget && !opponentIsWeak) {
+                // Ambiguous opponent while merely wounded: a small hedge, easily outscored by hunt/ambush so it only
+                // matters in an otherwise close call.
+                retreatScore = hasWebInRange ? 20f : 10f;
+            }
+            // opponentIsWeak, or no target at all: stay aggressive — wounded is not yet critical.
+        } else if (criticalHealth) {
+            retreatScore = darkHaven.isPresent() ? 95f : (hasWebInRange ? 80f : 45f);
+            seekDarknessScore += 35f + (ambientLight > 2 ? 15f : 0f);
+            huntScore = Math.max(0f, huntScore - 40f);
+            ambushScore = Math.max(0f, ambushScore - 20f);
+
+            if (atDarkHaven && hasTarget) {
+                // Reached the known dark hideout with a pursuer still on its tail. Rather than blindly continuing to
+                // flee into what may be a dead end, let it *possibly* turn and strike from cover instead — this only
+                // outscores the (very high) retreatScore above when the pursuer looks weak/isolated enough to risk
+                // it, so a genuinely dangerous pursuer still gets outrun rather than fought.
+                ambushFromDarknessScore += opponentIsWeak ? 60f : 25f;
+            }
         }
 
         var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
@@ -284,6 +351,53 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             }
         }
 
+        // --- Hive-needs-driven posture -------------------------------------------------------------------------
+        // Organic equivalent of a colony noticing its own state and responding, rather than each xenomorph acting
+        // purely on its own immediate situation. All of these are additive nudges on top of everything above, not
+        // replacements — an active combat encounter still dominates through huntScore/ambushScore as normal.
+        if (memory != null) {
+            // Few hosts being converted -> prioritize hunting, and specifically capturing rather than killing a
+            // valid host outright when one's available (reuses/extends the isolated-valid-host boost above).
+            if (memory.hasFewHosts()) {
+                huntScore += 15f;
+                if (hasTarget && targetIsValidHost && !targetTooDangerous) {
+                    hiveScore += 15f;
+                }
+            }
+
+            // Plenty of hosts already restrained, but nowhere to route more of them -> prioritize construction over
+            // capturing yet more hosts the hive has no infrastructure to use.
+            if (memory.hasHostSurplusWithLittleResin()) {
+                hiveScore += 30f;
+            }
+
+            // Hive's core has been exposed to light -> prioritize destroying light sources hive-wide, not just
+            // wherever this particular mob happens to be standing.
+            if (memory.isHeavilyIlluminated()) {
+                lightsScore += 30f;
+            }
+
+            // Repeated incursions -> defensive aggression increases: hold the hive harder, and press an engagement
+            // near it rather than favoring disengagement.
+            if (memory.isUnderSustainedAttack(tick)) {
+                defendScore += 25f;
+                huntScore += 10f;
+            }
+
+            // Hive crowded with an unclaimed direction still available -> extend tunnels outward.
+            if (memory.isCrowded() && memory.hasRoomToExpand()) {
+                hiveScore += 20f;
+            }
+
+            // Nest maturity sets a small baseline lean rather than a hard override: a still-bootstrapping hive
+            // leans toward growing its population, an established one leans toward holding what it has.
+            switch (memory.nestMaturity()) {
+                case HATCHLING, GROWING -> hiveScore += 10f;
+                case THRIVING -> defendScore += 10f;
+                default -> {}
+            }
+        }
+
         huntScore = Math.max(0f, huntScore);
         ambushScore = Math.max(0f, ambushScore);
         breakScore = Math.max(0f, breakScore);
@@ -380,13 +494,18 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 reason = "Target in hive — defending";
             }
             case RETREAT_TO_RESIN -> {
-                urgency = lowHealth ? GoalUrgency.EMERGENCY : GoalUrgency.HIGH;
+                urgency = criticalHealth ? GoalUrgency.EMERGENCY : GoalUrgency.HIGH;
                 interruptible = false;
-                reason = "Low health, retreating to resin";
+                reason = criticalHealth
+                    ? "Critical health — fleeing to known dark hive haven"
+                    : "Wounded — retreating from a dangerous opponent";
                 chosenTarget = null;
                 if (memory != null) {
-                    var nearest = memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D);
-                    chosenDest = nearest.orElse(null);
+                    // Prefer the remembered dark hideout over just "the closest bit of hive" when it's available —
+                    // this is the piece of routing a vanilla mob's flee logic has no equivalent of.
+                    chosenDest = darkHaven.isPresent()
+                        ? darkHaven.get()
+                        : memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D).orElse(null);
                 }
             }
             case INVESTIGATE -> {
@@ -417,7 +536,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             }
         }
 
-        var role = deriveRole(chosen, mob, blackboard, hasTarget, targetIsNearHive, lowHealth);
+        var role = deriveRole(chosen, mob, blackboard, hasTarget, targetIsNearHive, criticalHealth);
         blackboard.set(AiKeys.XENO_ROLE, role);
 
         return PlannedGoal.of(

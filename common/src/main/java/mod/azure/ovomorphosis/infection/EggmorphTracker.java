@@ -91,6 +91,26 @@ public final class EggmorphTracker {
         }
     }
 
+    /**
+     * Counts hosts currently being restrained for eggmorphing (SLOWING or TRAPPED phase) within {@code radius} blocks
+     * of {@code origin}. An {@link ACTIVE} entry only exists while a host is actively restrained — it's removed the
+     * tick a host escapes, finishes eggmorphing, or dies — so this is exactly the "available restrained hosts" count a
+     * hive's population needs tracking wants: victims currently being converted, not victims already turned into eggs.
+     *
+     * @param origin the position to search outward from (typically a hive's dome center)
+     * @param radius maximum search radius in blocks
+     * @return the number of restrained-host trackers within range
+     */
+    public static int countActiveNear(BlockPos origin, double radius) {
+        var radiusSqr = radius * radius;
+        var count = 0;
+        for (var pos : ACTIVE.keySet()) {
+            if (origin.distSqr(pos) <= radiusSqr)
+                count++;
+        }
+        return count;
+    }
+
     public static void tickAll(ServerLevel level) {
         var it = ACTIVE.entrySet().iterator();
         while (it.hasNext()) {

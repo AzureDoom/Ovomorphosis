@@ -6,10 +6,15 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
 import mod.azure.ovomorphosis.ai.actions.xenomorph.PlaceResinAction;
+import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
+import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
+import mod.azure.ovomorphosis.infection.EggmorphTracker;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 
 /**
@@ -171,6 +176,277 @@ public final class HiveMemory {
         return activeTunnels;
     }
 
+    private static final double NEEDS_SCAN_RADIUS = 64.0D;
+
+    private static final long NEEDS_RECOMPUTE_INTERVAL_TICKS = 100L;
+
+    private static final int LIGHT_SAMPLE_LIMIT = 8;
+
+    private static final int FEW_HOSTS_THRESHOLD = 2;
+
+    private static final int HOST_SURPLUS_THRESHOLD = 4;
+
+    private static final int LITTLE_RESIN_THRESHOLD = 6;
+
+    private static final int ILLUMINATED_THRESHOLD = 8;
+
+    private static final int CROWDED_POPULATION_THRESHOLD = 6;
+
+    private static final int EXPANSION_SECTORS = 8;
+
+    private static final int THRIVING_XENO_THRESHOLD = 3;
+
+    private static final int SUSTAINED_ATTACK_THRESHOLD = 3;
+
+    private static final int THREAT_FRESH_WINDOW_TICKS = 600;
+
+    private static final int MAX_THREAT_RECORDS = 12;
+
+    private int xenoCount = 0;
+
+    private int ovomorphCount = 0;
+
+    private int restrainedHostCount = 0;
+
+    private int hiveLightLevel = 0;
+
+    private long needsRecomputedAtTick = Long.MIN_VALUE;
+
+    /** A single recorded incursion — used to detect repeated attacks on the hive rather than one-off skirmishes. */
+    public record ThreatRecord(
+        BlockPos pos,
+        long tick
+    ) {}
+
+    private final Deque<ThreatRecord> recentThreats = new ArrayDeque<>();
+
+    /**
+     * Coarse lifecycle stage of the hive, derived from its structural completeness and population rather than stored
+     * directly — always current, never stale. Used to bias baseline behavior: a {@code HATCHLING} hive should bootstrap
+     * population aggressively, while a {@code THRIVING} one has more established territory worth holding.
+     */
+    public enum NestMaturity {
+        /** No dome has been claimed/started yet. */
+        HATCHLING,
+        /** Dome shell is under construction. */
+        GROWING,
+        /** Dome complete, but population and tunnel network are still small. */
+        ESTABLISHED,
+        /** Dome complete, tunnels extending, and population past {@link #THRIVING_XENO_THRESHOLD}. */
+        THRIVING
+    }
+
+    /**
+     * Refreshes {@link #xenoCount}, {@link #ovomorphCount}, {@link #restrainedHostCount}, and {@link #hiveLightLevel}
+     * by scanning around the dome center — but only if {@link #NEEDS_RECOMPUTE_INTERVAL_TICKS} have passed since the
+     * last refresh. Safe to call every planning cycle from any xenomorph sharing this hive; the throttle is on the
+     * shared instance, so many mobs calling this frequently still only triggers one actual scan per interval.
+     *
+     * @param level       the level to scan (must be the hive's dimension)
+     * @param currentTick the current game tick, used both to throttle and to evict stale threat records
+     */
+    public void recomputeNeedsIfDue(Level level, long currentTick) {
+        if (domeCenter == null)
+            return;
+        if (currentTick - needsRecomputedAtTick < NEEDS_RECOMPUTE_INTERVAL_TICKS)
+            return;
+        needsRecomputedAtTick = currentTick;
+
+        var aabb = AABB.ofSize(
+            Vec3.atCenterOf(domeCenter),
+            NEEDS_SCAN_RADIUS * 2,
+            NEEDS_SCAN_RADIUS * 2,
+            NEEDS_SCAN_RADIUS * 2
+        );
+
+        xenoCount = level.getEntitiesOfClass(XenomorphEntity.class, aabb).size();
+        ovomorphCount = level.getEntitiesOfClass(OvomorphEntity.class, aabb).size();
+        restrainedHostCount = EggmorphTracker.countActiveNear(domeCenter, NEEDS_SCAN_RADIUS);
+        hiveLightLevel = computeHiveLightLevel(level);
+
+        evictStaleThreats(currentTick);
+    }
+
+    private int computeHiveLightLevel(Level level) {
+        if (domeCenter == null)
+            return 0;
+
+        var brightest = level.getMaxLocalRawBrightness(domeCenter);
+        var sampled = 0;
+        for (var pos : ownedWebCrosses) {
+            if (sampled >= LIGHT_SAMPLE_LIMIT)
+                break;
+            brightest = Math.max(brightest, level.getMaxLocalRawBrightness(pos));
+            sampled++;
+        }
+        return brightest;
+    }
+
+    public int xenoCount() {
+        return xenoCount;
+    }
+
+    public int ovomorphCount() {
+        return ovomorphCount;
+    }
+
+    public int restrainedHostCount() {
+        return restrainedHostCount;
+    }
+
+    public int hiveLightLevel() {
+        return hiveLightLevel;
+    }
+
+    /** Few hosts currently being converted — the hive should prioritize hunting/capturing over other goals. */
+    public boolean hasFewHosts() {
+        return restrainedHostCount < FEW_HOSTS_THRESHOLD;
+    }
+
+    /**
+     * Plenty of hosts already restrained, but not much resin infrastructure to route more captures toward — the hive
+     * should prioritize construction (placing resin / expanding) over capturing yet more hosts it has nowhere to put.
+     */
+    public boolean hasHostSurplusWithLittleResin() {
+        return restrainedHostCount >= HOST_SURPLUS_THRESHOLD
+            && getOwnedWebCrosses().size() < LITTLE_RESIN_THRESHOLD;
+    }
+
+    /** The hive's core has been exposed to enough light that killing light sources should take priority. */
+    public boolean isHeavilyIlluminated() {
+        return hiveLightLevel > ILLUMINATED_THRESHOLD;
+    }
+
+    /**
+     * Rough count of distinct horizontal compass sectors ({@value #EXPANSION_SECTORS} total) that currently have an
+     * active tunnel heading into them. This is necessarily an undercount of the hive's <em>total</em> explored
+     * territory — a finished or blocked tunnel is removed from {@link #activeTunnels} by {@link PlaceResinAction} once
+     * exhausted — but it's a cheap, self-correcting proxy for "does the hive still have obviously unclaimed directions
+     * to expand into right now" without needing separate persisted state.
+     */
+    private int exploredExpansionSectorCount() {
+        var sectors = new HashSet<Integer>();
+        for (var tunnel : activeTunnels) {
+            var angle = Math.atan2(tunnel.dirZ(), tunnel.dirX());
+            if (angle < 0)
+                angle += 2 * Math.PI;
+            var sector = (int) (angle / (2 * Math.PI / EXPANSION_SECTORS)) % EXPANSION_SECTORS;
+            sectors.add(sector);
+        }
+        return sectors.size();
+    }
+
+    /** {@code true} if there's at least one horizontal direction not currently claimed by an active tunnel. */
+    public boolean hasRoomToExpand() {
+        return exploredExpansionSectorCount() < EXPANSION_SECTORS;
+    }
+
+    /**
+     * The hive's combined xenomorph + ovomorph population has grown large relative to
+     * {@link #CROWDED_POPULATION_THRESHOLD}. Combine with {@link #hasRoomToExpand()} to decide whether the response
+     * should be "extend tunnels outward" specifically, versus just generally needing more room.
+     */
+    public boolean isCrowded() {
+        return (xenoCount + ovomorphCount) >= CROWDED_POPULATION_THRESHOLD;
+    }
+
+    /**
+     * Records a single incursion near the hive (e.g. a hostile target found near hive territory during goal planning).
+     * Bounded to {@link #MAX_THREAT_RECORDS}, oldest evicted first — this only needs to answer "has this been happening
+     * repeatedly lately", not keep a full history.
+     */
+    public void recordThreat(BlockPos pos, long tick) {
+        if (recentThreats.size() >= MAX_THREAT_RECORDS) {
+            recentThreats.pollFirst();
+        }
+        recentThreats.addLast(new ThreatRecord(pos.immutable(), tick));
+    }
+
+    /** @return how many recorded threats are still within {@link #THREAT_FRESH_WINDOW_TICKS} of {@code currentTick} */
+    public int recentThreatCount(long currentTick) {
+        var count = 0;
+        for (var threat : recentThreats) {
+            if (currentTick - threat.tick() <= THREAT_FRESH_WINDOW_TICKS)
+                count++;
+        }
+        return count;
+    }
+
+    /** The hive has been attacked repeatedly and recently enough that defensive aggression should increase. */
+    public boolean isUnderSustainedAttack(long currentTick) {
+        return recentThreatCount(currentTick) >= SUSTAINED_ATTACK_THRESHOLD;
+    }
+
+    private void evictStaleThreats(long currentTick) {
+        recentThreats.removeIf(threat -> currentTick - threat.tick() > THREAT_FRESH_WINDOW_TICKS);
+    }
+
+    /**
+     * Coarse lifecycle stage derived from structural completeness and population — see {@link NestMaturity}. Recomputed
+     * from existing state each call rather than stored, so it's always consistent with the current dome/
+     * tunnel/population state without needing separate persistence or invalidation.
+     */
+    public NestMaturity nestMaturity() {
+        if (domeCenter == null)
+            return NestMaturity.HATCHLING;
+        if (!domeComplete)
+            return NestMaturity.GROWING;
+        if (activeTunnels.isEmpty() && xenoCount < THRIVING_XENO_THRESHOLD)
+            return NestMaturity.ESTABLISHED;
+        return NestMaturity.THRIVING;
+    }
+
+    /**
+     * Like {@link #findNearestOwnedWebCross}, but additionally requires the candidate to be dark enough to serve as a
+     * genuine hideout rather than just "the closest bit of hive". This is what lets low-health retreat logic route a
+     * wounded xenomorph toward known cover instead of merely running away — something a vanilla mob's health-based
+     * fleeing has no equivalent of, since it has no memory of where its territory's dark spots are.
+     * <p>
+     * Returns {@code Optional.empty()} if no owned web cross in range meets the darkness threshold; callers should fall
+     * back to {@link #findNearestOwnedWebCross} in that case rather than treating this as "no hive nearby at all".
+     *
+     * @param level    the level to read block/light state from
+     * @param origin   the position to search outward from
+     * @param maxRange maximum search radius in blocks
+     * @param maxLight maximum local raw light level (0-15) a candidate position may have to still count as "dark"
+     * @return the nearest sufficiently dark owned web cross within range, if any
+     */
+    public Optional<BlockPos> findNearestDarkOwnedWebCross(
+        Level level,
+        BlockPos origin,
+        double maxRange,
+        int maxLight
+    ) {
+        var maxRangeSqr = maxRange * maxRange;
+
+        BlockPos best = null;
+        var bestDistSqr = Double.MAX_VALUE;
+
+        for (var pos : ownedWebCrosses) {
+            var distSqr = origin.distSqr(pos);
+
+            if (distSqr > maxRangeSqr)
+                continue;
+
+            if (
+                !level.getBlockState(pos)
+                    .is(BlockRegistry.RESIN_WEB_CROSS.get())
+            ) {
+                continue;
+            }
+
+            if (level.getMaxLocalRawBrightness(pos) > maxLight)
+                continue;
+
+            if (distSqr < bestDistSqr) {
+                bestDistSqr = distSqr;
+                best = pos;
+            }
+        }
+
+        return Optional.ofNullable(best);
+    }
+
     public Optional<BlockPos> findNearestOwnedWebCross(
         Level level,
         BlockPos origin,
@@ -249,6 +525,21 @@ public final class HiveMemory {
         }
         tag.put("tunnels", tunnelList);
 
+        tag.putInt("xenoCount", xenoCount);
+        tag.putInt("ovomorphCount", ovomorphCount);
+        tag.putInt("restrainedHostCount", restrainedHostCount);
+        tag.putInt("hiveLightLevel", hiveLightLevel);
+        tag.putLong("needsRecomputedAtTick", needsRecomputedAtTick);
+
+        var threatList = new ListTag();
+        for (var threat : recentThreats) {
+            var entry = new CompoundTag();
+            entry.put("pos", NbtUtils.writeBlockPos(threat.pos()));
+            entry.putLong("tick", threat.tick());
+            threatList.add(entry);
+        }
+        tag.put("threats", threatList);
+
         return tag;
     }
 
@@ -306,6 +597,23 @@ public final class HiveMemory {
                         entry.getInt("remaining")
                     )
                 );
+            }
+        }
+
+        memory.xenoCount = tag.getInt("xenoCount");
+        memory.ovomorphCount = tag.getInt("ovomorphCount");
+        memory.restrainedHostCount = tag.getInt("restrainedHostCount");
+        memory.hiveLightLevel = tag.getInt("hiveLightLevel");
+        memory.needsRecomputedAtTick = tag.getLong("needsRecomputedAtTick");
+
+        if (tag.contains("threats", Tag.TAG_LIST)) {
+            var threatList = tag.getList("threats", Tag.TAG_COMPOUND);
+            for (var i = 0; i < threatList.size(); i++) {
+                var entry = threatList.getCompound(i);
+                var pos = NbtUtils.readBlockPos(entry, "pos").orElse(null);
+                if (pos == null)
+                    continue;
+                memory.recentThreats.addLast(new ThreatRecord(pos, entry.getLong("tick")));
             }
         }
 

@@ -3,8 +3,11 @@ package mod.azure.ovomorphosis.ai.core;
 import net.minecraft.core.BlockPos;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
+
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 
 /**
  * The result of a single {@link Action#tick} call.
@@ -54,31 +57,41 @@ public sealed interface ActionOutcome {
      * {@code reason} to GOAP as {@link PlanFeedback} this tick so the planner can start responding before any hard
      * failure cap forces a full stop.
      *
-     * @param reason   why this tick didn't make the progress it wanted
-     * @param at       where the obstruction was observed, or {@code null} to default to the mob's current position
-     * @param goalType overrides which {@link AiGoalType} this feedback is attributed to, or {@code null} to use
-     *                 whatever goal is currently active on the blackboard (the common case)
+     * @param reason            why this tick didn't make the progress it wanted
+     * @param at                where the obstruction was observed, or {@code null} to default to the mob's current
+     *                          position
+     * @param goalType          overrides which {@link AiGoalType} this feedback is attributed to, or {@code null} to
+     *                          use whatever goal is currently active on the blackboard (the common case)
+     * @param blockingPositions the specific block position(s) actually preventing progress, as traced by the action
+     *                          itself (e.g. a wall column between the mob and its target) — empty if the action didn't
+     *                          identify any specific block(s), just that something is wrong. Lets a consumer like
+     *                          {@code BreakToTargetAction} act on precisely what stopped this mob instead of
+     *                          re-deriving its own guess.
      */
     record Blocked(
         PlanFailureReason reason,
         @Nullable BlockPos at,
-        @Nullable AiGoalType goalType
+        @Nullable AiGoalType goalType,
+        List<BlockPos> blockingPositions
     ) implements ActionOutcome {}
 
     /**
      * The action has given up entirely and will be stopped with {@link ActionStatus#FAILURE}.
      *
-     * @param reason   why the action failed, or {@link PlanFailureReason#NONE} if there's nothing worth reporting to
-     *                 GOAP (the runtime skips writing {@link PlanFeedback} in that case, matching the historical
-     *                 behavior of actions that failed silently)
-     * @param at       where the failure occurred, or {@code null} to default to the mob's current position
-     * @param goalType overrides which {@link AiGoalType} this feedback is attributed to, or {@code null} to use
-     *                 whatever goal is currently active on the blackboard (the common case)
+     * @param reason            why the action failed, or {@link PlanFailureReason#NONE} if there's nothing worth
+     *                          reporting to GOAP (the runtime skips writing {@link PlanFeedback} in that case, matching
+     *                          the historical behavior of actions that failed silently)
+     * @param at                where the failure occurred, or {@code null} to default to the mob's current position
+     * @param goalType          overrides which {@link AiGoalType} this feedback is attributed to, or {@code null} to
+     *                          use whatever goal is currently active on the blackboard (the common case)
+     * @param blockingPositions the specific block position(s) actually preventing progress, as traced by the action
+     *                          itself — empty if none were identified. See {@link Blocked#blockingPositions()}.
      */
     record Failed(
         PlanFailureReason reason,
         @Nullable BlockPos at,
-        @Nullable AiGoalType goalType
+        @Nullable AiGoalType goalType,
+        List<BlockPos> blockingPositions
     ) implements ActionOutcome {}
 
     /**
@@ -87,7 +100,7 @@ public sealed interface ActionOutcome {
      * @return a {@link Blocked} outcome
      */
     static ActionOutcome blocked(PlanFailureReason reason, BlockPos at) {
-        return new Blocked(reason, at, null);
+        return new Blocked(reason, at, null, List.of());
     }
 
     /**
@@ -95,7 +108,7 @@ public sealed interface ActionOutcome {
      * @return a {@link Blocked} outcome, defaulting the position to the mob's current position
      */
     static ActionOutcome blocked(PlanFailureReason reason) {
-        return new Blocked(reason, null, null);
+        return new Blocked(reason, null, null, List.of());
     }
 
     /**
@@ -105,7 +118,18 @@ public sealed interface ActionOutcome {
      * @return a {@link Blocked} outcome with an explicit goal-type attribution
      */
     static ActionOutcome blocked(PlanFailureReason reason, BlockPos at, AiGoalType goalType) {
-        return new Blocked(reason, at, goalType);
+        return new Blocked(reason, at, goalType, List.of());
+    }
+
+    /**
+     * @param reason            why this tick didn't make progress
+     * @param at                where the obstruction was observed
+     * @param blockingPositions the specific block position(s) actually preventing progress — see
+     *                          {@link Blocked#blockingPositions()}
+     * @return a {@link Blocked} outcome carrying the traced obstruction data
+     */
+    static ActionOutcome blocked(PlanFailureReason reason, BlockPos at, List<BlockPos> blockingPositions) {
+        return new Blocked(reason, at, null, blockingPositions);
     }
 
     /**
@@ -114,7 +138,7 @@ public sealed interface ActionOutcome {
      * @return a {@link Failed} outcome
      */
     static ActionOutcome failed(PlanFailureReason reason, BlockPos at) {
-        return new Failed(reason, at, null);
+        return new Failed(reason, at, null, List.of());
     }
 
     /**
@@ -122,7 +146,7 @@ public sealed interface ActionOutcome {
      * @return a {@link Failed} outcome, defaulting the position to the mob's current position
      */
     static ActionOutcome failed(PlanFailureReason reason) {
-        return new Failed(reason, null, null);
+        return new Failed(reason, null, null, List.of());
     }
 
     /**
@@ -132,7 +156,18 @@ public sealed interface ActionOutcome {
      * @return a {@link Failed} outcome with an explicit goal-type attribution
      */
     static ActionOutcome failed(PlanFailureReason reason, BlockPos at, AiGoalType goalType) {
-        return new Failed(reason, at, goalType);
+        return new Failed(reason, at, goalType, List.of());
+    }
+
+    /**
+     * @param reason            why the action failed
+     * @param at                where the failure occurred
+     * @param blockingPositions the specific block position(s) actually preventing progress — see
+     *                          {@link Blocked#blockingPositions()}
+     * @return a {@link Failed} outcome carrying the traced obstruction data
+     */
+    static ActionOutcome failed(PlanFailureReason reason, BlockPos at, List<BlockPos> blockingPositions) {
+        return new Failed(reason, at, null, blockingPositions);
     }
 
     /**
@@ -142,7 +177,7 @@ public sealed interface ActionOutcome {
      *         current position
      */
     static ActionOutcome failed(PlanFailureReason reason, AiGoalType goalType) {
-        return new Failed(reason, null, goalType);
+        return new Failed(reason, null, goalType, List.of());
     }
 
     /**
@@ -151,6 +186,6 @@ public sealed interface ActionOutcome {
      *         {@link PlanFailureReason} mapping), not as a default to avoid picking a real reason.
      */
     static ActionOutcome failed() {
-        return new Failed(PlanFailureReason.NONE, null, null);
+        return new Failed(PlanFailureReason.NONE, null, null, List.of());
     }
 }

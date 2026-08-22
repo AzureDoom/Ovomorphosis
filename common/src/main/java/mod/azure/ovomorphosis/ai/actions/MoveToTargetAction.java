@@ -5,10 +5,12 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -533,15 +535,32 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             // Hard termination guarantee: local recovery (detours, jumps, block-breaking) below is allowed to keep
             // trying, and each successful recovery resets noProgressTicks — but if none of it has actually closed
             // the distance to the target in HARD_NO_PROGRESS_TICKS ticks, stop retrying locally forever and bubble
-            // FAILED_STUCK up to GOAP so the planner can pick a different goal (e.g. BREAK_OBSTACLE, INVESTIGATE).
-            pendingOutcome = ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            // failure up to GOAP so the planner can pick a different goal (e.g. BREAK_OBSTACLE, INVESTIGATE).
+            //
+            // Trace what's actually ahead before giving up: if there's a real solid block in the way, report
+            // FAILED_BLOCKED with those exact positions attached so BreakToTargetAction can break precisely what
+            // stopped this mob instead of independently re-deriving a guess. If nothing solid is identifiable
+            // (mob is just failing to make headway for some other reason), fall back to the generic FAILED_STUCK.
+            var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
+            var blockingPositions = forwardDir.lengthSqr() > 0.01D
+                ? findForwardBlockingPositions(mob, target, forwardDir.normalize())
+                : List.<BlockPos>of();
+            pendingOutcome = blockingPositions.isEmpty()
+                ? ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition())
+                : ActionOutcome.failed(PlanFailureReason.FAILED_BLOCKED, mob.blockPosition(), blockingPositions);
             return;
         }
 
         if (noProgressTicks >= SOFT_NO_PROGRESS_TICKS && pendingOutcome == null) {
             // Early, non-terminal GOAP signal: local recovery is still allowed to keep trying below, but the
             // planner gets a heads-up well before the hard cap forces a stop.
-            pendingOutcome = ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
+            var blockingPositions = forwardDir.lengthSqr() > 0.01D
+                ? findForwardBlockingPositions(mob, target, forwardDir.normalize())
+                : List.<BlockPos>of();
+            pendingOutcome = blockingPositions.isEmpty()
+                ? ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition())
+                : ActionOutcome.blocked(PlanFailureReason.FAILED_BLOCKED, mob.blockPosition(), blockingPositions);
         }
 
         if (mob.horizontalCollision && blockBreakCooldown <= 0) {
@@ -1130,12 +1149,22 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
-            pendingOutcome = ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            var blockingPositions = forward.lengthSqr() > 0.0001D
+                ? findForwardBlockingPositions(mob, target, forward)
+                : List.<BlockPos>of();
+            pendingOutcome = blockingPositions.isEmpty()
+                ? ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition())
+                : ActionOutcome.failed(PlanFailureReason.FAILED_BLOCKED, mob.blockPosition(), blockingPositions);
             return;
         }
 
         if (noProgressTicks >= SOFT_NO_PROGRESS_TICKS && pendingOutcome == null) {
-            pendingOutcome = ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
+            var blockingPositions = forward.lengthSqr() > 0.0001D
+                ? findForwardBlockingPositions(mob, target, forward)
+                : List.<BlockPos>of();
+            pendingOutcome = blockingPositions.isEmpty()
+                ? ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition())
+                : ActionOutcome.blocked(PlanFailureReason.FAILED_BLOCKED, mob.blockPosition(), blockingPositions);
         }
 
         if ((stuckTicks > 10 || noProgressTicks > 20) && blockBreakCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
@@ -1345,6 +1374,42 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         }
 
         return false;
+    }
+
+    /**
+     * Traces the block position(s) directly ahead of the mob in {@code forward}'s direction (feet, head, and — when the
+     * target is below — the downward path) that are actually solid, without filtering by breakability the way
+     * {@link #canBreakPathBlock} does. This exists purely to attach real obstruction data to
+     * {@link PlanFailureReason#FAILED_BLOCKED} feedback: rather than the planner and {@code BreakToTargetAction}
+     * independently re-deriving a guess at what's in the way, they can act on precisely what this trace found. Returns
+     * an empty list if nothing solid was found ahead (in which case the caller falls back to the more generic
+     * {@link PlanFailureReason#FAILED_STUCK}).
+     */
+    private List<BlockPos> findForwardBlockingPositions(E mob, LivingEntity target, Vec3 forward) {
+        var checkPos = mob.position().add(forward.scale(0.9D));
+        var feet = BlockPos.containing(checkPos.x, mob.getBoundingBox().minY, checkPos.z);
+        var head = feet.above();
+        var targetBelow = target.getY() < mob.getY() - 1.0D;
+
+        var level = mob.level();
+        var found = new ArrayList<BlockPos>(3);
+
+        if (targetBelow) {
+            var downForward = feet.below();
+            if (isSolidObstruction(level, downForward))
+                found.add(downForward);
+        }
+        if (isSolidObstruction(level, feet))
+            found.add(feet);
+        if (isSolidObstruction(level, head))
+            found.add(head);
+
+        return found.isEmpty() ? List.of() : List.copyOf(found);
+    }
+
+    private static boolean isSolidObstruction(Level level, BlockPos pos) {
+        var state = level.getBlockState(pos);
+        return !state.isAir() && !state.getCollisionShape(level, pos).isEmpty();
     }
 
     private boolean tryBreakBlockingPathBlock(E mob, Blackboard blackboard, LivingEntity target, Vec3 forward) {

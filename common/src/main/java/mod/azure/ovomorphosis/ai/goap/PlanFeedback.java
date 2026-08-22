@@ -2,6 +2,8 @@ package mod.azure.ovomorphosis.ai.goap;
 
 import net.minecraft.core.BlockPos;
 
+import java.util.List;
+
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 
 /**
@@ -27,19 +29,25 @@ import mod.azure.ovomorphosis.ai.core.AiKeys;
  * }
  * }</pre>
  *
- * @param reason         Why the action failed or was interrupted.
- * @param recordedAtTick The game tick at which the failure was recorded. Planners use this to decide whether the
- *                       feedback is still fresh enough to act on (e.g. discard if more than 60 ticks old).
- * @param failurePos     World position where the failure occurred, or the mob's position at the time of failure. Useful
- *                       for INVESTIGATE goals that want to visit the last-known-failure site.
- * @param failedGoalType The goal type that was active when the failure occurred. Lets the planner suppress that goal
- *                       type specifically rather than penalizing all goals equally.
+ * @param reason            Why the action failed or was interrupted.
+ * @param recordedAtTick    The game tick at which the failure was recorded. Planners use this to decide whether the
+ *                          feedback is still fresh enough to act on (e.g. discard if more than 60 ticks old).
+ * @param failurePos        World position where the failure occurred, or the mob's position at the time of failure.
+ *                          Useful for INVESTIGATE goals that want to visit the last-known-failure site.
+ * @param failedGoalType    The goal type that was active when the failure occurred. Lets the planner suppress that goal
+ *                          type specifically rather than penalizing all goals equally.
+ * @param blockingPositions The specific block position(s) an action traced as actually preventing progress (e.g. a wall
+ *                          column {@code MoveToTargetAction} identified between the mob and its target) — empty if the
+ *                          action didn't identify any specific block(s). Lets a consumer such as
+ *                          {@code BreakToTargetAction} act on precisely what stopped the mob instead of independently
+ *                          re-deriving its own guess.
  */
 public record PlanFeedback(
     PlanFailureReason reason,
     int recordedAtTick,
     BlockPos failurePos,
-    AiGoalType failedGoalType
+    AiGoalType failedGoalType,
+    List<BlockPos> blockingPositions
 ) {
 
     public static PlanFeedback of(
@@ -48,7 +56,21 @@ public record PlanFeedback(
         BlockPos failurePos,
         AiGoalType failedGoalType
     ) {
-        return new PlanFeedback(reason, currentTick, failurePos, failedGoalType);
+        return new PlanFeedback(reason, currentTick, failurePos, failedGoalType, List.of());
+    }
+
+    /**
+     * Like {@link #of(PlanFailureReason, int, BlockPos, AiGoalType)}, but additionally attaches the specific block
+     * position(s) an action traced as actually responsible for the failure.
+     */
+    public static PlanFeedback of(
+        PlanFailureReason reason,
+        int currentTick,
+        BlockPos failurePos,
+        AiGoalType failedGoalType,
+        List<BlockPos> blockingPositions
+    ) {
+        return new PlanFeedback(reason, currentTick, failurePos, failedGoalType, blockingPositions);
     }
 
     public boolean isFresh(int currentTick) {
