@@ -5,9 +5,11 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.*;
@@ -61,13 +63,48 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
     private int noProgressTicks = 0;
 
-    /** Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when the hard no-progress cap is hit. */
     /**
      * Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when they have an outcome to report this tick (a
      * hard-cap {@link ActionOutcome.Failed}, or a soft-threshold {@link ActionOutcome.Blocked}) rather than a plain
      * {@link ActionOutcome#RUNNING}.
      */
     private ActionOutcome pendingOutcome = null;
+
+    /**
+     * The in-progress incremental fallback chain (primary crawl → relaxed crawl → plain ground A*, all sharing one
+     * per-tick budget), or {@code null} when none is running. See {@link PhasedPathSession},
+     * {@link IncrementalPathSession}, and {@code OvomorphosisConfig#enableIncrementalPathfinding}.
+     */
+    private PhasedPathSession phasedSession = null;
+
+    /** The start/destination {@link #phasedSession} was created for, used to detect staleness. */
+    private BlockPos phasedSessionStart = null;
+
+    private BlockPos phasedSessionGoal = null;
+
+    /** Ticks {@link #phasedSession} has been running; a safety valve so a pathological search can't run forever. */
+    private int phasedSessionAgeTicks = 0;
+
+    /**
+     * A {@link PathNodeCache} dedicated to {@link #phasedSession}'s lifetime. Cleared only when a new
+     * {@link #phasedSession} starts, so a search spanning many ticks keeps the benefit of its own memoized terrain
+     * classifications between steps. This action has no self-inflicted block-breaking (unlike
+     * {@code MoveToTargetAction}), so there's no equivalent "just broke a wall" falling edge to selectively invalidate
+     * around — a change to the destination or a long enough age still forces a fresh session (and therefore a fresh
+     * cache) via {@link #PATH_SESSION_GOAL_DRIFT_SQ} / {@link #PATH_SESSION_MAX_AGE_TICKS} below.
+     */
+    private final PathNodeCache sessionCache = new PathNodeCache();
+
+    /** If the mob's feet moved further than this (blocks, squared) since {@link #phasedSession} started, restart it. */
+    private static final double PATH_SESSION_START_DRIFT_SQ = 3.0D * 3.0D;
+
+    /**
+     * If the destination moved further than this (blocks, squared) since {@link #phasedSession} started, restart it.
+     */
+    private static final double PATH_SESSION_GOAL_DRIFT_SQ = 4.0D * 4.0D;
+
+    /** Hard cap on how many ticks a single incremental session may run before it is abandoned and restarted. */
+    private static final int PATH_SESSION_MAX_AGE_TICKS = 100;
 
     public MoveToDestinationAction(
         double stopDistance,
@@ -96,6 +133,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         lastDistSqToDestination = Double.MAX_VALUE;
         noProgressTicks = 0;
         pendingOutcome = null;
+        phasedSession = null;
+        phasedSessionStart = null;
+        phasedSessionGoal = null;
+        phasedSessionAgeTicks = 0;
+        sessionCache.clear();
     }
 
     @Override
@@ -192,24 +234,60 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if ((repathCooldown <= 0 && destinationMovedFar) || path.isEmpty() || pathIndex >= path.size()) {
             lastPathedDestination = destination;
 
-            if (canCrawl) {
-                path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), destination, 96, 0);
-                if (path.isEmpty()) {
-                    path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), destination, 96, 1);
+            final var searchStart = mob.blockPosition();
+            final var searchGoal = destination;
+
+            List<BlockPos> newPath;
+
+            if (CommonMod.getConfig().enableIncrementalPathfinding) {
+                var stale = phasedSession != null
+                    && (phasedSessionStart.distSqr(searchStart) > PATH_SESSION_START_DRIFT_SQ
+                        || phasedSessionGoal.distSqr(searchGoal) > PATH_SESSION_GOAL_DRIFT_SQ
+                        || phasedSessionAgeTicks > PATH_SESSION_MAX_AGE_TICKS);
+
+                if (phasedSession == null || stale) {
+                    sessionCache.clear();
+                    phasedSession = new PhasedPathSession(buildPhases(mob, searchStart, searchGoal));
+                    phasedSessionStart = searchStart;
+                    phasedSessionGoal = searchGoal;
+                    phasedSessionAgeTicks = 0;
                 }
-                if (path.isEmpty()) {
-                    path = CustomAStar.findPath(mob, mob.blockPosition(), destination, 64, 1);
+
+                phasedSessionAgeTicks++;
+                var status = phasedSession.step(CommonMod.getConfig().incrementalPathfindingNodeBudget);
+
+                newPath = switch (status) {
+                    case RUNNING -> null;
+                    case DONE -> phasedSession.result();
+                    case FAILED -> Collections.emptyList();
+                };
+
+                if (status != PhasedPathSession.Status.RUNNING) {
+                    phasedSession = null;
                 }
             } else {
-                path = CustomAStar.findPath(mob, mob.blockPosition(), destination, 64, 1);
+                if (canCrawl) {
+                    newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 96, 0);
+                    if (newPath.isEmpty()) {
+                        newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 96, 1);
+                    }
+                    if (newPath.isEmpty()) {
+                        newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, 1);
+                    }
+                } else {
+                    newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, 1);
+                }
             }
 
-            pathIndex = path.size() > 1 ? 1 : 0;
-            repathCooldown = repathInterval;
+            if (newPath != null) {
+                path = newPath;
+                pathIndex = path.size() > 1 ? 1 : 0;
+                repathCooldown = repathInterval;
 
-            if (isCrawlingNow && pathIndex < path.size()) {
-                while (pathIndex < path.size() && hasReachedWaypoint(mob, path.get(pathIndex), true)) {
-                    pathIndex++;
+                if (isCrawlingNow && pathIndex < path.size()) {
+                    while (pathIndex < path.size() && hasReachedWaypoint(mob, path.get(pathIndex), true)) {
+                        pathIndex++;
+                    }
                 }
             }
         }
@@ -390,9 +468,6 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
-            // Hard termination guarantee, mirroring MoveToTargetAction: local recovery (detours, jumps) below keeps
-            // trying and resets noProgressTicks on real progress, but if nothing has actually closed the distance to
-            // the destination in HARD_NO_PROGRESS_TICKS ticks, stop and bubble FAILED_STUCK up to GOAP.
             pendingOutcome = ActionOutcome.failed(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
             return;
         }
@@ -797,6 +872,49 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         faceDestination(mob, destination);
+    }
+
+    /**
+     * Builds the fallback chain of {@link PhasedPathSession.Phase}s tried for a repath toward a plain destination (as
+     * opposed to a moving target — see {@code MoveToTargetAction#buildPhases} for the richer tunnel-entry-aware
+     * version), all sharing one per-tick node budget: for a crawling mob, the primary crawl-aware route, then a
+     * relaxed-goal-radius crawl route, then a plain ground A* route as a last resort; for a non-crawling mob, just the
+     * plain ground A* route.
+     */
+    private List<PhasedPathSession.Phase> buildPhases(E mob, BlockPos searchStart, BlockPos searchGoal) {
+        if (!canCrawl) {
+            return List.of(
+                new PhasedPathSession.Phase(
+                    "NORMAL_ASTAR",
+                    () -> IncrementalPathSession.normal(mob, searchStart, searchGoal, 64, 1)
+                )
+            );
+        }
+
+        List<PhasedPathSession.Phase> phases = new ArrayList<>(3);
+
+        phases.add(
+            new PhasedPathSession.Phase(
+                "PRIMARY_CRAWL",
+                () -> IncrementalPathSession.crawling(mob, searchStart, searchGoal, 96, 0, sessionCache)
+            )
+        );
+
+        phases.add(
+            new PhasedPathSession.Phase(
+                "RELAXED_CRAWL",
+                () -> IncrementalPathSession.crawling(mob, searchStart, searchGoal, 96, 1, sessionCache)
+            )
+        );
+
+        phases.add(
+            new PhasedPathSession.Phase(
+                "NORMAL_ASTAR",
+                () -> IncrementalPathSession.normal(mob, searchStart, searchGoal, 64, 1)
+            )
+        );
+
+        return phases;
     }
 
     private boolean hasReachedWaypoint(E mob, BlockPos waypoint, boolean shouldUseCrawling) {

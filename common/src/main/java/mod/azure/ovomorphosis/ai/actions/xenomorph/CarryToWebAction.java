@@ -11,34 +11,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.CrawlingCustomAStar;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
+import mod.azure.ovomorphosis.ai.util.IncrementalPathSession;
 import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.ai.util.PathNodeCache;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 
-/**
- * Carries a grabbed victim to the nearest {@code RESIN_WEB_CROSS} block for deposit.
- * <h3>Web location strategy</h3> Web lookup now goes through {@link HiveMemory} exclusively:
- * <ol>
- * <li>{@link HiveMemory#findNearestWebCross} is tried first against the already-cached set.</li>
- * <li>If that misses, {@link HiveMemory#syncFromRegistry} is called to pull fresh positions from
- * {@link ResinWebRegistry} (a chunk-bucketed index updated by {@code ResinWebFullBlock} on every placement and
- * removal). The expensive O(n³) world-cube scan that previously lived here is gone.</li>
- * </ol>
- * <h3>Sync cooldown</h3> Registry syncs are gated behind {@link AiKeys#HIVE_SYNC_COOLDOWN} (default 60 ticks) so the
- * chunk-bucket iteration does not run every tick when no web is nearby.
- * <h3>Hard termination guarantee</h3> This action must never be able to carry a passenger indefinitely:
- * {@link #STUCK_TICKS_MAX}, {@link #NO_PROGRESS_TICKS_MAX}, {@link #MAX_DURATION_TICKS}, and {@link #MAX_PATH_FAILURES}
- * each independently force a {@link ActionOutcome.Failed} termination (dropping the victim safely first) if crossed.
- * <h3>Early GOAP feedback via BLOCKED</h3> Every individual failed repath attempt, and every tick the mob is
- * meaningfully stuck/making-no-progress (but hasn't hit a hard cap yet), is reported as {@link ActionOutcome.Blocked}
- * rather than silently retried. This lets the planner start down-weighting carry/{@code EXPAND_HIVE}-adjacent
- * strategies in real time — well before the ~5-30 second hard caps below would otherwise force a stop — instead of only
- * learning about the problem once the action finally gives up.
- */
 public final class CarryToWebAction<E extends Mob> implements Action<E> {
 
     /**
@@ -102,6 +85,38 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
     /** Set by {@link #navigate} when the repath attempt taken this tick came back empty. */
     private boolean pathAttemptFailedThisTick = false;
 
+    /**
+     * The in-progress incremental search toward {@link #webTarget}, or {@code null} when none is running. See
+     * {@link IncrementalPathSession} and {@code OvomorphosisConfig#enableIncrementalPathfinding}. Unlike
+     * {@code MoveToTargetAction}/{@code MoveToDestinationAction} this action has no fallback tiers to chain (the
+     * original synchronous call here was always a single {@code CrawlingCustomAStar.findPath}, with pathfinding failure
+     * handled entirely via {@link #pathFailureCount}), so a single {@link IncrementalPathSession} suffices — no
+     * {@code PhasedPathSession} is needed.
+     */
+    private IncrementalPathSession pathSession = null;
+
+    /** The start/{@link #webTarget} {@link #pathSession} was created for, used to detect staleness. */
+    private BlockPos pathSessionStart = null;
+
+    private BlockPos pathSessionGoal = null;
+
+    /** Ticks {@link #pathSession} has been running; a safety valve so a pathological search can't run forever. */
+    private int pathSessionAgeTicks = 0;
+
+    /** A {@link PathNodeCache} dedicated to {@link #pathSession}'s lifetime; cleared only when a new one starts. */
+    private final PathNodeCache sessionCache = new PathNodeCache();
+
+    /** If the mob moved further than this (blocks, squared) since {@link #pathSession} started, restart it. */
+    private static final double PATH_SESSION_START_DRIFT_SQ = 3.0D * 3.0D;
+
+    /**
+     * If {@link #webTarget} moved further than this (blocks, squared) since {@link #pathSession} started, restart it.
+     */
+    private static final double PATH_SESSION_GOAL_DRIFT_SQ = 4.0D * 4.0D;
+
+    /** Hard cap on how many ticks a single incremental session may run before it is abandoned and restarted. */
+    private static final int PATH_SESSION_MAX_AGE_TICKS = 100;
+
     public CarryToWebAction(
         int priority,
         Consumer<E> onStartCallback,
@@ -127,6 +142,11 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         pathFailureCount = 0;
         ticksActive = 0;
         pathAttemptFailedThisTick = false;
+        pathSession = null;
+        pathSessionStart = null;
+        pathSessionGoal = null;
+        pathSessionAgeTicks = 0;
+        sessionCache.clear();
 
         syncMemoryFromRegistry(mob, blackboard, cooldowns);
         webTarget = resolveWebTarget(mob, blackboard);
@@ -155,18 +175,31 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             }
             path = Collections.emptyList();
             lastDistSqToWeb = Double.MAX_VALUE;
+            pathSession = null;
         } else if (revalidateCooldown <= 0) {
             var chunkLoaded = mob.level().isLoaded(webTarget);
             if (chunkLoaded && !mob.level().getBlockState(webTarget).is(BlockRegistry.RESIN_WEB_CROSS.get())) {
                 webTarget = null;
                 path = Collections.emptyList();
+                pathSession = null;
+
+                // Revalidation just discovered our web cross is gone (destroyed, replaced, etc.) — resolve a
+                // replacement immediately rather than falling through with a null webTarget. Every subsequent use of
+                // webTarget in this method (the progress check below, faceToward's target vector, the arrival check)
+                // assumes it is non-null once we're past this point, exactly as the initial-resolution branch above
+                // already guarantees.
+                webTarget = resolveWebTarget(mob, blackboard);
+                if (webTarget == null) {
+                    dropPassengerSafely(mob, victim);
+                    return ActionOutcome.failed(PlanFailureReason.FAILED_NO_WEB);
+                }
+                lastDistSqToWeb = Double.MAX_VALUE;
             }
             revalidateCooldown = 40;
         } else {
             revalidateCooldown--;
         }
 
-        // --- Hard termination guarantee: this action must never be able to carry a passenger indefinitely. ---
         ticksActive++;
         if (ticksActive >= MAX_DURATION_TICKS) {
             dropPassengerSafely(mob, victim);
@@ -196,7 +229,6 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             dropPassengerSafely(mob, victim);
             return ActionOutcome.failed(PlanFailureReason.FAILED_NO_PATH);
         }
-        // --- end hard termination guarantee ---
 
         victim.startRiding(mob, true);
 
@@ -210,11 +242,6 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         navigate(mob);
         faceToward(mob, webVec);
 
-        // Early, non-terminal GOAP signal: this tick made no headway (either the repath came back empty, or
-        // stuck/no-progress counters are meaningfully elevated) but hasn't hit a hard cap yet. Reporting this every
-        // such tick — rather than staying silent until MAX_PATH_FAILURES/STUCK_TICKS_MAX/NO_PROGRESS_TICKS_MAX force
-        // a stop — lets the planner start favoring INVESTIGATE/BREAK_OBSTACLE/wandering well before the carry
-        // attempt is actually abandoned.
         if (pathAttemptFailedThisTick) {
             return ActionOutcome.blocked(PlanFailureReason.FAILED_NO_PATH, mob.blockPosition());
         }
@@ -230,10 +257,6 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         if (reason == ActionStatus.INTERRUPTED || reason == ActionStatus.FAILURE) {
             var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
             if (victim != null && victim.isPassenger() && victim.getVehicle() == mob) {
-                // Safety net: if a failure/interruption path above didn't already drop the passenger explicitly
-                // (e.g. an INTERRUPTED status coming from outside this class, such as the brain preempting for an
-                // emergency), make sure the victim is never left permanently attached to a mob that has stopped
-                // trying to carry it.
                 dropPassengerSafely(mob, victim);
             }
         }
@@ -364,15 +387,52 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         }
 
         if (repathCooldown <= 0 || path.isEmpty() || pathIndex >= path.size()) {
-            path = CrawlingCustomAStar.findPath(mob, mob.blockPosition(), webTarget, 1024, 2);
-            pathIndex = path.size() > 1 ? 1 : 0;
-            repathCooldown = 15;
+            final var searchStart = mob.blockPosition();
+            final var searchGoal = webTarget;
 
-            if (path.isEmpty()) {
-                pathFailureCount++;
-                pathAttemptFailedThisTick = true;
+            List<BlockPos> newPath;
+
+            if (CommonMod.getConfig().enableIncrementalPathfinding) {
+                var stale = pathSession != null
+                    && (pathSessionStart.distSqr(searchStart) > PATH_SESSION_START_DRIFT_SQ
+                        || pathSessionGoal.distSqr(searchGoal) > PATH_SESSION_GOAL_DRIFT_SQ
+                        || pathSessionAgeTicks > PATH_SESSION_MAX_AGE_TICKS);
+
+                if (pathSession == null || stale) {
+                    sessionCache.clear();
+                    pathSession = IncrementalPathSession.crawling(mob, searchStart, searchGoal, 1024, 2, sessionCache);
+                    pathSessionStart = searchStart;
+                    pathSessionGoal = searchGoal;
+                    pathSessionAgeTicks = 0;
+                }
+
+                pathSessionAgeTicks++;
+                var status = pathSession.step(CommonMod.getConfig().incrementalPathfindingNodeBudget);
+
+                newPath = switch (status) {
+                    case RUNNING -> null;
+                    case DONE -> pathSession.result();
+                    case FAILED -> Collections.emptyList();
+                };
+
+                if (status != IncrementalPathSession.Status.RUNNING) {
+                    pathSession = null;
+                }
             } else {
-                pathFailureCount = 0;
+                newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 1024, 2);
+            }
+
+            if (newPath != null) {
+                path = newPath;
+                pathIndex = path.size() > 1 ? 1 : 0;
+                repathCooldown = 15;
+
+                if (path.isEmpty()) {
+                    pathFailureCount++;
+                    pathAttemptFailedThisTick = true;
+                } else {
+                    pathFailureCount = 0;
+                }
             }
         }
 
