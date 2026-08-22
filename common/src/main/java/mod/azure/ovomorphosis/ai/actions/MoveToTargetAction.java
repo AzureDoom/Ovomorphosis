@@ -205,16 +205,21 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             && (nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
                 || nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeetPos.below())
                 || nodeCache.tunnelCanStandAt(mob.level(), mob, mobFeetPos.above())
-                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos)
-                || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below()));
+                || (!mobOnSolidGround && nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos))
+                || (!mobOnSolidGround && nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below())));
 
         var nextWaypointNeedsCrawl = false;
         if (canCrawl && !path.isEmpty() && pathIndex < path.size()) {
             for (var li = pathIndex; li < Math.min(path.size(), pathIndex + 3); li++) {
                 var la = path.get(li);
+                var belowLa = la.below();
+                var laHasGroundBelow = !mob.level()
+                    .getBlockState(belowLa)
+                    .getCollisionShape(mob.level(), belowLa)
+                    .isEmpty();
                 if (
                     nodeCache.tunnelCanStandAt(mob.level(), mob, la)
-                        || nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                        || (!laHasGroundBelow && nodeCache.verticalShaftCanCrawlAt(mob.level(), mob, la))
                         || (nodeCache.isSafeClimbNode(mob.level(), la)
                             && !nodeCache.canStandAt(mob.level(), mob, la))
                 ) {

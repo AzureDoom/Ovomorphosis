@@ -331,7 +331,7 @@ public class CustomAStar {
     }
 
     private static boolean isSafeForMobFootprint(Level level, Mob mob, BlockPos feet) {
-        var padding = 0.10D;
+        var padding = 0.02D;
         var radius = (mob.getBbWidth() / 2.0D) + padding;
 
         var centerX = feet.getX() + 0.5D;

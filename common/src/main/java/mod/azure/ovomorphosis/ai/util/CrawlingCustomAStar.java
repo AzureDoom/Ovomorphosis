@@ -515,9 +515,8 @@ public class CrawlingCustomAStar extends CustomAStar {
         var southFeet = solidAt(level, pos.south(), cache);
         var northHead = solidAt(level, head.north(), cache);
         var southHead = solidAt(level, head.south(), cache);
-
-        var confinedX = (eastFeet || eastHead) && (westFeet || westHead);
-        var confinedZ = (northFeet || northHead) && (southFeet || southHead);
+        var confinedX = (eastFeet && eastHead) && (westFeet && westHead);
+        var confinedZ = (northFeet && northHead) && (southFeet && southHead);
         if (confinedX || confinedZ)
             return true;
 
@@ -650,12 +649,11 @@ public class CrawlingCustomAStar extends CustomAStar {
         }
 
         var head = feet.above();
-
         var hasSideWall =
-            solidAt(level, feet.east(), cache) || solidAt(level, feet.west(), cache)
-                || solidAt(level, feet.north(), cache) || solidAt(level, feet.south(), cache)
-                || solidAt(level, head.east(), cache) || solidAt(level, head.west(), cache)
-                || solidAt(level, head.north(), cache) || solidAt(level, head.south(), cache);
+            (solidAt(level, feet.east(), cache) && solidAt(level, head.east(), cache))
+                || (solidAt(level, feet.west(), cache) && solidAt(level, head.west(), cache))
+                || (solidAt(level, feet.north(), cache) && solidAt(level, head.north(), cache))
+                || (solidAt(level, feet.south(), cache) && solidAt(level, head.south(), cache));
 
         if (!hasSideWall)
             return false;
@@ -676,7 +674,7 @@ public class CrawlingCustomAStar extends CustomAStar {
     public static boolean canStandAtCrawlSize(Level level, Mob mob, BlockPos feet) {
         var crawlHeight = getEffectiveCrawlHeight(mob);
         var halfW = mob.getBbWidth() / 2.0D;
-        var padding = 0.10D;
+        var padding = 0.02D;
         var radius = halfW + padding;
 
         var centerX = feet.getX() + 0.5D;
