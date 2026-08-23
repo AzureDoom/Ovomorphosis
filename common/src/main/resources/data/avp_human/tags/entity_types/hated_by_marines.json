@@ -1,0 +1,25 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "ovomorphosis:facehugger",
+      "required": false
+    },
+    {
+      "id": "ovomorphosis:ovomorph",
+      "required": false
+    },
+    {
+      "id": "ovomorphosis:chestburster",
+      "required": false
+    },
+    {
+      "id": "ovomorphosis:xenomorph",
+      "required": false
+    },
+    {
+      "id": "ovomorphosis:runner",
+      "required": false
+    }
+  ]
+}
