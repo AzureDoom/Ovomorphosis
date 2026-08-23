@@ -39,6 +39,182 @@
     {
       "id": "#gigeresque:acid_resistant",
       "required": false
+    },
+    {
+      "id": "sgjourney:trinium_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:trinium_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:trinium_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:cut_trinium_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:cut_trinium_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:cut_trinium_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:trinium_pillar",
+      "required": false
+    },
+    {
+      "id": "sgjourney:polished_trinium_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:polished_trinium_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:polished_trinium_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:chiseled_trinium_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:smooth_trinium_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:smooth_trinium_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:smooth_trinium_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:naquadah_iron_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:naquadah_iron_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:naquadah_iron_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:cut_naquadah_iron_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:cut_naquadah_iron_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:cut_naquadah_iron_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:naquadah_iron_pillar",
+      "required": false
+    },
+    {
+      "id": "sgjourney:polished_naquadah_iron_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:polished_naquadah_iron_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:polished_naquadah_iron_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:chiseled_naquadah_iron_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:smooth_naquadah_iron_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:smooth_naquadah_iron_stairs",
+      "required": false
+    },
+    {
+      "id": "sgjourney:smooth_naquadah_iron_slab",
+      "required": false
+    },
+    {
+      "id": "sgjourney:ancient_transport_rings",
+      "required": false
+    },
+    {
+      "id": "sgjourney:universe_stargate",
+      "required": false
+    },
+    {
+      "id": "sgjourney:milky_way_stargate",
+      "required": false
+    },
+    {
+      "id": "sgjourney:pegasus_stargate",
+      "required": false
+    },
+    {
+      "id": "sgjourney:classic_stargate",
+      "required": false
+    },
+    {
+      "id": "sgjourney:tollan_stargate",
+      "required": false
+    },
+    {
+      "id": "sgjourney:universe_dhd",
+      "required": false
+    },
+    {
+      "id": "sgjourney:milky_way_dhd",
+      "required": false
+    },
+    {
+      "id": "sgjourney:pegasus_dhd",
+      "required": false
+    },
+    {
+      "id": "sgjourney:classic_dhd",
+      "required": false
+    },
+    {
+      "id": "sgjourney:classic_stargate_base_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:classic_stargate_chevron_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:classic_stargate_ring_block",
+      "required": false
+    },
+    {
+      "id": "sgjourney:advanced_crystal_interface",
+      "required": false
+    },
+    {
+      "id": "sgjourney:ancient_gene_detector",
+      "required": false
+    },
+    {
+      "id": "sgjourney:zpm_hub",
+      "required": false
     }
   ]
 }

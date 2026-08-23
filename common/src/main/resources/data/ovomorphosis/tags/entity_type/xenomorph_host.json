@@ -30,6 +30,194 @@
     {
       "id": "guardvillagers:guard",
       "required": false
+    },
+    {
+      "id": "minecolonies:citizen",
+      "required": false
+    },
+    {
+      "id": "minecolonies:visitor",
+      "required": false
+    },
+    {
+      "id": "minecolonies:mercenary",
+      "required": false
+    },
+    {
+      "id": "minecolonies:barbarian",
+      "required": false
+    },
+    {
+      "id": "minecolonies:archerbarbarian",
+      "required": false
+    },
+    {
+      "id": "minecolonies:chiefbarbarian",
+      "required": false
+    },
+    {
+      "id": "minecolonies:pirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:archerpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:chiefpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:drownedpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:drownedarcherpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:drownedchiefpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:mummy",
+      "required": false
+    },
+    {
+      "id": "minecolonies:archermummy",
+      "required": false
+    },
+    {
+      "id": "minecolonies:pharao",
+      "required": false
+    },
+    {
+      "id": "minecolonies:amazon",
+      "required": false
+    },
+    {
+      "id": "minecolonies:amazonspearman",
+      "required": false
+    },
+    {
+      "id": "minecolonies:amazonchief",
+      "required": false
+    },
+    {
+      "id": "minecolonies:shieldmaiden",
+      "required": false
+    },
+    {
+      "id": "minecolonies:norsemenarcher",
+      "required": false
+    },
+    {
+      "id": "minecolonies:norsemenchief",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campbarbarian",
+      "required": false
+    },
+    {
+      "id": "minecolonies:camparcherbarbarian",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campchiefbarbarian",
+      "required": false
+    },
+    {
+      "id": "minecolonies:camppirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:camparcherpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campchiefpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campdrownedpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campdrownedarcherpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campdrownedchiefpirate",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campmummy",
+      "required": false
+    },
+    {
+      "id": "minecolonies:camparchermummy",
+      "required": false
+    },
+    {
+      "id": "minecolonies:camppharao",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campamazon",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campamazonspearman",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campamazonchief",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campshieldmaiden",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campnorsemenarcher",
+      "required": false
+    },
+    {
+      "id": "minecolonies:campnorsemenchief",
+      "required": false
+    },
+    {
+      "id": "slimpatch:evoker",
+      "required": false
+    },
+    {
+      "id": "slimpatch:female_villager",
+      "required": false
+    },
+    {
+      "id": "slimpatch:human_trader",
+      "required": false
+    },
+    {
+      "id": "slimpatch:male_villager",
+      "required": false
+    },
+    {
+      "id": "slimpatch:pillager",
+      "required": false
+    },
+    {
+      "id": "slimpatch:vindicator",
+      "required": false
+    },
+    {
+      "id": "slimpatch:wandering_trader",
+      "required": false
+    },
+    {
+      "id": "sgjourney:jaffa",
+      "required": false
     }
   ]
 }
