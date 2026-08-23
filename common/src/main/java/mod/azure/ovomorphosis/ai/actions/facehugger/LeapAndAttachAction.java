@@ -12,6 +12,7 @@ import mod.azure.ovomorphosis.ai.util.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.infection.InfectionManager;
+import mod.azure.ovomorphosis.util.MobUtils;
 
 public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Action<E> {
 
@@ -79,14 +80,21 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity> implements Ac
             mob.distanceToSqr(target) <= 0.15D * 0.15D
                 || mob.getBoundingBox().inflate(mob.isInWater() ? 0.3D : 0.05D).intersects(target.getBoundingBox())
         ) {
-            if (target.isBlocking()) {
+            if (target.isBlocking() || MobUtils.hasBlockingHelmet(target)) {
                 var knockback = mob.position().subtract(target.position()).normalize().scale(0.4D);
                 mob.setDeltaMovement(knockback.x, 0.3D, knockback.z);
                 mob.hasImpulse = true;
                 windUpTicks = -1;
                 inAir = false;
-                leapCooldown = 30;
-                mob.playSound(SoundEvents.SHIELD_BLOCK, 1.0F, 1.0F);
+
+                var helmetBlocked = MobUtils.hasBlockingHelmet(target);
+                leapCooldown = helmetBlocked ? 40 : 30;
+                mob.playSound(helmetBlocked ? SoundEvents.ITEM_BREAK : SoundEvents.SHIELD_BLOCK, 1.0F, 1.0F);
+
+                if (helmetBlocked) {
+                    MobUtils.punishBlockingHelmet(target);
+                }
+
                 return ActionOutcome.RUNNING;
             }
             if (!TargetingUtils.faceHuggerTest(mob, target)) {

@@ -2,6 +2,8 @@ package mod.azure.ovomorphosis.util;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
@@ -9,10 +11,12 @@ import net.minecraft.world.damagesource.DamageSources;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameRules;
 
 import java.util.Set;
@@ -154,5 +158,34 @@ public class MobUtils {
             || living.getType().is(ModTags.ACID_RESISTANT_ENTITIES)
             || living instanceof Player player
                 && (player.isCreative() || player.isSpectator());
+    }
+
+    public static boolean hasBlockingHelmet(LivingEntity target) {
+        var helmet = target.getItemBySlot(EquipmentSlot.HEAD);
+        return !helmet.isEmpty() && helmet.is(ModTags.FACEHUGGER_BLOCKING_HELMETS);
+    }
+
+    public static void punishBlockingHelmet(LivingEntity target) {
+        if (!(target.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        var helmet = target.getItemBySlot(EquipmentSlot.HEAD);
+        if (helmet.isEmpty()) {
+            return;
+        }
+
+        if (target.getRandom().nextFloat() < 0.05F) {
+            target.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+            target.spawnAtLocation(helmet);
+            target.playSound(SoundEvents.ITEM_BREAK, 1.0F, 1.0F);
+            return;
+        }
+
+        if (helmet.isDamageableItem() && target instanceof ServerPlayer player) {
+            helmet.hurtAndBreak(1, serverLevel, player, item -> {
+                target.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+            });
+        }
     }
 }
