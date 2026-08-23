@@ -93,5 +93,10 @@ public record ModTags() {
         CommonMod.modResource("burster_foods")
     );
 
+    public static final TagKey<Item> FACEHUGGER_BLOCKING_HELMETS = TagKey.create(
+        Registries.ITEM,
+        CommonMod.modResource("facehugger_blocking_helmets")
+    );
+
     public static final TagKey<Item> POTIONS = TagKey.create(Registries.ITEM, CommonMod.modResource("potions"));
 }
