@@ -18,7 +18,7 @@ import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
-import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 
 public record DodgeProjectileAction<E extends Mob>(int priority) implements Action<E> {
 

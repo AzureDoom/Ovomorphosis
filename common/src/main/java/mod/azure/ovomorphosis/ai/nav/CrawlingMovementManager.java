@@ -1,5 +1,6 @@
-package mod.azure.ovomorphosis.ai.util;
+package mod.azure.ovomorphosis.ai.nav;
 
+import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;

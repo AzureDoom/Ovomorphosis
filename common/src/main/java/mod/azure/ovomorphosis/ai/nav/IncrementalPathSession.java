@@ -1,5 +1,6 @@
-package mod.azure.ovomorphosis.ai.util;
+package mod.azure.ovomorphosis.ai.nav;
 
+import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;

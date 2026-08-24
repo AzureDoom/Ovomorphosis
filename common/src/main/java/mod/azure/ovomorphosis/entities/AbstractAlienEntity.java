@@ -15,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
-import mod.azure.ovomorphosis.ai.util.CrawlingManager;
+import mod.azure.ovomorphosis.ai.nav.CrawlingManager;
 import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 import mod.azure.ovomorphosis.util.ClientAnimState;
 import mod.azure.ovomorphosis.util.MobUtils;

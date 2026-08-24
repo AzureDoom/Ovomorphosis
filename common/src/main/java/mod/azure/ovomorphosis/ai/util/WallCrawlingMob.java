@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import mod.azure.ovomorphosis.ai.nav.CrawlingMovementManager;
 import net.minecraft.world.phys.Vec3;
 
 /**

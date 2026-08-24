@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.ai.core;
 
+import mod.azure.ovomorphosis.ai.roles.XenoRole;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 

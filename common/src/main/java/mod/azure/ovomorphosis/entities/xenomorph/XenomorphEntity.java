@@ -1,6 +1,8 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
 import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.ovomorphosis.ai.goap.*;
+import mod.azure.ovomorphosis.ai.nav.CrawlingMovementManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
@@ -35,10 +37,6 @@ import java.util.function.BiConsumer;
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
-import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
-import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.*;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;

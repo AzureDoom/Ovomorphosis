@@ -1,6 +1,7 @@
-package mod.azure.ovomorphosis.ai.goap;
+package mod.azure.ovomorphosis.ai.roles;
 
 import mod.azure.ovomorphosis.ai.core.AiKeys;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 /**

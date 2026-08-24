@@ -18,7 +18,7 @@ import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.core.InterruptCategory;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 public final class FleeFireAction<E extends Mob> implements Action<E> {

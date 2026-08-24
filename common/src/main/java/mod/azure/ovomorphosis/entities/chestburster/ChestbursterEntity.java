@@ -25,7 +25,7 @@ import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
-import mod.azure.ovomorphosis.ai.util.EmergencyDetector;
+import mod.azure.ovomorphosis.ai.goap.EmergencyDetector;
 import mod.azure.ovomorphosis.ai.util.NearestHostileTargetSelector;
 import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
