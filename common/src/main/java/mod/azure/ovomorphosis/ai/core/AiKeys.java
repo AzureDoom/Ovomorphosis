@@ -64,6 +64,14 @@ public final class AiKeys {
     /** Cooldown between leap-and-attach attempts (Facehugger). */
     public static final String GRAB_COOLDOWN = "grab_cooldown";
 
+    /**
+     * Game tick at which a mob was first noticed swimming with no live target and no blackboard destination.
+     * {@code SwimAction} uses this to give the mob a brief grace period of ordinary bobbing before it commits to
+     * beelining for the nearest shore — without it, any mob that happens to be idle while merely wet immediately
+     * abandons whatever it was doing to force its way onto land.
+     */
+    public static final String SWIM_STRANDED_SINCE_TICK = "swim_stranded_since_tick";
+
     /** Cooldown between resin block placements (Xenomorph hive building). */
     public static final String RESIN_PLACE_COOLDOWN = "resin_place_cooldown";
 
@@ -203,9 +211,11 @@ public final class AiKeys {
     public static final String XENO_ROLE = "xeno_role";
 
     /**
-     * Type: {@link WorldStateSnapshot}. The coarse world-state facts on record for whatever plan is currently in
-     * {@link #ACTIVE_GOAL}, captured by {@link GoalApplicator#apply} and compared against live state every tick by
-     * {@link PlanInvalidation} to force a replan the moment they diverge, independent of {@link #LAST_PLAN_FEEDBACK}.
+     * Type: {@link mod.azure.ovomorphosis.ai.goap.WorldStateSnapshot}. The coarse world-state facts on record for
+     * whatever plan is currently in {@link #ACTIVE_GOAL}, captured by
+     * {@link mod.azure.ovomorphosis.ai.goap.GoalApplicator#apply} and compared against live state every tick by
+     * {@link mod.azure.ovomorphosis.ai.goap.PlanInvalidation} to force a replan the moment they diverge, independent of
+     * {@link #LAST_PLAN_FEEDBACK}.
      */
     public static final String PLAN_WORLD_STATE = "plan_world_state";
 

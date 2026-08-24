@@ -8,8 +8,16 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Objects;
 
 import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 public record SwimAction<E extends Mob>(int priority) implements Action<E> {
+
+    /**
+     * Ticks a mob must be continuously idle (in water, no target, no destination) before {@link #tick} starts actively
+     * seeking the nearest shore instead of just leaving it to bob in place like normal idle behavior.
+     */
+    private static final long STRANDED_GRACE_TICKS = 60L;
 
     @Override
     public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {}
@@ -28,15 +36,46 @@ public record SwimAction<E extends Mob>(int priority) implements Action<E> {
                 ? Vec3.atBottomCenterOf(Objects.requireNonNull(blackboard.get(AiKeys.DESTINATION, BlockPos.class)))
                 : null;
 
+        if (destPos == null && mob instanceof AbstractAlienEntity alienEntity) {
+            var now = mob.level().getGameTime();
+            var strandedSince = blackboard.get(AiKeys.SWIM_STRANDED_SINCE_TICK, Long.class);
+
+            if (strandedSince == null) {
+                blackboard.set(AiKeys.SWIM_STRANDED_SINCE_TICK, now);
+            } else if (now - strandedSince >= STRANDED_GRACE_TICKS) {
+                var shore = TargetingUtils.findNearbyGroundPos(alienEntity);
+                if (shore != null) {
+                    destPos = Vec3.atBottomCenterOf(shore);
+                }
+            }
+        } else if (mob instanceof AbstractAlienEntity) {
+            blackboard.remove(AiKeys.SWIM_STRANDED_SINCE_TICK);
+        }
+
         if (destPos != null) {
             var toTarget = destPos.subtract(mob.position());
             var dist = toTarget.length();
 
             if (dist > 0.5D) {
                 var movement = toTarget.normalize().scale(0.22D);
+
+                var climbingLedge = false;
+                if (mob.horizontalCollision) {
+                    var liftedBox = mob.getBoundingBox().move(0.0D, 0.6D, 0.0D);
+                    if (mob.level().noCollision(mob, liftedBox)) {
+                        movement = new Vec3(movement.x, 0.5D, movement.z);
+                        climbingLedge = true;
+                    }
+                }
+
                 mob.setDeltaMovement(movement);
                 mob.hasImpulse = true;
                 faceMovementDirection(mob, movement);
+
+                if (climbingLedge) {
+                    mob.setDeltaMovement(mob.getDeltaMovement().x * 0.8, movement.y, mob.getDeltaMovement().z * 0.8);
+                    return ActionOutcome.RUNNING;
+                }
             } else {
                 mob.setDeltaMovement(Vec3.ZERO);
             }

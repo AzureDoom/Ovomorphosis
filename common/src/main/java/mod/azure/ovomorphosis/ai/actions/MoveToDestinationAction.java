@@ -166,10 +166,33 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         var mobFeetPos = BlockPos.containing(mob.getX(), mob.getBoundingBox().minY, mob.getZ());
         var groundBlock = mobFeetPos.below();
-        var mobOnSolidGround = !mob.level()
+        var mobInFluid = !mob.level().getBlockState(mobFeetPos).getFluidState().isEmpty();
+        var mobOnSolidGround = !mobInFluid && !mob.level()
             .getBlockState(groundBlock)
             .getCollisionShape(mob.level(), groundBlock)
             .isEmpty();
+
+        var pathStart = mobFeetPos;
+        var belowFeet = mob.level().getBlockState(mobFeetPos.below());
+        var feetOrBelowInFluid = mobInFluid || !belowFeet.getFluidState().isEmpty();
+
+        if (feetOrBelowInFluid) {
+            if (mobInFluid) {
+                if (mob.level().getBlockState(pathStart).getFluidState().isEmpty()) {
+                    for (int dy = 1; dy <= 3; dy++) {
+                        var candidate = pathStart.above(dy);
+                        if (!mob.level().getBlockState(candidate).getFluidState().isEmpty()) {
+                            pathStart = candidate;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                pathStart = mobFeetPos.below();
+            }
+        }
+
+        var fluidGoalRadius = feetOrBelowInFluid ? 2 : 0;
 
         var mobIsInOrAtTunnel = canCrawl
             && (CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
@@ -234,7 +257,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if ((repathCooldown <= 0 && destinationMovedFar) || path.isEmpty() || pathIndex >= path.size()) {
             lastPathedDestination = destination;
 
-            final var searchStart = mob.blockPosition();
+            final var searchStart = pathStart;
             final var searchGoal = destination;
 
             List<BlockPos> newPath;
@@ -247,7 +270,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
                 if (phasedSession == null || stale) {
                     sessionCache.clear();
-                    phasedSession = new PhasedPathSession(buildPhases(mob, searchStart, searchGoal));
+                    phasedSession = new PhasedPathSession(
+                        buildPhases(mob, searchStart, searchGoal, fluidGoalRadius)
+                    );
                     phasedSessionStart = searchStart;
                     phasedSessionGoal = searchGoal;
                     phasedSessionAgeTicks = 0;
@@ -267,15 +292,16 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 }
             } else {
                 if (canCrawl) {
-                    newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 96, 0);
+                    newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 96, fluidGoalRadius);
                     if (newPath.isEmpty()) {
-                        newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 96, 1);
+                        newPath = CrawlingCustomAStar
+                            .findPath(mob, searchStart, searchGoal, 96, Math.max(fluidGoalRadius, 1));
                     }
                     if (newPath.isEmpty()) {
-                        newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, 1);
+                        newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, Math.max(fluidGoalRadius, 1));
                     }
                 } else {
-                    newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, 1);
+                    newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, Math.max(fluidGoalRadius, 1));
                 }
             }
 
@@ -881,12 +907,18 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
      * relaxed-goal-radius crawl route, then a plain ground A* route as a last resort; for a non-crawling mob, just the
      * plain ground A* route.
      */
-    private List<PhasedPathSession.Phase> buildPhases(E mob, BlockPos searchStart, BlockPos searchGoal) {
+    private List<PhasedPathSession.Phase> buildPhases(
+        E mob,
+        BlockPos searchStart,
+        BlockPos searchGoal,
+        int fluidGoalRadius
+    ) {
         if (!canCrawl) {
             return List.of(
                 new PhasedPathSession.Phase(
                     "NORMAL_ASTAR",
-                    () -> IncrementalPathSession.normal(mob, searchStart, searchGoal, 64, 1)
+                    () -> IncrementalPathSession
+                        .normal(mob, searchStart, searchGoal, 64, Math.max(fluidGoalRadius, 1))
                 )
             );
         }
@@ -896,21 +928,23 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         phases.add(
             new PhasedPathSession.Phase(
                 "PRIMARY_CRAWL",
-                () -> IncrementalPathSession.crawling(mob, searchStart, searchGoal, 96, 0, sessionCache)
+                () -> IncrementalPathSession.crawling(mob, searchStart, searchGoal, 96, fluidGoalRadius, sessionCache)
             )
         );
 
         phases.add(
             new PhasedPathSession.Phase(
                 "RELAXED_CRAWL",
-                () -> IncrementalPathSession.crawling(mob, searchStart, searchGoal, 96, 1, sessionCache)
+                () -> IncrementalPathSession
+                    .crawling(mob, searchStart, searchGoal, 96, Math.max(fluidGoalRadius, 1), sessionCache)
             )
         );
 
         phases.add(
             new PhasedPathSession.Phase(
                 "NORMAL_ASTAR",
-                () -> IncrementalPathSession.normal(mob, searchStart, searchGoal, 64, 1)
+                () -> IncrementalPathSession
+                    .normal(mob, searchStart, searchGoal, 64, Math.max(fluidGoalRadius, 1))
             )
         );
 
