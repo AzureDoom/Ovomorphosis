@@ -70,7 +70,7 @@ public class XenomorphTree {
         var destinationMove = new MoveToDestinationAction<XenomorphEntity>(0.6D, 0.3D, 25, true);
         var moveToTargetCombat = new MoveToTargetAction<XenomorphEntity>(1.2D, 0.53D, 20, true);
         var moveToTargetAmbush = new MoveToTargetAction<XenomorphEntity>(0.6D, 0.22D, 18, true);
-        var swim = new SwimAction<XenomorphEntity>(200);
+        var swim = new SwimAction<XenomorphEntity>(95);
 
         var lunge = new LungeAction<XenomorphEntity>(
             105,

@@ -98,8 +98,7 @@ public final class TargetingUtils {
 
     public static Predicate<LivingEntity> notAnnoyingMobs() {
         return e -> !(e instanceof Bat || e instanceof Phantom) &&
-            !(e instanceof WaterAnimal) &&
-            !e.isInWater();
+            !(e instanceof WaterAnimal);
     }
 
     /**
@@ -218,14 +217,24 @@ public final class TargetingUtils {
             var below = candidate.below();
             if (
                 level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
+                    && level.getBlockState(candidate).getFluidState().isEmpty()
                     && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
             ) {
                 return candidate;
             }
         }
 
-        int[][] lateralDirs = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-        for (var radius = 1; radius <= 4; radius++) {
+        int[][] lateralDirs = {
+            { 1, 0 },
+            { -1, 0 },
+            { 0, 1 },
+            { 0, -1 },
+            { 1, 1 },
+            { 1, -1 },
+            { -1, 1 },
+            { -1, -1 }
+        };
+        for (var radius = 1; radius <= 24; radius++) {
             for (var dir : lateralDirs) {
                 var lateral = origin.offset(dir[0] * radius, 0, dir[1] * radius);
                 for (var dy = 0; dy <= 16; dy++) {
@@ -233,6 +242,7 @@ public final class TargetingUtils {
                     var below = candidate.below();
                     if (
                         level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
+                            && level.getBlockState(candidate).getFluidState().isEmpty()
                             && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
                     ) {
                         return candidate;
