@@ -1,10 +1,11 @@
 package mod.azure.ovomorphosis.ai.nav;
 
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
-import mod.azure.ovomorphosis.ai.util.IncrementalPathSession;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
+
+import mod.azure.ovomorphosis.ai.util.IncrementalPathSession;
 
 /**
  * Short-lived memoization cache for the expensive per-position classifications used by the custom pathfinders: physical

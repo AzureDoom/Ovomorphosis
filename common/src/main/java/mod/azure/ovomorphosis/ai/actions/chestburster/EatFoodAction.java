@@ -10,8 +10,8 @@ import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.ai.nav.MovementUtils;
+import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 

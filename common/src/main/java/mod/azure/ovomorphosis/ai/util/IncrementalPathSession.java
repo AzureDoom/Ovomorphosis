@@ -1,9 +1,5 @@
 package mod.azure.ovomorphosis.ai.util;
 
-import mod.azure.ovomorphosis.ai.nav.CrawlingCustomAStar;
-import mod.azure.ovomorphosis.ai.nav.CustomAStar;
-import mod.azure.ovomorphosis.ai.nav.PathNodeCache;
-import mod.azure.ovomorphosis.ai.nav.PhasedPathSession;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
@@ -12,6 +8,10 @@ import net.minecraft.world.phys.Vec3;
 import java.util.*;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.nav.CrawlingCustomAStar;
+import mod.azure.ovomorphosis.ai.nav.CustomAStar;
+import mod.azure.ovomorphosis.ai.nav.PathNodeCache;
+import mod.azure.ovomorphosis.ai.nav.PhasedPathSession;
 
 /**
  * A resumable A* search that spends a fixed, small node-expansion budget per call to {@link #step} instead of running

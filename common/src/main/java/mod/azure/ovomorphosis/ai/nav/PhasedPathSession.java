@@ -1,10 +1,11 @@
 package mod.azure.ovomorphosis.ai.nav;
 
-import mod.azure.ovomorphosis.ai.util.IncrementalPathSession;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
 import java.util.function.Supplier;
+
+import mod.azure.ovomorphosis.ai.util.IncrementalPathSession;
 
 /**
  * Chains a sequence of {@link IncrementalPathSession} attempts — e.g. "try the crawl-aware route to the target, then a

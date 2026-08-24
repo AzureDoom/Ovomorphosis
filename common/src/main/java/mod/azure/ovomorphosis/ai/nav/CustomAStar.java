@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.ai.nav;
 
-import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
@@ -10,6 +9,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.*;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**

@@ -1,11 +1,12 @@
 package mod.azure.ovomorphosis.ai.nav;
 
-import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
+
+import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 
 /**
  * Utility class that drives wall-crawling physics, orientation, and decision logic for mobs that implement
