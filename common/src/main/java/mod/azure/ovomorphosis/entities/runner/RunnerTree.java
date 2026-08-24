@@ -50,7 +50,7 @@ public class RunnerTree {
         var destinationMove = new MoveToDestinationAction<RunnerEntity>(0.6D, 0.3D, 25, true);
         var moveToTargetCombat = new MoveToTargetAction<RunnerEntity>(1.2D, 0.53D, 20, true);
         var moveToTargetAmbush = new MoveToTargetAction<RunnerEntity>(0.6D, 0.22D, 18, true);
-        var swim = new SwimAction<RunnerEntity>(200);
+        var swim = new SwimAction<RunnerEntity>(95);
 
         var lunge = new LungeAction<RunnerEntity>(
             105,

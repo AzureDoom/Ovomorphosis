@@ -41,6 +41,19 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
     private int circleDir = 1;
 
+    /**
+     * Consecutive times this action has bailed into {@link Phase#THREAT_RESPONSE} without landing a strike in between.
+     * THREAT_RESPONSE never transitions back into STRIKE on its own — it just circles and then ends the action (success
+     * or failure), handing control back to the tree. Since a player actively fighting the mob is, by definition, almost
+     * always looking at it, {@code isTargetFacingMob} was true on effectively every re-engagement, so the action would
+     * bail into THREAT_RESPONSE again on every restart — an infinite loop that never reaches STRIKE. Deliberately NOT
+     * reset in {@link #start}, since it needs to persist across the multiple start/stop cycles a real encounter goes
+     * through; only a landed hit resets it.
+     */
+    private int threatResponseStreak = 0;
+
+    private static final int MAX_CONSECUTIVE_THREAT_RESPONSES = 1;
+
     public XenomorphCombatAction(
         String cooldownKey,
         int cooldownTicks,
@@ -115,7 +128,11 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     private ActionOutcome tickStalk(E mob, LivingEntity target) {
         var distSq = mob.distanceToSqr(target);
 
-        if (distSq <= 7D * 7D && isTargetFacingMob(target, mob)) {
+        if (
+            distSq <= 7D * 7D && isTargetFacingMob(target, mob)
+                && threatResponseStreak < MAX_CONSECUTIVE_THREAT_RESPONSES
+        ) {
+            threatResponseStreak++;
             enterPhase(mob, Phase.THREAT_RESPONSE);
             return ActionOutcome.RUNNING;
         }
@@ -156,6 +173,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         if (!didStrike && phaseAge == 5) {
             if (MeleeHitResolver.tryStrike(mob, target, 2.8D)) {
                 didStrike = true;
+                threatResponseStreak = 0;
 
                 if (!target.isAlive()) {
                     blackboard.set(AiKeys.TARGET, null);

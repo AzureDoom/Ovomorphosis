@@ -52,7 +52,7 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         16.0,
         0.5,
         0.22,
-        5,
+        15,
         28,
         mob -> mob.animationDispatcher.serverEating()
     );

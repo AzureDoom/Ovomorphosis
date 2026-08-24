@@ -11,7 +11,18 @@ import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
-public record SwimAction<E extends Mob>(int priority) implements Action<E> {
+public record SwimAction<E extends Mob>(
+    int priority,
+    boolean pursueTarget
+) implements Action<E> {
+
+    /**
+     * Convenience constructor for predator mobs (Xenomorph, Runner, Facehugger) whose {@code AiKeys.TARGET} is
+     * something to chase — swimming toward it is the desired behavior.
+     */
+    public SwimAction(int priority) {
+        this(priority, true);
+    }
 
     /**
      * Ticks a mob must be continuously idle (in water, no target, no destination) before {@link #tick} starts actively
@@ -29,7 +40,7 @@ public record SwimAction<E extends Mob>(int priority) implements Action<E> {
         if (!mob.isInWater() && !mob.isInLava())
             return ActionOutcome.SUCCESS;
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = pursueTarget ? blackboard.get(AiKeys.TARGET, LivingEntity.class) : null;
         var destPos = target != null && target.isAlive()
             ? target.position().add(0, target.getBbHeight() * 0.5, 0)
             : blackboard.get(AiKeys.DESTINATION, BlockPos.class) != null
