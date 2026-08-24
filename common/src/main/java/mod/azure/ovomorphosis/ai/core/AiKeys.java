@@ -64,6 +64,14 @@ public final class AiKeys {
     /** Cooldown between leap-and-attach attempts (Facehugger). */
     public static final String GRAB_COOLDOWN = "grab_cooldown";
 
+    /**
+     * Game tick at which a mob was first noticed swimming with no live target and no blackboard destination.
+     * {@code SwimAction} uses this to give the mob a brief grace period of ordinary bobbing before it commits to
+     * beelining for the nearest shore — without it, any mob that happens to be idle while merely wet immediately
+     * abandons whatever it was doing to force its way onto land.
+     */
+    public static final String SWIM_STRANDED_SINCE_TICK = "swim_stranded_since_tick";
+
     /** Cooldown between resin block placements (Xenomorph hive building). */
     public static final String RESIN_PLACE_COOLDOWN = "resin_place_cooldown";
 
