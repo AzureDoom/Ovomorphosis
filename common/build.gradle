@@ -33,6 +33,7 @@ dependencies {
     compileOnly("com.avp.alien:avp_alien-neoforge-1.21.1:0.2.0-fork") {
         exclude group: 'org.slf4j', module: 'slf4j-api'
     }
+    compileOnly "com.azure.azurecortex:azurecortex-common-1.21.1:${azurecortex_version}"
 }
 
 configurations {
