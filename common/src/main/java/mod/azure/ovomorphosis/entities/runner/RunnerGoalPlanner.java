@@ -15,7 +15,7 @@ import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
-import mod.azure.ovomorphosis.ai.goap.XenoRole;
+import mod.azure.ovomorphosis.ai.roles.XenoRole;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetClassifier;
 

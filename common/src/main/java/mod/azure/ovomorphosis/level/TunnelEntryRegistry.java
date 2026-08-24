@@ -9,7 +9,7 @@ import net.minecraft.world.level.Level;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import mod.azure.ovomorphosis.ai.util.PathNodeCache;
+import mod.azure.ovomorphosis.ai.nav.PathNodeCache;
 
 /**
  * Server-side, chunk-bucketed index of known tunnel-entry positions (tight tunnels and vertical shafts), used so

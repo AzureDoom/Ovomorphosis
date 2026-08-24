@@ -1,15 +1,13 @@
-package mod.azure.ovomorphosis.ai.util;
+package mod.azure.ovomorphosis.ai.goap;
 
 import net.minecraft.world.entity.Mob;
 
 import mod.azure.ovomorphosis.ai.actions.ExplosiveFleeAction;
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
-import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
 
 /**
  * A cheap, pre-planner check for genuine emergencies (on fire, imminent explosion, critical health), used to supply
- * {@link GoalApplicator#shouldReplan(mod.azure.ovomorphosis.ai.core.Blackboard, int, GoalUrgency)} with a
+ * {@link GoalApplicator#shouldReplan(mod.azure.ovomorphosis.ai.core.Blackboard, int, GoalUrgency, Mob)} with a
  * {@code candidateUrgency} <em>before</em> the full {@code GoalPlanner.chooseGoal} has run.
  * <h3>Why this exists</h3> {@link GoalApplicator#shouldReplan} advertises an emergency override that bypasses the
  * min-commit lock, but that override only fires when the caller passes {@link GoalUrgency#EMERGENCY} as

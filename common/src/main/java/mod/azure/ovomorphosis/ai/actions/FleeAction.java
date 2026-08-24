@@ -7,7 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
-import mod.azure.ovomorphosis.ai.util.MovementUtils;
+import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 
 public final class FleeAction<E extends Mob> implements Action<E> {
 

@@ -1,5 +1,6 @@
-package mod.azure.ovomorphosis.ai.util;
+package mod.azure.ovomorphosis.ai.nav;
 
+import mod.azure.ovomorphosis.ai.util.IncrementalPathSession;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;

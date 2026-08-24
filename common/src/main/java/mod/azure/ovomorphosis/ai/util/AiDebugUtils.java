@@ -1,5 +1,7 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import mod.azure.ovomorphosis.ai.nav.CustomAStar;
+import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;

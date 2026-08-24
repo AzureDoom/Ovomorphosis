@@ -1,5 +1,9 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import mod.azure.ovomorphosis.ai.nav.CrawlingCustomAStar;
+import mod.azure.ovomorphosis.ai.nav.CustomAStar;
+import mod.azure.ovomorphosis.ai.nav.PathNodeCache;
+import mod.azure.ovomorphosis.ai.nav.PhasedPathSession;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;

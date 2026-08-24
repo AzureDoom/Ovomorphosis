@@ -1,4 +1,4 @@
-package mod.azure.ovomorphosis.ai.util;
+package mod.azure.ovomorphosis.ai.nav;
 
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.world.phys.Vec3;
