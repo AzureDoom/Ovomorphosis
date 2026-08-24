@@ -12,9 +12,9 @@ import java.util.List;
 
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 
 public final class WanderAction<E extends Mob> implements Action<E> {
 

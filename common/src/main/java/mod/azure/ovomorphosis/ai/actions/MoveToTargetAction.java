@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.ai.actions;
 
-import mod.azure.ovomorphosis.ai.nav.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,6 +17,7 @@ import java.util.List;
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.nav.*;
 import mod.azure.ovomorphosis.ai.util.*;
 import mod.azure.ovomorphosis.level.TunnelEntryRegistry;
 import mod.azure.ovomorphosis.util.ModTags;

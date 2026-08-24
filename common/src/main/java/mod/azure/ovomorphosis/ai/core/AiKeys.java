@@ -1,11 +1,11 @@
 package mod.azure.ovomorphosis.ai.core;
 
-import mod.azure.ovomorphosis.ai.roles.XenoRole;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.goap.*;
+import mod.azure.ovomorphosis.ai.roles.XenoRole;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphGoalPlanner;
 

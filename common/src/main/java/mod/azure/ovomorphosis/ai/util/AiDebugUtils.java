@@ -1,7 +1,5 @@
 package mod.azure.ovomorphosis.ai.util;
 
-import mod.azure.ovomorphosis.ai.nav.CustomAStar;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -9,6 +7,8 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.nav.CustomAStar;
+import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 
 /**
  * Utility methods for visualizing AI state with server-side particles during development.

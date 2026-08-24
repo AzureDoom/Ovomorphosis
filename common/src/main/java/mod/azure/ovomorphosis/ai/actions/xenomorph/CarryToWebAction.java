@@ -15,10 +15,10 @@ import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.nav.CrawlingCustomAStar;
-import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.nav.IncrementalPathSession;
 import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 import mod.azure.ovomorphosis.ai.nav.PathNodeCache;
+import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 

@@ -1,6 +1,5 @@
 package mod.azure.ovomorphosis.ai.nav;
 
-import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
@@ -16,6 +15,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 
 /**
  * A resumable A* search that spends a fixed, small node-expansion budget per call to {@link #step} instead of running
