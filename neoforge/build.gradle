@@ -42,12 +42,12 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 dependencies {
     implementation "mod.azure.azurelib:azurelib-neo-${minecraft_version}:${azurelib_version}"
-    jarJar(implementation("com.azure.azurecortex:azurecortex-neoforge-1.21.1:${azurecortex_version}")) {
-        version {
-            strictly "[${azurecortex_version}]"
-            prefer azurecortex_version
-        }
-    }
+//    jarJar(implementation("com.azure.azurecortex:azurecortex-neoforge-1.21.1:${azurecortex_version}")) {
+//        version {
+//            strictly "[${azurecortex_version}]"
+//            prefer azurecortex_version
+//        }
+//    }
     implementation "maven.modrinth:gigeresque:0.8.16"
     compileOnly("com.avp.alien:avp_alien-neoforge-1.21.1:0.2.0-fork") {
         exclude group: 'org.slf4j', module: 'slf4j-api'
