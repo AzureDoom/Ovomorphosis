@@ -123,7 +123,7 @@ public class CrawlingCustomAStar extends CustomAStar {
      * paths assembled incrementally across several ticks as {@link #findPath} applies to a path found in one
      * synchronous call.
      */
-    static List<BlockPos> filterTransitionNodes(
+    public static List<BlockPos> filterTransitionNodes(
         List<BlockPos> path,
         Level level,
         Mob mob,
@@ -149,7 +149,7 @@ public class CrawlingCustomAStar extends CustomAStar {
     }
 
     /** Package-visible so {@link IncrementalPathSession} can reuse it for consistent debug visualization. */
-    static void debugParticlePath(Mob mob, List<BlockPos> path, boolean fullPath) {
+    public static void debugParticlePath(Mob mob, List<BlockPos> path, boolean fullPath) {
         if (!(mob.level() instanceof ServerLevel serverLevel))
             return;
         if (path.isEmpty())

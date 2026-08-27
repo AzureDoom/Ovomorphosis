@@ -167,7 +167,7 @@ public class CustomAStar {
      * partial-path fallback — so the search keeps looking for (or reports failure to find) a route that actually
      * reaches the goal's level, instead of silently stopping under solid geometry.
      */
-    protected static boolean solidlySeparatedVertically(Level level, BlockPos pos, BlockPos goal) {
+    public static boolean solidlySeparatedVertically(Level level, BlockPos pos, BlockPos goal) {
         if (pos.getY() == goal.getY()) {
             return false;
         }
