@@ -7,7 +7,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,40 +22,19 @@ import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
-/**
- * Builds the hive's physical structure: first a hollow dome shell around a shared center, then random tunnels carving
- * outward from that dome once it's complete.
- * <h3>Shared structure, not per-mob blobs</h3> Every xenomorph's activation of this action contributes to the
- * <em>same</em> dome/tunnel network, tracked in the shared {@link HiveMemory} (persisted per-world, same object every
- * xenomorph reads/writes). The first xenomorph to attempt hive expansion with no existing structure claims its own
- * position as {@link HiveMemory#claimDomeCenter}; every activation after that — by any xenomorph, anywhere near the
- * structure — builds toward that one dome/tunnel network instead of starting a new one wherever it happens to be
- * standing.
- * <h3>Two phases</h3>
- * <ol>
- * <li><b>Dome</b> — while {@link HiveMemory#isDomeComplete()} is {@code false}, each activation scans a small area
- * around the <em>mob's own position</em> (not the far-off dome center) for candidate blocks that fall on the dome's
- * shell surface (a hollow hemisphere around the center) and are valid to replace. A mob has to actually be near the
- * shell to contribute on a given tick — this deliberately avoids needing dedicated pathfinding logic in this action;
- * xenomorphs already wander toward the hive/darkness over time (see {@code WanderAction}'s {@code preferDark} bias), so
- * the dome naturally accretes as mobs pass near it. Once enough shell blocks have been placed (a cheap running counter,
- * not an exhaustive scan), the dome is marked complete.</li>
- * <li><b>Tunnels</b> — once the dome is complete, activations instead look for an existing tunnel whose tip is near the
- * mob and extend it a few steps, or spawn a brand new tunnel (up to {@link #MAX_ACTIVE_TUNNELS} concurrent) from a
- * random point on the dome's outer surface, heading outward. A tunnel terminates naturally when its step budget runs
- * out or it runs into something it can't carve through.</li>
- * </ol>
- * <h3>What can be replaced</h3> Both phases accept a block as a valid dig/build target if it's either naturally
- * {@link BlockState#canBeReplaced()} (air, grass, flowers, ...) <em>or</em> tagged {@link ModTags#WEAK_BLOCKS} (dirt,
- * stone, sand, planks, wool, glass, ...) with a sane hardness — the same "soft enough to tunnel through" category used
- * elsewhere in the mod (e.g. {@code BreakToTargetAction}), rather than only ever filling in already-open space.
- */
 public final class PlaceResinAction<E extends Mob> implements Action<E> {
 
     private static final int MAX_LIGHT_LEVEL = 4;
 
-    /** How far around the mob's own position to scan for dome-shell or tunnel-adjacent candidates each activation. */
-    private static final int LOCAL_SCAN_RADIUS = 12;
+    /**
+     * How far around the mob's own position to scan for dome-shell or tunnel-adjacent candidates each activation. Wider
+     * than the dome's own {@link #DOME_RADIUS} band so a mob doesn't have to be standing almost exactly on the shell to
+     * find something to build — too small a margin here was the main cause of spurious
+     * {@link PlanFailureReason#FAILED_NO_VALID_PLACEMENT} results (and the resulting goal-suppression cooldown) once
+     * mobs wandered even a little off the shell, which made hive expansion feel rare despite the goal itself scoring
+     * highly while idle.
+     */
+    private static final int LOCAL_SCAN_RADIUS = 16;
 
     /** Outer radius of the dome hemisphere, measured from {@link HiveMemory#getDomeCenter()}. */
     private static final double DOME_RADIUS = 10.0D;
@@ -82,6 +60,44 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
 
     /** How many tunnel steps a single activation may carve, mirroring the dome phase's per-tick block cap. */
     private static final int MAX_TUNNEL_STEPS_PER_TICK = 6;
+
+    /**
+     * Chance that a freshly spawned tunnel aims back toward a distant, already-placed piece of hive structure (a known
+     * {@code RESIN_WEB_CROSS}) instead of straight outward from the dome. Without this, every tunnel radiates outward
+     * independently and the tunnel network stays a simple star with no cross-links; biasing a fraction of new tunnels
+     * toward existing structure instead lets branches curve back and intersect, growing one larger connected nest
+     * rather than several disjoint spokes.
+     */
+    private static final float RECONNECT_TUNNEL_CHANCE = 0.35F;
+
+    /**
+     * Minimum known {@code RESIN_WEB_CROSS} count before reconnect-targeting kicks in — a young hive barely has any
+     * structure yet, so there's nothing meaningfully distinct to connect back toward.
+     */
+    private static final int RECONNECT_MIN_KNOWN_CROSSES = 6;
+
+    /**
+     * Minimum distance a candidate reconnect target must be from the spawning mob for the resulting tunnel to be a
+     * meaningful connector rather than a trivial one-block "tunnel" back to wherever the mob is already standing.
+     */
+    private static final double RECONNECT_MIN_DISTANCE = 20.0D;
+
+    private static final double RECONNECT_MIN_DISTANCE_SQ = RECONNECT_MIN_DISTANCE * RECONNECT_MIN_DISTANCE;
+
+    /**
+     * Search radius, from a tunnel's current tip, within which an already-placed {@code RESIN_WEB_CROSS} will
+     * continuously pull that tunnel's heading toward it as it's carved (see {@link #extendTunnel}). This is what
+     * actually lets a reconnect-targeted tunnel (or any tunnel that happens to wander near existing structure) curve in
+     * and connect, rather than just starting out aimed at a target and then jittering away from it over its full
+     * length.
+     */
+    private static final double RECONNECT_BIAS_RADIUS = 40.0D;
+
+    /** How strongly each step's direction is pulled toward a nearby reconnect target, blended with normal jitter. */
+    private static final double RECONNECT_BIAS_WEIGHT = 0.3D;
+
+    /** Reconnect bias is skipped once a tunnel is this close to its target, letting normal carving finish the job. */
+    private static final double RECONNECT_ARRIVAL_DISTANCE = 4.0D;
 
     /**
      * Number of times, within a single tick, to reshuffle and retry the candidate list when the random per-candidate
@@ -245,7 +261,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         }
 
         if (tunnels.size() < MAX_ACTIVE_TUNNELS) {
-            var spawned = spawnTunnel(mob, domeCenter);
+            var spawned = spawnTunnel(mob, hiveMemory, domeCenter);
             if (spawned != null) {
                 tunnels.add(spawned);
 
@@ -282,13 +298,43 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
     }
 
     /**
-     * Picks a random point on the dome's outer surface and starts a new tunnel heading outward from it. Returns
-     * {@code null} if the mob isn't near enough to the dome to plausibly start one there (avoids spawning a tunnel
-     * whose starting tip is nowhere near any mob able to carve it).
+     * Picks a random already-known {@code RESIN_WEB_CROSS} position at least {@link #RECONNECT_MIN_DISTANCE} away from
+     * the mob to serve as a new tunnel's reconnect target, or {@code null} if the hive doesn't have enough established
+     * structure yet ({@link #RECONNECT_MIN_KNOWN_CROSSES}) or nothing qualifies. Picking randomly among qualifying
+     * candidates (rather than always the single nearest) spreads reconnect attempts across different parts of the hive
+     * instead of every tunnel converging on the same spot.
      */
-    private HiveMemory.TunnelState spawnTunnel(E mob, BlockPos domeCenter) {
+    private BlockPos findReconnectTarget(E mob, HiveMemory hiveMemory) {
+        var known = hiveMemory.getOwnedWebCrosses();
+        if (known.size() < RECONNECT_MIN_KNOWN_CROSSES)
+            return null;
+
+        var mobPos = mob.blockPosition();
+        List<BlockPos> candidates = new ArrayList<>();
+        for (var pos : known) {
+            if (mobPos.distSqr(pos) >= RECONNECT_MIN_DISTANCE_SQ)
+                candidates.add(pos);
+        }
+
+        if (candidates.isEmpty())
+            return null;
+
+        return candidates.get(mob.getRandom().nextInt(candidates.size()));
+    }
+
+    /**
+     * Picks a random point on the dome's outer surface and starts a new tunnel heading outward from it (or, with
+     * {@link #RECONNECT_TUNNEL_CHANCE} probability, leaning toward a distant piece of existing hive structure instead —
+     * see {@link #findReconnectTarget}). Returns {@code null} if the mob isn't near enough to the dome to plausibly
+     * start one there (avoids spawning a tunnel whose starting tip is nowhere near any mob able to carve it).
+     */
+    private HiveMemory.TunnelState spawnTunnel(E mob, HiveMemory hiveMemory, BlockPos domeCenter) {
         var random = mob.getRandom();
         var mobPos = mob.blockPosition();
+
+        var reconnectTarget = random.nextFloat() < RECONNECT_TUNNEL_CHANCE
+            ? findReconnectTarget(mob, hiveMemory)
+            : null;
 
         // Base the new tunnel's direction on the mob's own current bearing from the dome center (with random
         // jitter), rather than picking a fully independent random direction. An independently-random direction would
@@ -307,6 +353,23 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         }
         baseX /= baseLen;
         baseZ /= baseLen;
+
+        if (reconnectTarget != null) {
+            var toTargetX = reconnectTarget.getX() - mobPos.getX();
+            var toTargetZ = reconnectTarget.getZ() - mobPos.getZ();
+            var toTargetLen = Math.sqrt(toTargetX * toTargetX + toTargetZ * toTargetZ);
+            if (toTargetLen > 1.0E-4D) {
+                var blendedX = baseX * (1.0D - RECONNECT_BIAS_WEIGHT) + (toTargetX / toTargetLen)
+                    * RECONNECT_BIAS_WEIGHT;
+                var blendedZ = baseZ * (1.0D - RECONNECT_BIAS_WEIGHT) + (toTargetZ / toTargetLen)
+                    * RECONNECT_BIAS_WEIGHT;
+                var blendedLen = Math.sqrt(blendedX * blendedX + blendedZ * blendedZ);
+                if (blendedLen > 1.0E-4D) {
+                    baseX = blendedX / blendedLen;
+                    baseZ = blendedZ / blendedLen;
+                }
+            }
+        }
 
         var yawJitter = Math.toRadians((random.nextDouble() * 2.0D - 1.0D) * 35.0D);
         var cos = Math.cos(yawJitter);
@@ -398,6 +461,27 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
             );
             var newDirZ = tunnel.dirZ() + (random.nextDouble() * 2.0D - 1.0D) * jitter;
 
+            var reconnectTarget = hiveMemory.findNearestOwnedWebCross(level, tip, RECONNECT_BIAS_RADIUS);
+            if (reconnectTarget.isPresent()) {
+                var target = reconnectTarget.get();
+                var toTargetX = target.getX() - tip.getX();
+                var toTargetY = target.getY() - tip.getY();
+                var toTargetZ = target.getZ() - tip.getZ();
+                var toTargetLen = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY + toTargetZ * toTargetZ);
+
+                if (toTargetLen > RECONNECT_ARRIVAL_DISTANCE) {
+                    newDirX = newDirX * (1.0D - RECONNECT_BIAS_WEIGHT)
+                        + (toTargetX / toTargetLen) * RECONNECT_BIAS_WEIGHT;
+                    newDirY = Mth.clamp(
+                        newDirY * (1.0D - RECONNECT_BIAS_WEIGHT) + (toTargetY / toTargetLen) * RECONNECT_BIAS_WEIGHT,
+                        -0.6D,
+                        0.3D
+                    );
+                    newDirZ = newDirZ * (1.0D - RECONNECT_BIAS_WEIGHT)
+                        + (toTargetZ / toTargetLen) * RECONNECT_BIAS_WEIGHT;
+                }
+            }
+
             var len = Math.sqrt(
                 newDirX * newDirX
                     + newDirY * newDirY
@@ -448,7 +532,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
     /**
      * A block is a valid dig/build target if it's naturally replaceable (air, grass, flowers, ...) or tagged
      * {@link ModTags#WEAK_BLOCKS} with sane hardness — mirroring the "soft enough to carve through" category used
-     * elsewhere in the mod (e.g. {@code BreakToTargetAction}) — and isn't too brightly lit. Naturally-replaceable
+     * elsewhere in the mod (e.g. {@code BreakToTargetAction}) — and isn't either brightly lit. Naturally-replaceable
      * candidates additionally require an adjacent solid face so the dome doesn't sprout floating resin in open air;
      * weak-tagged solid blocks are inherently backed by whatever's around them, so that check is skipped for them.
      */
@@ -472,6 +556,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
     }
 
     private int placeBatch(E mob, HiveMemory hiveMemory, List<BlockPos> candidates) {
+        var level = mob.level();
         var count = 0;
 
         for (var attempt = 0; attempt < PLACEMENT_ROLL_RETRIES && count == 0; attempt++) {
@@ -483,16 +568,20 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
                 if (mob.getRandom().nextFloat() > 0.35F)
                     continue;
 
-                var placeResinCross = mob.getRandom().nextFloat() < 0.125F;
-                var newState = placeResinCross
-                    ? BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState()
-                    : BlockRegistry.RESIN.get()
-                        .defaultBlockState()
-                        .setValue(ResinBlock.LAYERS, 1 + mob.getRandom().nextInt(8));
+                if (isFloorBacked(level, pos)) {
+                    var placeResinCross = mob.getRandom().nextFloat() < 0.125F;
+                    var newState = placeResinCross
+                        ? BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState()
+                        : BlockRegistry.RESIN.get()
+                            .defaultBlockState()
+                            .setValue(ResinBlock.LAYERS, 1 + mob.getRandom().nextInt(8));
 
-                mob.level().setBlockAndUpdate(pos, newState);
-                if (placeResinCross)
-                    hiveMemory.trackOwnedWebCross(pos);
+                    level.setBlockAndUpdate(pos, newState);
+                    if (placeResinCross)
+                        hiveMemory.trackOwnedWebCross(pos);
+                } else {
+                    level.setBlockAndUpdate(pos, BlockRegistry.RESIN_BLOCK.get().defaultBlockState());
+                }
                 count++;
             }
         }
@@ -500,11 +589,27 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         return count;
     }
 
+    /**
+     * {@code true} if {@code pos} has a solid, face-sturdy block directly beneath it — the one support configuration
+     * the layered "nest" {@link ResinBlock} can actually survive on. Anything else that still counts as a valid
+     * placement target (backed from the side or above instead) is wall/ceiling-backed and must use the full-cube resin
+     * block instead.
+     */
+    private boolean isFloorBacked(Level level, BlockPos pos) {
+        var below = pos.below();
+        return level.getBlockState(below).isFaceSturdy(level, below, Direction.UP);
+    }
+
     private boolean hasAdjacentSolid(Level level, BlockPos target) {
         var below = target.below();
         var belowState = level.getBlockState(below);
 
         if (belowState.isFaceSturdy(level, below, Direction.UP))
+            return true;
+
+        var above = target.above();
+        var aboveState = level.getBlockState(above);
+        if (aboveState.isFaceSturdy(level, above, Direction.DOWN))
             return true;
 
         for (var dir : Direction.Plane.HORIZONTAL) {

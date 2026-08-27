@@ -150,9 +150,11 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
         if (memory != null) {
             var nearest = memory.findNearestOwnedWebCross(level, origin, 80.0);
-            if (nearest.isPresent()) {
-                resinCentre = nearest.get();
-            }
+            // No RESIN_WEB_CROSS placed yet — e.g. the hive is still early in the dome phase, before
+            // PlaceResinAction has happened to roll one of those instead of the far more common layered nest
+            // resin. Fall back to the claimed dome center itself so idle wandering still has a homing target in
+            // that phase too, instead of no bias at all until the first web cross happens to get placed.
+            resinCentre = nearest.orElseGet(() -> memory.getDomeCenter().orElse(null));
         }
 
         List<ScoredPos> candidates = new ArrayList<>(64);
@@ -201,13 +203,26 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         return candidates.getFirst().pos;
     }
 
+    /**
+     * Scores a candidate dark spot: darker is always better, and (when the hives whereabouts are known) moderately
+     * close to existing hive structure is better too. This previously rewarded being <em>far</em> from
+     * {@code resinCentre} once past the immediate 16-block ring, which — for idle wandering, the main consumer of
+     * {@code preferDark} — actively pushed a mob further from the hive the longer it wandered, rather than letting it
+     * drift back within range to keep contributing to {@code PlaceResinAction} (see that class's docs, which assume
+     * this bias pulls mobs back toward the hive over time). The bonus is capped to a moderate radius rather than
+     * favoring the closest possible spot, so mobs still spread out across the hive's territory instead of dogpiling the
+     * exact same corner.
+     */
     private static double scoreDarkPosition(BlockPos pos, BlockPos resinCentre, int totalLight) {
         var score = (4 - totalLight) * 10.0;
         if (totalLight == 0)
             score += 20.0;
 
-        if (resinCentre != null && resinCentre.distSqr(pos) >= 16D * 16D) {
-            score += 15.0;
+        if (resinCentre != null) {
+            var distSq = resinCentre.distSqr(pos);
+            if (distSq >= 16.0 * 16.0 && distSq <= 48.0 * 48.0) {
+                score += 15.0;
+            }
         }
 
         return score;

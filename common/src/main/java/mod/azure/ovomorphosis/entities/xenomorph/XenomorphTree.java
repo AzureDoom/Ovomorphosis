@@ -106,7 +106,7 @@ public class XenomorphTree {
             new AttackProfile<>("swipe_combo", swipeCombo, "swipe_combo", 0.0D, 2.5D, 100)
         );
 
-        var placeResin = new PlaceResinAction<XenomorphEntity>(3, 200);
+        var placeResin = new PlaceResinAction<XenomorphEntity>(3, 100);
         var destroyLight = new DestroyLightSourceAction<XenomorphEntity>(5);
         var breakToTarget = new BreakToTargetAction<XenomorphEntity>();
         var wander = new WanderAction<XenomorphEntity>(0.06D, 10, 6.0D, 60, 160, true);
@@ -336,7 +336,7 @@ public class XenomorphTree {
             if (
                 goalType == AiGoalType.EXPAND_HIVE
                     || (cooldowns.ready(AiKeys.RESIN_PLACE_COOLDOWN)
-                        && xenomorph.getRandom().nextFloat() < 0.4F
+                        && xenomorph.getRandom().nextFloat() < 0.75F
                         && !CrawlingMovementManager.wasRecentlyWallCrawling(xenomorph))
             ) {
                 return BehaviorResult.run(placeResin, 9);
