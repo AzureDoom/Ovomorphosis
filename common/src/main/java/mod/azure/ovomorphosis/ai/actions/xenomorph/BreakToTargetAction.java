@@ -59,7 +59,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
     private int breakId = -1;
 
     private int layersTunneled = 0;
-    
+
     private int tunnelStepX = 0;
 
     private int tunnelStepZ = 0;
