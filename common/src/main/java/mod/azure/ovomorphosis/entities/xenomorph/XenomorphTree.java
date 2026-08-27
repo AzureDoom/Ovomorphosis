@@ -207,7 +207,10 @@ public class XenomorphTree {
                 }
             }
 
-            if (goalType == AiGoalType.SEEK_DARKNESS || goalType == AiGoalType.AMBUSH_FROM_DARKNESS) {
+            if (
+                goalType == AiGoalType.SEEK_DARKNESS
+                    || (goalType == AiGoalType.AMBUSH_FROM_DARKNESS && currentTarget == null)
+            ) {
                 return BehaviorResult.run(wander, 11);
             }
 

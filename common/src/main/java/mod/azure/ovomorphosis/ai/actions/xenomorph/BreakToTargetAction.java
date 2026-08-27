@@ -5,6 +5,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -47,11 +48,21 @@ import mod.azure.ovomorphosis.util.ModTags;
  */
 public class BreakToTargetAction<E extends AbstractAlienEntity> implements Action<E> {
 
+    private static final int DOOR_SEARCH_RADIUS = 6;
+
+    private static final int MAX_TUNNEL_LAYERS = 4;
+
     private BlockPos targetBlock = null;
 
     private float breakProgress = 0f;
 
     private int breakId = -1;
+
+    private int layersTunneled = 0;
+
+    private int tunnelStepX = 0;
+
+    private int tunnelStepZ = 0;
 
     public BreakToTargetAction() {}
 
@@ -60,15 +71,11 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         targetBlock = null;
         breakProgress = 0f;
         breakId = mob.getId() ^ 0x3A7F_0000;
+        layersTunneled = 0;
+        tunnelStepX = 0;
+        tunnelStepZ = 0;
 
         var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
-        // Fix: only auto-arm on a stale BREAK_OBSTACLE goal type if this specific commitment hasn't already been
-        // resolved. ACTIVE_GOAL_TYPE stays BREAK_OBSTACLE for the planner's whole commit window (40-200 ticks)
-        // regardless of whether this action already broke the one real obstruction (or gave up) — without this
-        // guard, the tree would restart this action every tick for the rest of that window with nothing left to
-        // do, and movement/combat actions would never get a turn. A genuinely fresh BREAK_TO_TARGET_TRIGGER (set by
-        // MoveToTargetAction detecting a real, current obstruction — e.g. the second block of a 2-tall wall) still
-        // arms normally regardless of this flag, since that check comes first.
         if (
             activeGoal == AiGoalType.BREAK_OBSTACLE
                 && !blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)
@@ -109,33 +116,39 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             if (hint != null && isBreakable(level, hint, level.getBlockState(hint))) {
                 targetBlock = hint;
             } else {
-                // Prefer the exact blocking position(s) MoveToTargetAction traced and attached to a fresh
-                // FAILED_BLOCKED feedback over independently re-deriving a guess via our own ray-march below — the
-                // movement action already knows precisely what stopped it.
                 targetBlock = pickFromFeedback(mob, blackboard);
             }
             if (targetBlock == null) {
-                // Cheap fast path: a single ray toward the target resolves the common case (one wall block
-                // directly on the line to the target) with one clip() call instead of the full block-by-block
-                // march below. Only falls through to the march when the ray misses, hits something unbreakable,
-                // or the geometry is too indirect for a straight line to find (e.g. around a corner).
                 targetBlock = findObstructingBlockViaRay(mob, target);
             }
             if (targetBlock == null) {
                 targetBlock = findObstructingBlock(mob, target);
             }
 
+            if (targetBlock != null) {
+                var doorNearby = preferNearbyDoor(mob, level, targetBlock);
+                if (doorNearby != null) {
+                    targetBlock = doorNearby;
+                }
+            }
+
             if (targetBlock == null) {
                 blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
-                // Explicitly attribute to BREAK_OBSTACLE, not whatever goal happened to be active. This action is
-                // frequently auto-triggered opportunistically by MoveToTargetAction mid-chase (via
-                // BREAK_TO_TARGET_TRIGGER) while HUNT_TARGET is still the active goal — without this override, a
-                // failed break attempt would default to attributing the failure to HUNT_TARGET, which the planner's
-                // FAILED_OBSTACLE_UNBREAKABLE handling then heavily penalizes (huntScore -40, suppressed for 120
-                // ticks), making the mob refuse to press an otherwise perfectly viable attack for six real seconds
-                // just because an unrelated break attempt didn't pan out.
                 return ActionOutcome.failed(PlanFailureReason.FAILED_OBSTACLE_UNBREAKABLE, AiGoalType.BREAK_OBSTACLE);
             }
+
+            var centerX = targetBlock.getX() + 0.5D;
+            var centerZ = targetBlock.getZ() + 0.5D;
+            var dx = centerX - mob.getX();
+            var dz = centerZ - mob.getZ();
+            if (Math.abs(dx) >= Math.abs(dz)) {
+                tunnelStepX = dx >= 0 ? 1 : -1;
+                tunnelStepZ = 0;
+            } else {
+                tunnelStepX = 0;
+                tunnelStepZ = dz >= 0 ? 1 : -1;
+            }
+
             breakProgress = 0f;
         }
 
@@ -171,12 +184,20 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         if (breakProgress >= 1f) {
             level.destroyBlockProgress(breakId, targetBlock, -1);
             level.destroyBlock(targetBlock, true, mob);
-            targetBlock = null;
             breakProgress = 0f;
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
-            // Fix: report SUCCESS the instant the break completes, instead of falling through to RUNNING and
-            // waiting a further tick for the top-of-tick "no trigger" check to catch up. One idle tick isn't much
-            // on its own, but it's one more tick a higher-priority combat action has to wait to preempt this one.
+
+            if (layersTunneled < MAX_TUNNEL_LAYERS) {
+                var nextLayer = targetBlock.offset(tunnelStepX, 0, tunnelStepZ);
+                var nextState = level.getBlockState(nextLayer);
+                if (isBreakable(level, nextLayer, nextState) && isWithinReach(mob, nextLayer)) {
+                    targetBlock = nextLayer;
+                    layersTunneled++;
+                    return ActionOutcome.RUNNING;
+                }
+            }
+
+            targetBlock = null;
             return ActionOutcome.SUCCESS;
         }
 
@@ -190,11 +211,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         }
         targetBlock = null;
         breakProgress = 0f;
-        // Mark this BREAK_OBSTACLE commitment as resolved, regardless of why we're stopping. Safe even for a genuine
-        // mid-break INTERRUPTED: if the obstruction is still real, BREAK_TO_TARGET_TRIGGER is still set (tick()'s own
-        // cleanup only clears it on an actual SUCCESS/FAILURE resolution), and a set trigger bypasses this flag
-        // entirely in the tree's routing condition — so an interrupted-but-still-real obstruction can still be
-        // re-entered once whatever preempted this action clears.
+
         blackboard.set(AiKeys.BREAK_TO_TARGET_EXHAUSTED, Boolean.TRUE);
     }
 
@@ -326,7 +343,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         var z1 = to.getZ();
 
         var yMin = from.getY();
-        var yMax = from.getY() + 1; // feet + head only — never scan up a column into overhead foliage/canopy
+        var yMax = from.getY() + 1;
 
         var dx = Math.abs(x1 - x0);
         var dz = Math.abs(z1 - z0);
@@ -365,6 +382,52 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         }
 
         return null;
+    }
+
+    /**
+     * Looks for a door within range of {@code candidate} and returns it if found, so callers can prefer breaking an
+     * actual door over whatever wall segment they otherwise landed on. See the call site in {@link #tick} for why this
+     * matters — the fallback chain above frequently picks "whatever block the mob is pressed against" rather than the
+     * sensible entry point.
+     * <p>
+     * Two things keep this from picking a door the mob can't actually do anything with: the search box stays local to
+     * {@code candidate} (not a wide search from the mob or target), and every candidate door is filtered through
+     * {@link #isWithinReach} before being considered. Without the reach filter, a door found by a wide search but out
+     * of physical reach would keep winning this swap on every attempt without ever being breakable — the action bails
+     * on it via the {@code isWithinReach} check in {@link #tick}, falls back to movement, immediately re-collides with
+     * the original (reachable) candidate, and swaps to the same unreachable door again, forever.
+     *
+     * @return the nearest breakable, in-reach door block within range, or {@code null} if none is found
+     */
+    private static BlockPos preferNearbyDoor(AbstractAlienEntity mob, Level level, BlockPos candidate) {
+        BlockPos best = null;
+        var bestDistSq = Double.MAX_VALUE;
+        var cursor = new BlockPos.MutableBlockPos();
+
+        for (var dx = -DOOR_SEARCH_RADIUS; dx <= DOOR_SEARCH_RADIUS; dx++) {
+            for (var dy = -1; dy <= 2; dy++) {
+                for (var dz = -DOOR_SEARCH_RADIUS; dz <= DOOR_SEARCH_RADIUS; dz++) {
+                    cursor.setWithOffset(candidate, dx, dy, dz);
+                    var state = level.getBlockState(cursor);
+
+                    if (!(state.getBlock() instanceof DoorBlock) || !isBreakable(level, cursor, state)) {
+                        continue;
+                    }
+
+                    if (!isWithinReach(mob, cursor)) {
+                        continue;
+                    }
+
+                    var distSq = cursor.distSqr(candidate);
+                    if (distSq < bestDistSq) {
+                        bestDistSq = distSq;
+                        best = cursor.immutable();
+                    }
+                }
+            }
+        }
+
+        return best;
     }
 
     private static boolean isBreakable(Level level, BlockPos pos, BlockState state) {

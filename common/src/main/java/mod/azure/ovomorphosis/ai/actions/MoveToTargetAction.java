@@ -19,6 +19,7 @@ import mod.azure.ovomorphosis.ai.core.*;
 import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.nav.*;
 import mod.azure.ovomorphosis.ai.util.*;
+import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.level.TunnelEntryRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -41,6 +42,10 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
      */
     private static final int SOFT_NO_PROGRESS_TICKS = HARD_NO_PROGRESS_TICKS / 2;
 
+    private static final int ABSOLUTE_MAX_CHASE_TICKS = 100;
+
+    private int ticksSinceStart = 0;
+
     private int dangerLeapCooldown = 0;
 
     private final double stopDistanceSqr;
@@ -62,6 +67,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     private int detourTicks = 0;
 
     private int blockBreakCooldown = 0;
+
+    private int crowdPushCooldown = 0;
 
     private List<BlockPos> path = Collections.emptyList();
 
@@ -112,7 +119,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     private static final double PATH_SESSION_GOAL_DRIFT_SQ = 4.0D * 4.0D;
 
     /** Hard cap on how many ticks a single incremental session may run before it is abandoned and restarted. */
-    private static final int PATH_SESSION_MAX_AGE_TICKS = 100;
+    private static final int PATH_SESSION_MAX_AGE_TICKS = 40;
 
     /**
      * Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when they have an outcome to report this tick (a
@@ -158,12 +165,14 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
         detourDirection = Vec3.ZERO;
         detourTicks = 0;
         blockBreakCooldown = 0;
+        crowdPushCooldown = 0;
         dangerLeapCooldown = 0;
         path = Collections.emptyList();
         pathIndex = 0;
         repathCooldown = 0;
         lastDistSqToTarget = Double.MAX_VALUE;
         noProgressTicks = 0;
+        ticksSinceStart = 0;
         pendingOutcome = null;
         nodeCache.clear();
         cachedTunnelEntry = null;
@@ -180,6 +189,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     @Override
     public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
         nodeCache.clear();
+        ticksSinceStart++;
 
         if (mob.getHealth() <= 0) {
             mob.setAggressive(false);
@@ -593,6 +603,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
     ) {
         if (blockBreakCooldown > 0)
             blockBreakCooldown--;
+        if (crowdPushCooldown > 0)
+            crowdPushCooldown--;
         if (dangerLeapCooldown > 0)
             dangerLeapCooldown--;
 
@@ -612,16 +624,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             noProgressTicks++;
         }
 
-        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
-            // Hard termination guarantee: local recovery (detours, jumps, block-breaking) below is allowed to keep
-            // trying, and each successful recovery resets noProgressTicks — but if none of it has actually closed
-            // the distance to the target in HARD_NO_PROGRESS_TICKS ticks, stop retrying locally forever and bubble
-            // failure up to GOAP so the planner can pick a different goal (e.g. BREAK_OBSTACLE, INVESTIGATE).
-            //
-            // Trace what's actually ahead before giving up: if there's a real solid block in the way, report
-            // FAILED_BLOCKED with those exact positions attached so BreakToTargetAction can break precisely what
-            // stopped this mob instead of independently re-deriving a guess. If nothing solid is identifiable
-            // (mob is just failing to make headway for some other reason), fall back to the generic FAILED_STUCK.
+        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS || ticksSinceStart >= ABSOLUTE_MAX_CHASE_TICKS) {
             var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
             var blockingPositions = forwardDir.lengthSqr() > 0.01D
                 ? findForwardBlockingPositions(mob, target, forwardDir.normalize())
@@ -675,6 +678,16 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     faceTarget(mob, target);
                     return;
                 }
+            }
+        }
+
+        if (noProgressTicks > 15 && crowdPushCooldown <= 0) {
+            var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
+            if (forwardDir.lengthSqr() > 0.01D && tryPushThroughCrowd(mob, target, forwardDir.normalize())) {
+                crowdPushCooldown = 15;
+                stuckTicks = 0;
+                faceTarget(mob, target);
+                return;
             }
         }
 
@@ -1217,6 +1230,8 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
 
         if (blockBreakCooldown > 0)
             blockBreakCooldown--;
+        if (crowdPushCooldown > 0)
+            crowdPushCooldown--;
 
         var horizontal = new Vec3(direction.x, 0.0D, direction.z);
         var forward = horizontal.lengthSqr() > 0.01D ? horizontal.normalize() : Vec3.ZERO;
@@ -1229,7 +1244,7 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             noProgressTicks++;
         }
 
-        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS) {
+        if (noProgressTicks >= HARD_NO_PROGRESS_TICKS || ticksSinceStart >= ABSOLUTE_MAX_CHASE_TICKS) {
             var blockingPositions = forward.lengthSqr() > 0.0001D
                 ? findForwardBlockingPositions(mob, target, forward)
                 : List.<BlockPos>of();
@@ -1253,6 +1268,15 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                 blockBreakCooldown = 10;
                 stuckTicks = 0;
                 noProgressTicks = 0;
+                faceTarget(mob, target);
+                return;
+            }
+        }
+
+        if ((stuckTicks > 15 || noProgressTicks > 25) && crowdPushCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
+            if (tryPushThroughCrowd(mob, target, forward)) {
+                crowdPushCooldown = 15;
+                stuckTicks = 0;
                 faceTarget(mob, target);
                 return;
             }
@@ -1526,6 +1550,49 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Fallback for when the mob isn't making progress and there's no breakable block ahead — the obstruction is a press
+     * of other living entities rather than a wall, which is common when a target is inside a villager house crammed
+     * with villagers and iron golems. Vanilla entity-entity separation is too weak to reliably part a dense cluster
+     * like that on its own, especially against iron golems' large hitbox, so this explicitly shoves nearby blocking
+     * entities out of the mob's path and gives the mob a forward impulse to follow through.
+     * <p>
+     * Excludes the current {@code target} (shoving it away would be counterproductive) and other alien entities
+     * (hive-mates shouldn't be knocked around).
+     *
+     * @return {@code true} if at least one blocking entity was found and pushed
+     */
+    private boolean tryPushThroughCrowd(E mob, LivingEntity target, Vec3 forward) {
+        if (forward.lengthSqr() < 0.0001D) {
+            return false;
+        }
+
+        var probeBox = mob.getBoundingBox().inflate(0.2D).move(forward.x * 0.7D, 0.0D, forward.z * 0.7D);
+
+        var blockers = mob.level()
+            .getEntitiesOfClass(
+                LivingEntity.class,
+                probeBox,
+                e -> e != mob && e != target && e.isAlive() && !(e instanceof AbstractAlienEntity)
+            );
+
+        if (blockers.isEmpty()) {
+            return false;
+        }
+
+        for (var blocker : blockers) {
+            var away = blocker.position().subtract(mob.position());
+            var awayHorizontal = new Vec3(away.x, 0.0D, away.z);
+            var pushDir = awayHorizontal.lengthSqr() > 0.0001D ? awayHorizontal.normalize() : forward;
+            blocker.push(pushDir.x * 0.4D, 0.05D, pushDir.z * 0.4D);
+        }
+
+        mob.setDeltaMovement(forward.x * speed * 0.6D, mob.getDeltaMovement().y, forward.z * speed * 0.6D);
+        mob.hasImpulse = true;
+
+        return true;
     }
 
     private boolean canBreakPathBlock(E mob, BlockPos pos) {
