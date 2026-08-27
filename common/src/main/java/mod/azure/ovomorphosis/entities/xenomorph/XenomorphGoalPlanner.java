@@ -271,12 +271,9 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                     }
                 }
                 case FAILED_NO_VALID_PLACEMENT -> {
-                    // Resin placement found nowhere valid to place at all — suppress EXPAND_HIVE here for a
-                    // cooldown window and nudge the mob toward wandering/repositioning instead of recommitting to
-                    // the same doomed spot next planning cycle.
                     hiveScore -= PENALTY_FAILED;
                     wanderScore += 25f;
-                    gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 150);
+                    gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 60);
                 }
                 case FAILED_NO_WEB -> {
                     hiveScore += BOOST_HIVE;

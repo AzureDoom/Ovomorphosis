@@ -75,10 +75,19 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
 
         if (lightBlock == null) {
             lightBlock = findBrightestLightBlock(mob);
+
+            // Rescan cooldown must be set here regardless of whether a light was actually found. It previously was
+            // only set on the success path below, which meant a cave with no destroyable light source at all (e.g.
+            // only lava/magma, both explicitly excluded by findBrightestLightBlock, or glow lichen too dim to clear
+            // the emission-8 threshold) left this action's cooldown perpetually "ready" — every planning cycle would
+            // then re-roll the tree's 90% chance to reselect this same doomed action, crowding out everything else
+            // (hive expansion included) indefinitely instead of only retrying every postBreakCooldownTicks-ish
+            // interval like it's meant to.
+            cooldowns.set(AiKeys.LIGHT_SCAN_COOLDOWN, 40);
+
             if (lightBlock == null) {
                 return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
             }
-            cooldowns.set(AiKeys.LIGHT_SCAN_COOLDOWN, 40);
             breakProgress = 0f;
             stuckTimer = 0;
             lastHorizDistSq = Double.MAX_VALUE;
