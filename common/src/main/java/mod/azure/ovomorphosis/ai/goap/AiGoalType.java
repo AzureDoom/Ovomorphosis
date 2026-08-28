@@ -29,5 +29,6 @@ public enum AiGoalType {
     SEEK_DARKNESS,
     AMBUSH_FROM_DARKNESS,
     LURE_TARGET,
+    VENT_TRAVERSAL,
     BREAK_OBSTACLE,
 }

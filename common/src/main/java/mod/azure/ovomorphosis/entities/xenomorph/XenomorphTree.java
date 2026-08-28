@@ -63,6 +63,9 @@ public class XenomorphTree {
      */
     private static final int DARK_HAVEN_MAX_LIGHT = 4;
 
+    /** Squared distance at which a mob heading for a vent entrance is considered to have arrived at it. */
+    private static final double VENT_ARRIVAL_RANGE_SQR = 2.0 * 2.0;
+
     public static BehaviorNode<XenomorphEntity> create() {
         var dodge = new DodgeProjectileAction<XenomorphEntity>(130);
         var fleeFire = new FleeFireAction<XenomorphEntity>(125);
@@ -107,6 +110,7 @@ public class XenomorphTree {
         );
 
         var placeResin = new PlaceResinAction<XenomorphEntity>(3, 100);
+        var ventTraversal = new VentTraversalAction<XenomorphEntity>(90);
         var destroyLight = new DestroyLightSourceAction<XenomorphEntity>(5);
         var breakToTarget = new BreakToTargetAction<XenomorphEntity>();
         var wander = new WanderAction<XenomorphEntity>(0.06D, 10, 6.0D, 60, 160, true);
@@ -215,6 +219,19 @@ public class XenomorphTree {
                 if (dest != null && !pursuerCaughtUp) {
                     blackboard.set(AiKeys.DESTINATION, dest);
                     return BehaviorResult.run(destinationMove, 90);
+                }
+            }
+
+            if (goalType == AiGoalType.VENT_TRAVERSAL) {
+                var entrance = blackboard.get(AiKeys.VENT_ENTRANCE, BlockPos.class);
+                var exit = blackboard.get(AiKeys.VENT_EXIT, BlockPos.class);
+                if (entrance != null && exit != null) {
+                    var arrivedAtEntrance = xenomorph.blockPosition().distSqr(entrance) <= VENT_ARRIVAL_RANGE_SQR;
+                    if (!arrivedAtEntrance) {
+                        blackboard.set(AiKeys.DESTINATION, entrance);
+                        return BehaviorResult.run(destinationMove, 90);
+                    }
+                    return BehaviorResult.run(ventTraversal, 90);
                 }
             }
 

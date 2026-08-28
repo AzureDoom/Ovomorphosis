@@ -9,10 +9,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import java.util.function.Supplier;
 
-import mod.azure.ovomorphosis.blocks.AbstractResinBlock;
-import mod.azure.ovomorphosis.blocks.ResinBlock;
-import mod.azure.ovomorphosis.blocks.ResinWebBlock;
-import mod.azure.ovomorphosis.blocks.ResinWebFullBlock;
+import mod.azure.ovomorphosis.blocks.*;
 import mod.azure.ovomorphosis.services.XenoServices;
 
 public class BlockRegistry {
@@ -36,6 +33,18 @@ public class BlockRegistry {
         () -> new AbstractResinBlock(
             BlockBehaviour.Properties.of().sound(SoundType.MOSS).strength(5.0f, 8.0f).randomTicks()
         ) {}
+    );
+
+    public static final Supplier<Block> RESIN_VENT = registerBlock(
+        "resin_vent",
+        () -> new VentBlock(
+            BlockBehaviour.Properties.of().sound(SoundType.METAL).strength(5.0f, 8.0f)
+        )
+    );
+
+    public static final Supplier<BlockItem> RESIN_VENT_ITEM = ItemRegistry.registerItem(
+        "resin_vent",
+        () -> new BlockItem(RESIN_VENT.get(), new Item.Properties())
     );
 
     public static final Supplier<BlockItem> RESIN_BLOCK_ITEM = ItemRegistry.registerItem(
