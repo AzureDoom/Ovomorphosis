@@ -28,5 +28,6 @@ public enum AiGoalType {
     RETREAT_TO_RESIN,
     SEEK_DARKNESS,
     AMBUSH_FROM_DARKNESS,
+    LURE_TARGET,
     BREAK_OBSTACLE,
 }

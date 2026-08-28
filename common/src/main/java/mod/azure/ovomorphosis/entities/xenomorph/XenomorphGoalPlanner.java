@@ -1,7 +1,10 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
@@ -56,6 +59,47 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
 
     /** Max local light level a hive position can have and still count as a viable dark hideout. */
     private static final int DARK_HAVEN_MAX_LIGHT = 4;
+
+    /**
+     * How stale {@link mod.azure.ovomorphosis.ai.core.AiKeys#LAST_SEEN_TICK} can be before INVESTIGATE gives up on
+     * extrapolating an interception point and just walks to the raw last-seen block instead. Beyond this, the target
+     * could plausibly be almost anywhere, so guessing a specific heading stops being worth the confidence it implies.
+     */
+    private static final int MAX_PREDICTION_STALENESS_TICKS = 60;
+
+    /**
+     * Minimum horizontal speed (blocks/tick) the target must have had when last seen for INVESTIGATE to bother
+     * extrapolating ahead at all. Below this they were essentially standing still, so the last-seen block already is
+     * the best guess and a "predicted" point would just be jitter.
+     */
+    private static final double MIN_PREDICTION_SPEED = 0.02D;
+
+    /** Floor on how far ahead of the last-seen block to search, once extrapolation is worth doing at all. */
+    private static final double MIN_PREDICTION_DISTANCE = 2.0D;
+
+    /**
+     * Ceiling on how far ahead of the last-seen block to search, regardless of how fast the target was moving or how
+     * long they've been out of sight — keeps a lucky sprint-away from sending the mob on a long, low-confidence beeline
+     * instead of a search.
+     */
+    private static final double MAX_PREDICTION_DISTANCE = 8.0D;
+
+    /**
+     * Per-eligible-planning-cycle chance of a healthy, actively-pursued mob choosing to feign retreat toward a dark
+     * ambush spot instead of continuing to press the fight (see {@link AiGoalType#LURE_TARGET}). Deliberately low —
+     * combined with {@link mod.azure.ovomorphosis.ai.core.AiKeys#LURE_COOLDOWN} below, this is meant to surface only
+     * occasionally across a long fight, not on a predictable schedule.
+     */
+    private static final float LURE_CHANCE = 0.08f;
+
+    /** Below this squared distance the pursuer is already close enough that fighting beats fleeing toward a lure. */
+    private static final double LURE_MIN_PURSUIT_DIST_SQ = 3.0D * 3.0D;
+
+    /** Beyond this squared distance the target isn't credibly "in pursuit" — too far off to be actively chasing. */
+    private static final double LURE_MAX_PURSUIT_DIST_SQ = 20.0D * 20.0D;
+
+    /** Minimum ticks between LURE_TARGET selections (30s), set only when it's actually the winning goal. */
+    private static final int LURE_COOLDOWN_TICKS = 600;
 
     /** Squared distance at which the mob is considered to have "arrived" at its dark hideout. */
     private static final double DARK_HAVEN_ARRIVAL_RANGE_SQR = 6.0 * 6.0;
@@ -142,10 +186,11 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         var seekDarknessScore = 0f;
         var ambushFromDarknessScore = 0f;
         var wanderScore = 5f;
+        var targetFacingMob = false;
 
         if (hasTarget) {
             var distSq = mob.distanceToSqr(target);
-            var targetFacingMob = isTargetFacingMob(target, mob);
+            targetFacingMob = isTargetFacingMob(target, mob);
 
             huntScore = 70f + (targetFacingMob ? 20f : 0f);
 
@@ -217,6 +262,29 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 // it, so a genuinely dangerous pursuer still gets outrun rather than fought.
                 ambushFromDarknessScore += opponentIsWeak ? 60f : 25f;
             }
+        }
+
+        // --- Deliberate false retreat (LURE_TARGET) -------------------------------------------------------------
+        // Distinct from the health-driven retreat above: this is a *healthy* mob choosing to disengage, not one
+        // that's losing. A pursuing target plus a known dark ambush route is an opportunity to draw them somewhere
+        // less favorable for them rather than only ever meeting the chase head-on. "Pursuing" is approximated by the
+        // target actively facing the mob within a plausible chase distance — neither already at melee range (no
+        // point luring instead of just fighting) nor far enough off that they're not really giving chase.
+        var pursuitDistSq = hasTarget ? mob.distanceToSqr(target) : 0.0;
+        var targetIsPursuing = hasTarget
+            && targetFacingMob
+            && pursuitDistSq >= LURE_MIN_PURSUIT_DIST_SQ
+            && pursuitDistSq <= LURE_MAX_PURSUIT_DIST_SQ;
+
+        var lureScore = 0f;
+        if (
+            healthyAggressive
+                && targetIsPursuing
+                && darkHaven.isPresent()
+                && cooldowns.ready(AiKeys.LURE_COOLDOWN)
+                && mob.getRandom().nextFloat() < LURE_CHANCE
+        ) {
+            lureScore = 65f;
         }
 
         var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
@@ -320,6 +388,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         investigateScore -= gfc.getPenalty(AiGoalType.INVESTIGATE, tick);
         seekDarknessScore -= gfc.getPenalty(AiGoalType.SEEK_DARKNESS, tick);
         ambushFromDarknessScore -= gfc.getPenalty(AiGoalType.AMBUSH_FROM_DARKNESS, tick);
+        lureScore -= gfc.getPenalty(AiGoalType.LURE_TARGET, tick);
 
         FleeFireAction.tickFireAttackerMemory(blackboard, tick);
 
@@ -405,6 +474,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         investigateScore = Math.max(0f, investigateScore);
         seekDarknessScore = Math.max(0f, seekDarknessScore);
         ambushFromDarknessScore = Math.max(0f, ambushFromDarknessScore);
+        lureScore = Math.max(0f, lureScore);
 
         var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
         if (activeGoalType != null) {
@@ -420,6 +490,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 case WANDER -> wanderScore += HYSTERESIS_BONUS;
                 case SEEK_DARKNESS -> seekDarknessScore += HYSTERESIS_BONUS;
                 case AMBUSH_FROM_DARKNESS -> ambushFromDarknessScore += HYSTERESIS_BONUS;
+                case LURE_TARGET -> lureScore += HYSTERESIS_BONUS;
                 default -> {}
             }
         }
@@ -442,6 +513,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 new Candidate(AiGoalType.INVESTIGATE, investigateScore),
                 new Candidate(AiGoalType.SEEK_DARKNESS, seekDarknessScore),
                 new Candidate(AiGoalType.AMBUSH_FROM_DARKNESS, ambushFromDarknessScore),
+                new Candidate(AiGoalType.LURE_TARGET, lureScore),
             }
         ) {
             if (c.score() > best.score())
@@ -509,7 +581,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 urgency = GoalUrgency.NORMAL;
                 interruptible = true;
                 chosenDest = lastSeenPos != null
-                    ? lastSeenPos
+                    ? predictInterceptPosition(mob, blackboard, lastSeenPos, tick)
                     : (feedback != null ? feedback.failurePos() : null);
                 reason = buildReason("Investigating last known position", feedback);
                 chosenTarget = null;
@@ -519,6 +591,13 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 interruptible = true;
                 reason = "Exposed or hurt — seeking darkness";
                 chosenTarget = null;
+            }
+            case LURE_TARGET -> {
+                urgency = GoalUrgency.NORMAL;
+                interruptible = true;
+                reason = "Feigning retreat to lure pursuer into a dark ambush";
+                chosenDest = darkHaven.orElse(null);
+                cooldowns.set(AiKeys.LURE_COOLDOWN, LURE_COOLDOWN_TICKS);
             }
             case AMBUSH_FROM_DARKNESS -> {
                 urgency = GoalUrgency.NORMAL;
@@ -564,7 +643,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         return switch (chosen) {
             case HUNT_TARGET -> XenoRole.HUNTER;
             case AMBUSH_TARGET, SEEK_DARKNESS,
-                AMBUSH_FROM_DARKNESS -> XenoRole.STALKER;
+                AMBUSH_FROM_DARKNESS, LURE_TARGET -> XenoRole.STALKER;
             case DEFEND_HIVE -> XenoRole.DEFENDER;
             case EXPAND_HIVE -> XenoRole.HIVE_SPREADER;
             case RETREAT_TO_RESIN -> XenoRole.RETREATER;
@@ -588,6 +667,59 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
     private static boolean isTargetFacingMob(LivingEntity target, XenomorphEntity mob) {
         var toMob = mob.position().subtract(target.position()).normalize();
         return target.getLookAngle().dot(toMob) > 0.5D;
+    }
+
+    /**
+     * Extrapolates a believable search point beyond {@code lastSeenPos} using the target's heading when last seen
+     * ({@code lastSeenPos + normalize(lastSeenVelocity) * predictionDistance}), instead of INVESTIGATE only ever
+     * walking to the exact last-seen block. This is what lets a mob that loses sight of a target rounding a corner
+     * plausibly cut them off further down a hallway rather than beelining for the doorway and only re-acquiring once
+     * it's already there.
+     * <p>
+     * Falls back to the raw {@code lastSeenPos} whenever extrapolating isn't warranted: no recorded velocity, the
+     * sighting is stale enough ({@link #MAX_PREDICTION_STALENESS_TICKS}) that the target could plausibly be almost
+     * anywhere, the target was essentially stationary when last seen ({@link #MIN_PREDICTION_SPEED}), or the projected
+     * point lands somewhere clearly not stand-able (e.g. embedded in the wall around the very corner that broke line of
+     * sight).
+     */
+    private static BlockPos predictInterceptPosition(
+        XenomorphEntity mob,
+        Blackboard blackboard,
+        BlockPos lastSeenPos,
+        int tick
+    ) {
+        var velocity = blackboard.get(AiKeys.LAST_SEEN_VELOCITY, Vec3.class);
+        var lastSeenTick = blackboard.get(AiKeys.LAST_SEEN_TICK, Integer.class);
+
+        if (velocity == null || lastSeenTick == null)
+            return lastSeenPos;
+
+        var elapsed = tick - lastSeenTick;
+        if (elapsed < 0 || elapsed > MAX_PREDICTION_STALENESS_TICKS)
+            return lastSeenPos;
+
+        var horizSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+        if (horizSpeed < MIN_PREDICTION_SPEED)
+            return lastSeenPos;
+
+        var predictionDistance = Mth.clamp(horizSpeed * elapsed, MIN_PREDICTION_DISTANCE, MAX_PREDICTION_DISTANCE);
+        var dirX = velocity.x / horizSpeed;
+        var dirZ = velocity.z / horizSpeed;
+
+        var predicted = new BlockPos(
+            Mth.floor(lastSeenPos.getX() + dirX * predictionDistance),
+            lastSeenPos.getY(),
+            Mth.floor(lastSeenPos.getZ() + dirZ * predictionDistance)
+        );
+
+        return isStandable(mob.level(), predicted) ? predicted : lastSeenPos;
+    }
+
+    /** {@code true} if {@code pos} is open space with solid footing beneath it — a plausible place to search. */
+    private static boolean isStandable(Level level, BlockPos pos) {
+        var below = pos.below();
+        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
+            && !level.getBlockState(below).getCollisionShape(level, below).isEmpty();
     }
 
     private static String buildReason(String base, PlanFeedback feedback) {

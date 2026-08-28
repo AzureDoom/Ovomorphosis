@@ -23,10 +23,37 @@ public final class AiKeys {
 
     public static final String GOAL_TARGET = "goal_target";
 
-    /** Last confirmed world position where the active target was seen. Used by INVESTIGATE goals. */
+    /**
+     * Last confirmed world position where the active target was seen. Used by INVESTIGATE goals.
+     * <p>
+     * Written by {@link mod.azure.ovomorphosis.ai.util.TargetingSystem} only on ticks where the mob has genuine,
+     * unobstructed line of sight to the target — as opposed to {@link #LAST_KNOWN_TARGET_POS}, which tracks the
+     * target's live position regardless of visibility. That distinction is what makes this key meaningful as a "last
+     * seen" snapshot: it freezes the moment sight is lost (e.g. the target ducks around a corner) rather than
+     * continuing to update, giving {@link #LAST_SEEN_VELOCITY}/{@link #LAST_SEEN_TICK} something genuine to extrapolate
+     * a search point from.
+     */
     public static final String LAST_SEEN_POS = "last_seen_pos";
 
-    /** Alias kept for legacy action references; prefer {@link #LAST_SEEN_POS} for new code. */
+    /**
+     * The target's horizontal velocity ({@link net.minecraft.world.phys.Vec3}, y always {@code 0}) at the moment
+     * {@link #LAST_SEEN_POS} was last updated. Used by INVESTIGATE goals to extrapolate a believable interception point
+     * ({@code lastSeenPos + normalize(lastSeenVelocity) * predictionDistance}) rather than only ever walking to the
+     * exact last-seen block.
+     */
+    public static final String LAST_SEEN_VELOCITY = "last_seen_velocity";
+
+    /**
+     * Game tick at which {@link #LAST_SEEN_POS} was last updated. Lets INVESTIGATE goals scale how far to extrapolate
+     * ahead by how long the target has actually been out of sight, and discard the prediction entirely once it's stale
+     * enough that the target could be almost anywhere.
+     */
+    public static final String LAST_SEEN_TICK = "last_seen_tick";
+
+    /**
+     * Wherever the target currently is, updated every tick it's alive regardless of line of sight. Distinct from
+     * {@link #LAST_SEEN_POS}, which only updates when the target is genuinely visible.
+     */
     public static final String LAST_KNOWN_TARGET_POS = "last_known_target_pos";
 
     /**
@@ -81,6 +108,13 @@ public final class AiKeys {
 
     /** Cooldown between light-source destruction scans (Xenomorph). */
     public static final String LIGHT_SCAN_COOLDOWN = "light_scan_cooldown";
+
+    /**
+     * Cooldown between LURE_TARGET selections (Xenomorph). Deliberately long relative to how rarely the goal scores
+     * highly in the first place — see {@code XenomorphGoalPlanner}'s lure scoring — so a false-retreat-into-ambush
+     * doesn't repeat often enough for a player to recognize it as a scripted mechanic.
+     */
+    public static final String LURE_COOLDOWN = "lure_cooldown";
 
     /**
      * Set to {@code true} by {@code BreakToTargetAction} when it determines a block needs to be broken to reach the
