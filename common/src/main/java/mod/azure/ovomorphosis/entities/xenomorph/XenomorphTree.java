@@ -66,6 +66,12 @@ public class XenomorphTree {
     /** Squared distance at which a mob heading for a vent entrance is considered to have arrived at it. */
     private static final double VENT_ARRIVAL_RANGE_SQR = 2.0 * 2.0;
 
+    /**
+     * Squared distance at which a mob heading for a known nest breach is considered close enough for PlaceResinAction's
+     * own local candidate scan to pick it up (that scan's LOCAL_SCAN_RADIUS is 16, so this is comfortably inside that).
+     */
+    private static final double BREACH_ARRIVAL_RANGE_SQR = 10.0 * 10.0;
+
     public static BehaviorNode<XenomorphEntity> create() {
         var dodge = new DodgeProjectileAction<XenomorphEntity>(130);
         var fleeFire = new FleeFireAction<XenomorphEntity>(125);
@@ -176,17 +182,11 @@ public class XenomorphTree {
                 return BehaviorResult.run(fleeExplosive, 120);
             }
 
-            // Critical health emergency: reuse the ordinary destination-move action (also used for the softer,
-            // non-emergency low-health retreat below and for other non-emergency goals), but tag this particular
-            // selection as InterruptCategory.EMERGENCY so it can preempt a LOCKED action (e.g. mid-carry) instead of
-            // waiting for CarryToWebAction's own termination guarantees or the goal's max-commit expiry.
             if (
                 xenomorph.getMaxHealth() > 0f
                     && xenomorph.getHealth() <= xenomorph.getMaxHealth() * CRITICAL_HEALTH_FRACTION
             ) {
                 var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
-                // Prefer a genuinely dark hideout over just "the closest bit of hive" — falls back to any owned web
-                // cross if nothing dark enough is in range, since some cover beats none.
                 var safeHaven = memory != null
                     ? memory.findNearestDarkOwnedWebCross(
                         xenomorph.level(),
@@ -351,6 +351,17 @@ public class XenomorphTree {
                         blackboard.set(AiKeys.DESTINATION, groundPos);
                 }
                 return BehaviorResult.run(destinationMove, 5);
+            }
+
+            if (goalType == AiGoalType.EXPAND_HIVE) {
+                var breachDest = blackboard.get(AiKeys.HIVE_BREACH_DEST, BlockPos.class);
+                if (breachDest != null) {
+                    var closeEnough = xenomorph.blockPosition().distSqr(breachDest) <= BREACH_ARRIVAL_RANGE_SQR;
+                    if (!closeEnough) {
+                        blackboard.set(AiKeys.DESTINATION, breachDest);
+                        return BehaviorResult.run(destinationMove, 9);
+                    }
+                }
             }
 
             if (

@@ -138,6 +138,16 @@ public final class AiKeys {
     public static final String VENT_SYNC_COOLDOWN = "vent_sync_cooldown";
 
     /**
+     * Position of a known hive breach the mob is currently en route to repair, set only while
+     * {@link mod.azure.ovomorphosis.ai.goap.AiGoalType#EXPAND_HIVE} actually wins with one pending (see
+     * {@code XenomorphGoalPlanner}) and read by {@code XenomorphTree}'s travel-to-breach branch. Deliberately a
+     * dedicated key rather than reusing {@link #GOAL_DESTINATION} — that key is only ever updated when a goal supplies
+     * one, so it would go stale (keep pointing at an already-repaired breach) the moment EXPAND_HIVE won without a
+     * pending breach; this key is explicitly set-or-cleared every time EXPAND_HIVE wins instead.
+     */
+    public static final String HIVE_BREACH_DEST = "hive_breach_dest";
+
+    /**
      * Set to {@code true} by {@code BreakToTargetAction} when it determines a block needs to be broken to reach the
      * target. Cleared when the break completes or the target changes.
      */

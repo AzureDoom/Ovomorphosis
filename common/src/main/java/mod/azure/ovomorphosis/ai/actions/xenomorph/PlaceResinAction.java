@@ -149,10 +149,6 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
 
         var mobPos = mob.blockPosition();
         if (mob.level().getMaxLocalRawBrightness(mobPos) > MAX_LIGHT_LEVEL) {
-            // Deliberately attributed to EXPAND_HIVE regardless of ACTIVE_GOAL_TYPE: this action fires
-            // opportunistically outside the EXPAND_HIVE goal too (see the tree's off-cooldown random-chance
-            // branch), but the failure is always about hive expansion at this location, and that's what the
-            // planner needs to suppress.
             return ActionOutcome.failed(PlanFailureReason.FAILED_TOO_BRIGHT, mobPos, AiGoalType.EXPAND_HIVE);
         }
 
@@ -160,7 +156,10 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
             var hiveMemory = getOrCreateHiveMemory(mob, blackboard);
             var domeCenter = resolveDomeCenter(mob, hiveMemory);
 
-            var count = hiveMemory.isDomeComplete()
+            var needsRepair = hiveMemory.isDomeComplete()
+                && hiveMemory.findNearestPendingBreach(mob.level(), mobPos, LOCAL_SCAN_RADIUS).isPresent();
+
+            var count = (hiveMemory.isDomeComplete() && !needsRepair)
                 ? tickTunnelPhase(mob, hiveMemory, domeCenter)
                 : tickDomePhase(mob, hiveMemory, domeCenter);
 
@@ -207,10 +206,6 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         });
     }
 
-    // ------------------------------------------------------------------------------------------------------------
-    // Dome phase
-    // ------------------------------------------------------------------------------------------------------------
-
     /**
      * Scans near the mob for dome-shell candidates and places a batch of them, returning how many blocks were placed (0
      * if the mob isn't currently near any unfilled part of the shell).
@@ -244,11 +239,11 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
                     var pos = origin.offset(x, y, z);
 
                     if (pos.getY() < domeCenter.getY())
-                        continue; // upper hemisphere only — don't hollow out the ground beneath the dome
+                        continue;
 
                     var distFromCenter = Math.sqrt(pos.distSqr(domeCenter));
                     if (distFromCenter > DOME_RADIUS || distFromCenter < DOME_RADIUS - DOME_SHELL_THICKNESS)
-                        continue; // only the shell band, not the dome's hollow interior
+                        continue;
 
                     if (isValidReplacementTarget(level, pos))
                         candidates.add(pos.immutable());
@@ -258,10 +253,6 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
 
         return candidates;
     }
-
-    // ------------------------------------------------------------------------------------------------------------
-    // Tunnel phase
-    // ------------------------------------------------------------------------------------------------------------
 
     /**
      * Either extends an existing tunnel the mob is currently near, or spawns a brand new one from the dome's outer
@@ -351,11 +342,6 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
             ? findReconnectTarget(mob, hiveMemory)
             : null;
 
-        // Base the new tunnel's direction on the mob's own current bearing from the dome center (with random
-        // jitter), rather than picking a fully independent random direction. An independently-random direction would
-        // only rarely happen to land near whichever mob is actually available to carve it; biasing toward the mob's
-        // own bearing means the computed start point lands near the mob far more reliably, while the jitter still
-        // gives each tunnel a distinct heading.
         double baseX = mobPos.getX() - domeCenter.getX();
         double baseY = mobPos.getY() - domeCenter.getY();
         double baseZ = mobPos.getZ() - domeCenter.getZ();
@@ -408,7 +394,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         );
 
         if (mobPos.distSqr(startPos) > TUNNEL_CAPTURE_RADIUS * TUNNEL_CAPTURE_RADIUS * 4)
-            return null; // safety net — jitter was too wide this roll to land anywhere near the mob after all
+            return null;
 
         var stepsTotal = TUNNEL_MIN_LENGTH + random.nextInt(TUNNEL_MAX_LENGTH - TUNNEL_MIN_LENGTH + 1);
         return new HiveMemory.TunnelState(startPos, dirX, dirY, dirZ, stepsTotal);
@@ -443,7 +429,6 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
                 break;
             }
 
-            // Carve a 2-tall passage at the tip so mobs can actually walk through it.
             if (!tipState.isAir())
                 level.setBlockAndUpdate(tip, Blocks.CAVE_AIR.defaultBlockState());
 
@@ -545,10 +530,6 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         return placedCount;
     }
 
-    // ------------------------------------------------------------------------------------------------------------
-    // Shared candidate validity / placement
-    // ------------------------------------------------------------------------------------------------------------
-
     /**
      * A block is a valid dig/build target if it's naturally replaceable (air, grass, flowers, ...) or tagged
      * {@link ModTags#WEAK_BLOCKS} with sane hardness — mirroring the "soft enough to carve through" category used
@@ -569,7 +550,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
 
         if (isWeak) {
             var hardness = state.getDestroySpeed(level, pos);
-            return !(hardness < 0f); // tagged but unbreakable regardless — don't touch it
+            return !(hardness < 0f);
         }
 
         return hasAdjacentSolid(level, pos);
