@@ -7,6 +7,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.Optional;
+
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.core.Blackboard;
@@ -139,6 +141,20 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
     /** Minimum ticks between VENT_TRAVERSAL selections, set only once it's actually the winning goal. */
     private static final int VENT_TRAVERSAL_COOLDOWN_TICKS = 200;
 
+    /**
+     * How far a known nest breach can be from the mob and still be worth traveling to repair — wider than most
+     * awareness ranges elsewhere in this file since, unlike vent-shortcut opportunities, the mob genuinely needs to
+     * travel there rather than only benefit from one it happens to already be near.
+     */
+    private static final double BREACH_AWARENESS_RANGE = 48.0D;
+
+    /**
+     * Score bonus applied to EXPAND_HIVE when a nest breach is known (see {@code HiveMemory#recordBreach}). Pushes a
+     * typical idle hiveScore (~10-20) up to a level comparable to (but still below) typical combat/defense scores, so
+     * repair work reliably wins over idling/wandering without ever preempting an active fight.
+     */
+    private static final float BREACH_REPAIR_BONUS = 50f;
+
     /** Squared distance at which the mob is considered to have "arrived" at its dark hideout. */
     private static final double DARK_HAVEN_ARRIVAL_RANGE_SQR = 6.0 * 6.0;
 
@@ -164,22 +180,14 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         Blackboard blackboard,
         Cooldowns cooldowns
     ) {
-        int tick = (int) mob.level().getGameTime();
-
+        var tick = (int) mob.level().getGameTime();
         var gfc = GoalFailureCooldowns.getOrCreate(blackboard);
         gfc.evictExpired(tick);
 
         var feedback = readFeedback(blackboard, tick);
-
         var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
         var hasTarget = target != null && target.isAlive();
-
         var healthFraction = mob.getHealth() / mob.getMaxHealth();
-
-        // Three-tier health posture:
-        // > 60% -> healthyAggressive: press the fight regardless of opponent.
-        // 30% - 60% -> woundedHealth: contextual — retreat only if this particular opponent warrants it.
-        // < 30% -> criticalHealth: survival overrides everything; strongly favor escape/darkness/hive.
         var criticalHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
         var woundedHealth = !criticalHealth && healthFraction <= WOUNDED_HEALTH_FRACTION;
         var healthyAggressive = healthFraction > WOUNDED_HEALTH_FRACTION;
@@ -193,11 +201,9 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         var hasWebInRange = memory != null
             && memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D).isPresent();
 
-        // Known dark hive position — this is the piece a Gigeresque mob has no equivalent of: it isn't just fleeing
-        // blindly, it's routing toward a remembered hideout in its own territory.
         var darkHaven = memory != null
             ? memory.findNearestDarkOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D, DARK_HAVEN_MAX_LIGHT)
-            : java.util.Optional.<BlockPos>empty();
+            : Optional.<BlockPos>empty();
         var atDarkHaven = darkHaven.isPresent()
             && mob.blockPosition().distSqr(darkHaven.get()) <= DARK_HAVEN_ARRIVAL_RANGE_SQR;
 
@@ -242,8 +248,6 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             if (targetIsNearHive || nearWeb) {
                 defendScore = 85f;
                 if (memory != null) {
-                    // A hostile target inside hive territory is an incursion — record it so repeated attacks (as
-                    // opposed to one-off skirmishes) can raise the hive's baseline defensive aggression below.
                     memory.recordThreat(target.blockPosition(), tick);
                 }
             }
@@ -264,29 +268,20 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             huntScore -= 20f;
         }
 
-        // --- Health-tiered retreat/darkness posture ------------------------------------------------------------
-        // healthyAggressive : health alone never pulls toward retreat/darkness; hunt/ambush stand on their own.
-        // woundedHealth : contextual — only pull toward retreat if *this particular* opponent warrants it.
-        // criticalHealth : survival overrides everything; strongly favor escape, darkness, and the known hive.
-        // A target counts as "threatening" if it's already flagged too dangerous to grab, uses ranged attacks, or
-        // carries the danger-entity tag; a target flagged isolated and NOT threatening counts as "weak" prey.
         var opponentIsThreatening = hasTarget
             && (targetTooDangerous || targetIsRanged || target.getType().is(ModTags.DANGER_ENTITIES));
         var opponentIsWeak = hasTarget && targetIsIsolated && !opponentIsThreatening;
 
         if (healthyAggressive) {
-            // No health-driven retreat/darkness pull at all — huntScore/ambushScore stand on their own merits.
+            /* NO-OP */
         } else if (woundedHealth) {
             if (opponentIsThreatening) {
                 retreatScore = hasWebInRange ? 55f : 30f;
                 seekDarknessScore += ambientLight > 2 ? 20f : 10f;
                 huntScore -= 15f;
             } else if (hasTarget && !opponentIsWeak) {
-                // Ambiguous opponent while merely wounded: a small hedge, easily outscored by hunt/ambush so it only
-                // matters in an otherwise close call.
                 retreatScore = hasWebInRange ? 20f : 10f;
             }
-            // opponentIsWeak, or no target at all: stay aggressive — wounded is not yet critical.
         } else if (criticalHealth) {
             retreatScore = darkHaven.isPresent() ? 95f : (hasWebInRange ? 80f : 45f);
             seekDarknessScore += 35f + (ambientLight > 2 ? 15f : 0f);
@@ -294,20 +289,10 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             ambushScore = Math.max(0f, ambushScore - 20f);
 
             if (atDarkHaven && hasTarget) {
-                // Reached the known dark hideout with a pursuer still on its tail. Rather than blindly continuing to
-                // flee into what may be a dead end, let it *possibly* turn and strike from cover instead — this only
-                // outscores the (very high) retreatScore above when the pursuer looks weak/isolated enough to risk
-                // it, so a genuinely dangerous pursuer still gets outrun rather than fought.
                 ambushFromDarknessScore += opponentIsWeak ? 60f : 25f;
             }
         }
 
-        // --- Deliberate false retreat (LURE_TARGET) -------------------------------------------------------------
-        // Distinct from the health-driven retreat above: this is a *healthy* mob choosing to disengage, not one
-        // that's losing. A pursuing target plus a known dark ambush route is an opportunity to draw them somewhere
-        // less favorable for them rather than only ever meeting the chase head-on. "Pursuing" is approximated by the
-        // target actively facing the mob within a plausible chase distance — neither already at melee range (no
-        // point luring instead of just fighting) nor far enough off that they're not really giving chase.
         var pursuitDistSq = hasTarget ? mob.distanceToSqr(target) : 0.0;
         var targetIsPursuing = hasTarget
             && targetFacingMob
@@ -322,30 +307,13 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 && cooldowns.ready(AiKeys.LURE_COOLDOWN)
                 && mob.getRandom().nextFloat() < LURE_CHANCE
         ) {
-            // Scored high enough to win when it clears the gate above, but the gate itself (low roll chance +
-            // long cooldown once actually chosen, set below in the destination switch) is what keeps this rare —
-            // not a low score here, which would just make it inconsistent rather than infrequent.
             lureScore = 65f;
         }
-
-        // --- Vent shortcut (VENT_TRAVERSAL) ---------------------------------------------------------------------
-        // A long-distance pathfinding shortcut through the hive's own vent network (see HiveMemory#findVentShortcut)
-        // — only worth evaluating when actively hunting a target far enough away that a shortcut could plausibly
-        // help, and gated by its own cooldown so a mob doesn't duck in and out of vents on every replan. Finding a
-        // route is inherently restricted to vents this hive itself built/registered, which is what makes vent travel
-        // a mature-hive perk rather than a free shortcut available to any lone xenomorph.
         HiveMemory.VentRoute ventRoute = null;
         if (memory != null && hasTarget && cooldowns.ready(AiKeys.VENT_SYNC_COOLDOWN)) {
-            // Safety net for vent blocks that predate/bypass the placement hook (see VentBlock) — cheap registry
-            // lookups aren't an option here since there's no world-wide vent registry, only this hive's own map, so
-            // this has to be an actual (bounded, cooldown-gated) block scan. Scanned around both the mob and its
-            // target, since a pre-existing vent could plausibly be near either one.
             var foundNearMob = memory.syncVentBlocksNear(mob.level(), mob.blockPosition(), VENT_SYNC_RADIUS);
             var foundNearTarget = memory.syncVentBlocksNear(mob.level(), target.blockPosition(), VENT_SYNC_RADIUS);
             if ((foundNearMob || foundNearTarget) && mob.level() instanceof ServerLevel serverLevel) {
-                // Mutating the HiveMemory in place doesn't itself mark the underlying SavedData dirty — without
-                // this, a newly-discovered vent would register correctly in memory but silently never make it into
-                // the world save.
                 OvomorphosisSavedData.markHiveDirty(serverLevel);
             }
             cooldowns.set(AiKeys.VENT_SYNC_COOLDOWN, VENT_SYNC_COOLDOWN_TICKS);
@@ -363,11 +331,6 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 .orElse(null);
         }
 
-        // Scored to comfortably beat every other pursuit-goal's practical ceiling (DEFEND_HIVE alone can reach 85,
-        // plus stacking bonuses and hysteresis push several goals well past 100) — a found vent route isn't really
-        // "competing" with those goals for a different objective, it's a strictly faster way to reach the same
-        // target once the cost-margin gate above has already judged it worthwhile, so it should win outright rather
-        // than get outscored by whichever combat posture happens to be active.
         var ventScore = ventRoute != null ? 150f : 0f;
 
         var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
@@ -411,8 +374,6 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 case FAILED_TOO_BRIGHT -> {
                     lightsScore += BOOST_LIGHTS;
                     if (failedGoal == AiGoalType.EXPAND_HIVE) {
-                        // Resin placement rejected this spot for being too bright: prioritize killing the light
-                        // instead of immediately recommitting to hive expansion here.
                         hiveScore -= PENALTY_FAILED;
                         wanderScore += 15f;
                         gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 150);
@@ -501,13 +462,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             }
         }
 
-        // --- Hive-needs-driven posture -------------------------------------------------------------------------
-        // Organic equivalent of a colony noticing its own state and responding, rather than each xenomorph acting
-        // purely on its own immediate situation. All of these are additive nudges on top of everything above, not
-        // replacements — an active combat encounter still dominates through huntScore/ambushScore as normal.
         if (memory != null) {
-            // Few hosts being converted -> prioritize hunting, and specifically capturing rather than killing a
-            // valid host outright when one's available (reuses/extends the isolated-valid-host boost above).
             if (memory.hasFewHosts()) {
                 huntScore += 15f;
                 if (hasTarget && targetIsValidHost && !targetTooDangerous) {
@@ -515,37 +470,35 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 }
             }
 
-            // Plenty of hosts already restrained, but nowhere to route more of them -> prioritize construction over
-            // capturing yet more hosts the hive has no infrastructure to use.
             if (memory.hasHostSurplusWithLittleResin()) {
                 hiveScore += 30f;
             }
 
-            // Hive's core has been exposed to light -> prioritize destroying light sources hive-wide, not just
-            // wherever this particular mob happens to be standing.
             if (memory.isHeavilyIlluminated()) {
                 lightsScore += 30f;
             }
 
-            // Repeated incursions -> defensive aggression increases: hold the hive harder, and press an engagement
-            // near it rather than favoring disengagement.
             if (memory.isUnderSustainedAttack(tick)) {
                 defendScore += 25f;
                 huntScore += 10f;
             }
 
-            // Hive crowded with an unclaimed direction still available -> extend tunnels outward.
             if (memory.isCrowded() && memory.hasRoomToExpand()) {
                 hiveScore += 20f;
             }
 
-            // Nest maturity sets a small baseline lean rather than a hard override: a still-bootstrapping hive
-            // leans toward growing its population, an established one leans toward holding what it has.
             switch (memory.nestMaturity()) {
                 case HATCHLING, GROWING -> hiveScore += 10f;
                 case THRIVING -> defendScore += 10f;
                 default -> {}
             }
+        }
+
+        var nearestBreach = memory != null
+            ? memory.findNearestPendingBreach(mob.level(), mob.blockPosition(), BREACH_AWARENESS_RANGE)
+            : java.util.Optional.<BlockPos>empty();
+        if (nearestBreach.isPresent()) {
+            hiveScore += BREACH_REPAIR_BONUS;
         }
 
         huntScore = Math.max(0f, huntScore);
@@ -641,7 +594,13 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             case EXPAND_HIVE -> {
                 urgency = GoalUrgency.LOW;
                 interruptible = true;
-                reason = "Expanding hive";
+                if (nearestBreach.isPresent()) {
+                    reason = "Repairing a breach in the nest";
+                    blackboard.set(AiKeys.HIVE_BREACH_DEST, nearestBreach.get());
+                } else {
+                    reason = "Expanding hive";
+                    blackboard.remove(AiKeys.HIVE_BREACH_DEST);
+                }
                 chosenTarget = null;
             }
             case DEFEND_HIVE -> {
@@ -657,8 +616,6 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                     : "Wounded — retreating from a dangerous opponent";
                 chosenTarget = null;
                 if (memory != null) {
-                    // Prefer the remembered dark hideout over just "the closest bit of hive" when it's available —
-                    // this is the piece of routing a vanilla mob's flee logic has no equivalent of.
                     chosenDest = darkHaven.isPresent()
                         ? darkHaven.get()
                         : memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 80.0D).orElse(null);
@@ -684,9 +641,6 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 interruptible = true;
                 reason = "Feigning retreat to lure pursuer into a dark ambush";
                 chosenDest = darkHaven.orElse(null);
-                // Only set once this is actually the winning goal (not just eligible) — this is what makes the
-                // rarity in the scoring gate above stick, rather than the roll passing again on the very next
-                // eligible cycle.
                 cooldowns.set(AiKeys.LURE_COOLDOWN, LURE_COOLDOWN_TICKS);
             }
             case VENT_TRAVERSAL -> {
@@ -694,9 +648,6 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 interruptible = true;
                 reason = "Taking a known vent shortcut toward the target";
                 if (ventRoute != null) {
-                    // GOAL_DESTINATION (from chosenDest) drives the ordinary walk-to-entrance leg; VENT_ENTRANCE/
-                    // VENT_EXIT are read directly by VentTraversalAction once the mob arrives there — see
-                    // XenomorphTree's VENT_TRAVERSAL branch.
                     chosenDest = ventRoute.entrance();
                     blackboard.set(AiKeys.VENT_ENTRANCE, ventRoute.entrance());
                     blackboard.set(AiKeys.VENT_EXIT, ventRoute.exit());

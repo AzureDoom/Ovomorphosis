@@ -40,8 +40,6 @@ public final class HiveMemory {
 
     private int missCount = 0;
 
-    // --- Shared hive-structure state (dome + tunnels), used by PlaceResinAction ---
-
     /**
      * Center of the shared hive dome. Claimed once, by whichever xenomorph first attempts to expand the hive with no
      * existing structure recorded; every subsequent {@link PlaceResinAction} activation — by any xenomorph — builds
@@ -118,8 +116,6 @@ public final class HiveMemory {
             return remainingSteps <= 0;
         }
     }
-
-    // --- Hive vent network, used by VentTraversalAction as a long-distance pathfinding shortcut ------------------
 
     /** Safety cap mirroring {@link #MAX_ENTRIES}; a hive's vent network is expected to stay well under this. */
     private static final int MAX_VENT_ENTRIES = 128;
@@ -352,7 +348,7 @@ public final class HiveMemory {
 
             var distToEntrance = Math.sqrt(from.distSqr(entrance));
             if (distToEntrance >= bestTotal)
-                continue; // can't possibly beat the best total found so far even before adding the other two legs
+                continue;
 
             for (var exit : node.linkedExits()) {
                 var exitNode = ventNodes.get(exit);
@@ -489,6 +485,32 @@ public final class HiveMemory {
     ) {}
 
     private final Deque<ThreatRecord> recentThreats = new ArrayDeque<>();
+
+    /**
+     * A single recorded hive breach — a dome-shell resin block that was removed (broken by a player, an explosion,
+     * etc.). See {@link #recordBreach}/{@link #findNearestPendingBreach}. Recorded regardless of whether the dome is
+     * complete yet, though in practice it matters most post-completion — {@code PlaceResinAction} already re-fills any
+     * gap in the shell as a matter of course while the dome is still under construction.
+     */
+    public record BreachRecord(
+        BlockPos pos,
+        long tick
+    ) {}
+
+    private static final int MAX_PENDING_BREACHES = 32;
+
+    /**
+     * A removed block only counts as a "nest breach" (as opposed to, say, a tunnel wall or something unrelated) if it's
+     * within this distance band of the dome center — matching {@code PlaceResinAction}'s own
+     * {@code DOME_RADIUS}/{@code DOME_SHELL_THICKNESS} band, widened slightly to tolerate imprecision. Tunnels aren't
+     * covered by this feature: they don't have a fixed, known shape the way the dome shell does, so there's no cheap
+     * way to tell "a tunnel wall is missing" from "this was never part of a tunnel to begin with".
+     */
+    private static final double BREACH_MIN_DIST_FROM_CENTER = 6.0D;
+
+    private static final double BREACH_MAX_DIST_FROM_CENTER = 13.0D;
+
+    private final Deque<BreachRecord> pendingBreaches = new ArrayDeque<>();
 
     /**
      * Coarse lifecycle stage of the hive, derived from its structural completeness and population rather than stored
@@ -645,6 +667,63 @@ public final class HiveMemory {
     /** The hive has been attacked repeatedly and recently enough that defensive aggression should increase. */
     public boolean isUnderSustainedAttack(long currentTick) {
         return recentThreatCount(currentTick) >= SUSTAINED_ATTACK_THRESHOLD;
+    }
+
+    /**
+     * Records that a dome-shell resin block at {@code pos} was removed — a nest breach — so a mob can be dispatched to
+     * repair it (see {@code XenomorphGoalPlanner}'s EXPAND_HIVE breach-repair boost and {@code XenomorphTree}'s
+     * travel-to-breach branch).
+     * <p>
+     * Silently ignored if the dome hasn't been claimed yet, or if {@code pos} isn't within the dome-shell distance band
+     * ({@link #BREACH_MIN_DIST_FROM_CENTER}-{@link #BREACH_MAX_DIST_FROM_CENTER} from {@link #domeCenter}) — this
+     * feature only covers the dome shell itself, not tunnels (see {@link #pendingBreaches}'s docs for why). Safe to
+     * call redundantly for the same position.
+     */
+    public void recordBreach(Level level, BlockPos pos) {
+        if (domeCenter == null)
+            return;
+
+        var distFromCenter = Math.sqrt(pos.distSqr(domeCenter));
+        if (distFromCenter < BREACH_MIN_DIST_FROM_CENTER || distFromCenter > BREACH_MAX_DIST_FROM_CENTER)
+            return;
+
+        var immutable = pos.immutable();
+        for (var breach : pendingBreaches) {
+            if (breach.pos().equals(immutable))
+                return;
+        }
+
+        if (pendingBreaches.size() >= MAX_PENDING_BREACHES) {
+            pendingBreaches.pollFirst();
+        }
+        pendingBreaches.addLast(new BreachRecord(immutable, level.getGameTime()));
+    }
+
+    /**
+     * Prunes any pending breach whose position has since been repaired (now genuinely resin again — see
+     * {@link ModTags#RESIN}) or that no longer belongs to the dome-shell band at all (e.g. the dome was reset/moved),
+     * then returns whichever remains that's within {@code maxRange} of {@code origin}, if any.
+     */
+    public Optional<BlockPos> findNearestPendingBreach(Level level, BlockPos origin, double maxRange) {
+        pendingBreaches.removeIf(
+            breach -> level.getBlockState(breach.pos()).is(ModTags.RESIN)
+                || domeCenter == null
+                || Math.sqrt(breach.pos().distSqr(domeCenter)) > BREACH_MAX_DIST_FROM_CENTER
+        );
+
+        var maxRangeSqr = maxRange * maxRange;
+        BlockPos best = null;
+        var bestDistSqr = Double.MAX_VALUE;
+
+        for (var breach : pendingBreaches) {
+            var distSqr = origin.distSqr(breach.pos());
+            if (distSqr <= maxRangeSqr && distSqr < bestDistSqr) {
+                best = breach.pos();
+                bestDistSqr = distSqr;
+            }
+        }
+
+        return Optional.ofNullable(best);
     }
 
     private void evictStaleThreats(long currentTick) {
@@ -810,6 +889,15 @@ public final class HiveMemory {
         }
         tag.put("threats", threatList);
 
+        var breachList = new ListTag();
+        for (var breach : pendingBreaches) {
+            var entry = new CompoundTag();
+            entry.put("pos", NbtUtils.writeBlockPos(breach.pos()));
+            entry.putLong("tick", breach.tick());
+            breachList.add(entry);
+        }
+        tag.put("breaches", breachList);
+
         var ventList = new ListTag();
         for (var node : ventNodes.values()) {
             var entry = new CompoundTag();
@@ -896,6 +984,17 @@ public final class HiveMemory {
             }
         }
 
+        if (tag.contains("breaches", Tag.TAG_LIST)) {
+            var breachList = tag.getList("breaches", Tag.TAG_COMPOUND);
+            for (var i = 0; i < breachList.size(); i++) {
+                var entry = breachList.getCompound(i);
+                var pos = NbtUtils.readBlockPos(entry, "pos").orElse(null);
+                if (pos == null)
+                    continue;
+                memory.pendingBreaches.addLast(new BreachRecord(pos, entry.getLong("tick")));
+            }
+        }
+
         if (tag.contains("vents", Tag.TAG_LIST)) {
             var ventList = tag.getList("vents", Tag.TAG_COMPOUND);
             for (var i = 0; i < ventList.size(); i++) {
@@ -903,8 +1002,6 @@ public final class HiveMemory {
                 var pos = NbtUtils.readBlockPos(entry, "pos").orElse(null);
                 if (pos == null)
                     continue;
-                // linkedExits deliberately left empty here — relinkAllVentClusters below recomputes it fresh from
-                // whichever vent positions actually loaded, rather than trusting a possibly-stale serialized list.
                 memory.ventNodes.put(pos, new HiveVentNode(pos, List.of(), entry.getLong("lastUsed"), false));
             }
             memory.relinkAllVentClusters();

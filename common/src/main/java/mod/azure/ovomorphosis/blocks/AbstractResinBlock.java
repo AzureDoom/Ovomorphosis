@@ -16,7 +16,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 
+import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.util.ModTags;
 
 public abstract class AbstractResinBlock extends Block {
 
@@ -92,5 +94,38 @@ public abstract class AbstractResinBlock extends Block {
         cloud.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 100, 0));
         cloud.setParticle(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE);
         level.addFreshEntity(cloud);
+    }
+
+    /**
+     * Records a hive breach whenever an actual resin structure block (per {@link ModTags#RESIN} — deliberately excludes
+     * vent blocks, which have their own separate lifecycle in {@code VentBlock}) is removed, so a mob can later be
+     * dispatched to repair it (see {@code HiveMemory#recordBreach}). Shared here (rather than duplicated across
+     * {@link ResinBlock}, {@code ResinWebFullBlock}, and the plain full-cube resin block) since all of them extend this
+     * class and none currently override {@code onRemove} without still calling {@code super}.
+     * <p>
+     * Guarded by {@code !state.is(newState.getBlock())} so an in-place state change (e.g. {@link ResinBlock}
+     * incrementing its own layer count) is never mistaken for a breach — only an actual change of block counts.
+     */
+    @Override
+    protected void onRemove(
+        @NotNull BlockState state,
+        @NotNull Level level,
+        @NotNull BlockPos pos,
+        @NotNull BlockState newState,
+        boolean movedByPiston
+    ) {
+        if (
+            !level.isClientSide()
+                && !state.is(newState.getBlock())
+                && state.is(ModTags.RESIN)
+                && level instanceof ServerLevel serverLevel
+        ) {
+            OvomorphosisSavedData.findNearestHive(serverLevel, pos)
+                .ifPresent(hive -> {
+                    hive.recordBreach(serverLevel, pos);
+                    OvomorphosisSavedData.markHiveDirty(serverLevel);
+                });
+        }
+        super.onRemove(state, level, pos, newState, movedByPiston);
     }
 }
