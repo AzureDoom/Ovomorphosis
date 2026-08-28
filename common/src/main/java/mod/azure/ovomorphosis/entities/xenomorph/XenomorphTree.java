@@ -207,6 +207,17 @@ public class XenomorphTree {
                 }
             }
 
+            if (goalType == AiGoalType.LURE_TARGET) {
+                var dest = blackboard.get(AiKeys.GOAL_DESTINATION, BlockPos.class);
+                var pursuerCaughtUp = currentTarget != null
+                    && currentTarget.isAlive()
+                    && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 2.0D);
+                if (dest != null && !pursuerCaughtUp) {
+                    blackboard.set(AiKeys.DESTINATION, dest);
+                    return BehaviorResult.run(destinationMove, 90);
+                }
+            }
+
             if (
                 goalType == AiGoalType.SEEK_DARKNESS
                     || (goalType == AiGoalType.AMBUSH_FROM_DARKNESS && currentTarget == null)
