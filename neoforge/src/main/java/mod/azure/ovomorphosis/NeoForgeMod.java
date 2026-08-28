@@ -117,6 +117,7 @@ public final class NeoForgeMod {
             event.accept(BlockRegistry.RESIN_ITEM.get());
             event.accept(BlockRegistry.RESIN_WEB_ITEM.get());
             event.accept(BlockRegistry.RESIN_WEB_CROSS_ITEM.get());
+            event.accept(BlockRegistry.RESIN_VENT_ITEM.get());
         }
         if (event.getTabKey() == CreativeModeTabs.COMBAT) {
             event.accept(ItemRegistry.FLAMETHROWER.get());

@@ -40,6 +40,8 @@ public class SoundRegistry {
 
     public static final Supplier<SoundEvent> XENOMORPH_IDLE = registerSound("xenomorph_idle");
 
+    public static final Supplier<SoundEvent> VENT_RATTLE = registerSound("vent_rattle");
+
     static Supplier<SoundEvent> registerSound(String soundName) {
         return XenoServices.COMMON_REGISTRY.register(
             BuiltInRegistries.SOUND_EVENT,

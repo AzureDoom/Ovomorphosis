@@ -70,10 +70,23 @@ public final class OvomorphosisSavedData extends SavedData {
         return created;
     }
 
+    /**
+     * Finds the nearest existing hive to {@code origin} within the usual join radius, without creating one if none is
+     * found — unlike {@link #getOrCreateHive}, which is meant for the AI's own hive-expansion logic and would
+     * spuriously spawn a brand-new (dome-less) hive entry if used for something like a block-placement hook.
+     */
+    public static Optional<HiveMemory> findNearestHive(ServerLevel level, BlockPos origin) {
+        var data = get(level);
+        var dimensionHives = data.hives.get(level.dimension());
+        if (dimensionHives == null)
+            return Optional.empty();
+
+        return Optional.ofNullable(getNearest(origin, dimensionHives));
+    }
+
     private static @Nullable HiveMemory getNearest(BlockPos origin, List<HiveMemory> dimensionHives) {
         HiveMemory nearest = null;
         var nearestDistanceSq = Double.MAX_VALUE;
-
         for (var hive : dimensionHives) {
             var center = hive.getDomeCenter().orElse(null);
             if (center == null)

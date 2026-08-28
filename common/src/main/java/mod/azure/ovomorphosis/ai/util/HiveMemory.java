@@ -16,6 +16,7 @@ import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.infection.EggmorphTracker;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
+import mod.azure.ovomorphosis.util.ModTags;
 
 /**
  * Per-mob cache of known {@code RESIN_WEB_CROSS} positions.
@@ -116,6 +117,275 @@ public final class HiveMemory {
         public boolean isExhausted() {
             return remainingSteps <= 0;
         }
+    }
+
+    // --- Hive vent network, used by VentTraversalAction as a long-distance pathfinding shortcut ------------------
+
+    /** Safety cap mirroring {@link #MAX_ENTRIES}; a hive's vent network is expected to stay well under this. */
+    private static final int MAX_VENT_ENTRIES = 128;
+
+    /**
+     * Transitive linking radius: two vent blocks within this many blocks of each other (directly, or through a chain of
+     * other vent blocks each within range of the next) are considered part of the same vent network, and are therefore
+     * valid entrance/exit pairs for each other. Deliberately generous relative to block-to-block adjacency since vent
+     * blocks placed during hive construction (see {@code PlaceResinAction}) won't always end up literally touching.
+     */
+    private static final double VENT_LINK_RADIUS = 6.0D;
+
+    /**
+     * Flat cost added to a vent route's distance estimate, representing the time/risk of the crawl-through itself. This
+     * is what the "10 + ventTraversalCost + 12 vs. 80" comparison in {@link #findVentShortcut} actually is — everything
+     * else is straight-line distance. Kept modest rather than representing the literal traversal-tick duration
+     * ({@code VentTraversalAction}'s own timing is separate) — a cost too close to that duration would make vents
+     * mathematically unable to ever win at the shorter distances they're most useful for.
+     */
+    private static final double VENT_TRAVERSAL_COST = 20.0D;
+
+    /**
+     * A vent route qualifies once its total is under {@code ordinaryEstimate * VENT_SHORTCUT_MARGIN}. Set above 1.0
+     * deliberately: {@code ordinaryEstimate} is only a straight-line-distance proxy for the real walked/crawled path
+     * (see {@code XenomorphGoalPlanner#ORDINARY_ROUTE_ESTIMATE_MULTIPLIER}), which is itself an underestimate of the
+     * real route around obstacles — so a vent route that comes out slightly *more* than the straight-line estimate is
+     * still very plausibly a real shortcut, not just noise.
+     */
+    private static final double VENT_SHORTCUT_MARGIN = 1.2D;
+
+    private final Map<BlockPos, HiveVentNode> ventNodes = new LinkedHashMap<>();
+
+    /**
+     * A found vent shortcut: enter at {@code entrance}, emerge at {@code exit}. Both are guaranteed to be in the same
+     * linked network (see {@link #relinkVentCluster}), and were valid, unblocked, live vent blocks at query time.
+     */
+    public record VentRoute(
+        BlockPos entrance,
+        BlockPos exit
+    ) {}
+
+    /**
+     * Records {@code pos} as a vent block belonging to this hive. Safe to call redundantly. Triggers
+     * {@link #relinkVentCluster} so the new block (and anything it bridges together) is immediately reflected in
+     * {@link #findVentShortcut} results.
+     *
+     * @param pos the vent block's position (stored as an immutable copy)
+     */
+    public void registerVentBlock(BlockPos pos) {
+        var immutable = pos.immutable();
+        if (ventNodes.containsKey(immutable) || ventNodes.size() >= MAX_VENT_ENTRIES)
+            return;
+
+        ventNodes.put(immutable, new HiveVentNode(immutable, List.of(), 0L, false));
+        relinkVentCluster(immutable);
+    }
+
+    /**
+     * Removes {@code pos} from this hive's known vent blocks (called when a vent block is broken), then re-links the
+     * remainder so no stale reference to it lingers in another node's {@link HiveVentNode#linkedExits()}.
+     */
+    public void unregisterVentBlock(BlockPos pos) {
+        if (ventNodes.remove(pos.immutable()) != null) {
+            relinkAllVentClusters();
+        }
+    }
+
+    /**
+     * Scans a bounded box around {@code origin} for {@link ModTags#VENT_BLOCKS}-tagged positions not yet known to this
+     * hive, and registers any found. This is a safety net for vent blocks that predate/bypass the normal placement hook
+     * (e.g. hand-placed before this scan existed, or placed by worldgen/a structure) — ordinarily, placing a tagged
+     * vent block registers it immediately via its block class, and this never has anything to find.
+     * <p>
+     * Bounded to a modest box (not a full sphere) and meant to be called sparingly (gate behind a cooldown) since it is
+     * a real block-state scan, not a cheap registry lookup like {@link #findNearestOwnedWebCross}.
+     * <p>
+     * Callers must mark the owning {@code OvomorphosisSavedData} dirty (e.g.
+     * {@code OvomorphosisSavedData.markHiveDirty}) when this returns {@code true} — mutating this object in place
+     * doesn't do that on its own, and a discovered vent that's never flushed to disk will appear to work for the rest
+     * of the session but silently vanish on reload.
+     *
+     * @param level  the level to scan
+     * @param origin center of the scan box
+     * @param radius horizontal radius of the scan box, in blocks; the vertical range is a fixed, smaller band
+     * @return {@code true} if at least one new vent block was found and registered
+     */
+    public boolean syncVentBlocksNear(Level level, BlockPos origin, int radius) {
+        var mutable = new BlockPos.MutableBlockPos();
+        var verticalRadius = Math.min(radius, 6);
+        var foundAny = false;
+
+        for (var x = -radius; x <= radius; x++) {
+            for (var z = -radius; z <= radius; z++) {
+                for (var y = -verticalRadius; y <= verticalRadius; y++) {
+                    mutable.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
+
+                    if (ventNodes.containsKey(mutable))
+                        continue;
+
+                    if (level.getBlockState(mutable).is(ModTags.VENT_BLOCKS)) {
+                        registerVentBlock(mutable);
+                        foundAny = true;
+                    }
+                }
+            }
+        }
+
+        return foundAny;
+    }
+
+    /**
+     * Recomputes {@link HiveVentNode#linkedExits()} for every vent block transitively within {@link #VENT_LINK_RADIUS}
+     * of {@code seed} (i.e. the whole connected network {@code seed} belongs to), so each node's linked-exits list
+     * stays an accurate cache rather than going stale as more vent blocks register nearby over time.
+     */
+    private void relinkVentCluster(BlockPos seed) {
+        var radiusSq = VENT_LINK_RADIUS * VENT_LINK_RADIUS;
+
+        var component = new ArrayList<BlockPos>();
+        var visited = new HashSet<BlockPos>();
+        var queue = new ArrayDeque<BlockPos>();
+        queue.add(seed);
+        visited.add(seed);
+
+        while (!queue.isEmpty()) {
+            var current = queue.poll();
+            component.add(current);
+
+            for (var candidate : ventNodes.keySet()) {
+                if (visited.contains(candidate))
+                    continue;
+                if (current.distSqr(candidate) <= radiusSq) {
+                    visited.add(candidate);
+                    queue.add(candidate);
+                }
+            }
+        }
+
+        for (var pos : component) {
+            var others = new ArrayList<BlockPos>(component.size() - 1);
+            for (var other : component) {
+                if (!other.equals(pos))
+                    others.add(other);
+            }
+
+            var existing = ventNodes.get(pos);
+            if (existing != null) {
+                ventNodes.put(pos, existing.withLinkedExits(others));
+            }
+        }
+    }
+
+    /** Re-links every currently-known vent network from scratch. Used after a bulk change such as eviction/load. */
+    private void relinkAllVentClusters() {
+        var pending = new HashSet<>(ventNodes.keySet());
+
+        while (!pending.isEmpty()) {
+            var seed = pending.iterator().next();
+            relinkVentCluster(seed);
+
+            var node = ventNodes.get(seed);
+            if (node != null) {
+                pending.removeAll(node.linkedExits());
+            }
+            pending.remove(seed);
+        }
+    }
+
+    /**
+     * Removes vent entries whose live block no longer carries {@link ModTags#VENT_BLOCKS} (broken, replaced, etc.),
+     * then re-links the remaining networks so stale entries can't linger in some other node's
+     * {@link HiveVentNode#linkedExits()} list.
+     */
+    public void evictStaleVentBlocks(Level level) {
+        var removedAny = ventNodes.keySet().removeIf(pos -> !level.getBlockState(pos).is(ModTags.VENT_BLOCKS));
+        if (removedAny) {
+            relinkAllVentClusters();
+        }
+    }
+
+    /** Marks {@code pos} as used at {@code tick} — currently informational only (surfaced for future tuning/debug). */
+    public void markVentUsed(BlockPos pos, long tick) {
+        var node = ventNodes.get(pos);
+        if (node != null) {
+            ventNodes.put(pos, node.withLastUsedTick(tick));
+        }
+    }
+
+    /**
+     * Marks {@code pos} as temporarily unusable (or usable again) — set by {@code VentTraversalAction} while a player
+     * has line of sight on this position, so no mob (this one or another) tries to use a watched vent and make the
+     * traversal look like obvious teleportation.
+     */
+    public void setVentBlocked(BlockPos pos, boolean blocked) {
+        var node = ventNodes.get(pos);
+        if (node != null) {
+            ventNodes.put(pos, node.withBlocked(blocked));
+        }
+    }
+
+    /**
+     * Finds the cheapest known vent shortcut from {@code from} to {@code to}, if any beats {@code ordinaryEstimate} (an
+     * approximate cost of the normal route, supplied by the caller — see {@code XenomorphGoalPlanner}) by at least
+     * {@link #VENT_SHORTCUT_MARGIN}. Only considers vent blocks this hive itself placed/registered, which is what keeps
+     * vent travel a territory perk of a mature hive rather than a global shortcut network — an isolated xenomorph with
+     * no built-up vent network simply never has a candidate here.
+     *
+     * @param level            the level to validate live vent blocks against
+     * @param from             the mob's current position
+     * @param to               the mob's destination (typically the target's position)
+     * @param ordinaryEstimate an approximate cost of the ordinary route, in the same units as distance (blocks)
+     * @return the cheapest qualifying route, or empty if none beats the ordinary route by enough to be worth it
+     */
+    public Optional<VentRoute> findVentShortcut(Level level, BlockPos from, BlockPos to, double ordinaryEstimate) {
+        if (ventNodes.isEmpty())
+            return Optional.empty();
+
+        BlockPos bestEntrance = null;
+        BlockPos bestExit = null;
+        var bestTotal = Double.MAX_VALUE;
+
+        for (var entry : ventNodes.entrySet()) {
+            var entrance = entry.getKey();
+            var node = entry.getValue();
+
+            if (node.blocked() || node.linkedExits().isEmpty())
+                continue;
+            if (!level.getBlockState(entrance).is(ModTags.VENT_BLOCKS))
+                continue;
+
+            var distToEntrance = Math.sqrt(from.distSqr(entrance));
+            if (distToEntrance >= bestTotal)
+                continue; // can't possibly beat the best total found so far even before adding the other two legs
+
+            for (var exit : node.linkedExits()) {
+                var exitNode = ventNodes.get(exit);
+                if (exitNode == null || exitNode.blocked())
+                    continue;
+                if (!level.getBlockState(exit).is(ModTags.VENT_BLOCKS))
+                    continue;
+
+                var total = distToEntrance + VENT_TRAVERSAL_COST + Math.sqrt(exit.distSqr(to));
+                if (total < bestTotal) {
+                    bestTotal = total;
+                    bestEntrance = entrance;
+                    bestExit = exit;
+                }
+            }
+        }
+
+        if (bestEntrance == null || bestTotal >= ordinaryEstimate * VENT_SHORTCUT_MARGIN)
+            return Optional.empty();
+
+        return Optional.of(new VentRoute(bestEntrance, bestExit));
+    }
+
+    /** Vent positions known to this hive within {@code maxRange} of {@code origin} — used to place ambient rattle. */
+    public Collection<BlockPos> getVentPositionsNear(BlockPos origin, double maxRange) {
+        var maxRangeSq = maxRange * maxRange;
+        List<BlockPos> result = new ArrayList<>();
+        for (var pos : ventNodes.keySet()) {
+            if (origin.distSqr(pos) <= maxRangeSq) {
+                result.add(pos);
+            }
+        }
+        return result;
     }
 
     /**
@@ -540,6 +810,15 @@ public final class HiveMemory {
         }
         tag.put("threats", threatList);
 
+        var ventList = new ListTag();
+        for (var node : ventNodes.values()) {
+            var entry = new CompoundTag();
+            entry.put("pos", NbtUtils.writeBlockPos(node.position()));
+            entry.putLong("lastUsed", node.lastUsedTick());
+            ventList.add(entry);
+        }
+        tag.put("vents", ventList);
+
         return tag;
     }
 
@@ -615,6 +894,20 @@ public final class HiveMemory {
                     continue;
                 memory.recentThreats.addLast(new ThreatRecord(pos, entry.getLong("tick")));
             }
+        }
+
+        if (tag.contains("vents", Tag.TAG_LIST)) {
+            var ventList = tag.getList("vents", Tag.TAG_COMPOUND);
+            for (var i = 0; i < ventList.size(); i++) {
+                var entry = ventList.getCompound(i);
+                var pos = NbtUtils.readBlockPos(entry, "pos").orElse(null);
+                if (pos == null)
+                    continue;
+                // linkedExits deliberately left empty here — relinkAllVentClusters below recomputes it fresh from
+                // whichever vent positions actually loaded, rather than trusting a possibly-stale serialized list.
+                memory.ventNodes.put(pos, new HiveVentNode(pos, List.of(), entry.getLong("lastUsed"), false));
+            }
+            memory.relinkAllVentClusters();
         }
 
         return memory;

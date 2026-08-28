@@ -23,6 +23,11 @@ public record ModTags() {
         CommonMod.modResource("weak_blocks")
     );
 
+    public static final TagKey<Block> VENT_BLOCKS = TagKey.create(
+        Registries.BLOCK,
+        CommonMod.modResource("vent_blocks")
+    );
+
     public static final TagKey<Block> DANGER_BLOCKS = TagKey.create(
         Registries.BLOCK,
         CommonMod.modResource("danger_blocks")

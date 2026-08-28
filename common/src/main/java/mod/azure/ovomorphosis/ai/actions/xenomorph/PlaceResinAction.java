@@ -107,6 +107,21 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
      */
     private static final int PLACEMENT_ROLL_RETRIES = 3;
 
+    /**
+     * Chance a dome-shell candidate becomes a vent block instead of ordinary nest resin. Vent blocks are the "nest
+     * building" side of the vent network (see {@code HiveMemory}'s vent tracking) — since the dome is the hive's
+     * primary structure, this is the more common of the two vent-placement sites (compare
+     * {@link #VENT_BLOCK_CHANCE_TUNNEL}, which is rarer).
+     */
+    private static final float VENT_BLOCK_CHANCE_NEST = 0.03F;
+
+    /**
+     * Chance a tunnel-floor candidate becomes a vent block instead of ordinary floor resin. Deliberately rarer than
+     * {@link #VENT_BLOCK_CHANCE_NEST} — tunnels are the hive's "resin spread" reaching outward, and should pick up vent
+     * connections more sparingly than the dome itself does.
+     */
+    private static final float VENT_BLOCK_CHANCE_TUNNEL = 0.01F;
+
     private final int priority;
 
     private final int placementCooldownTicks;
@@ -437,17 +452,22 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
 
             var floorState = level.getBlockState(floor);
             if (!floorState.isFaceSturdy(level, floor, Direction.UP)) {
-                var placeCross = random.nextFloat() < 0.10F;
-                var floorBlockState = placeCross
-                    ? BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState()
-                    : BlockRegistry.RESIN.get()
-                        .defaultBlockState()
-                        .setValue(ResinBlock.LAYERS, 8);
+                if (random.nextFloat() < VENT_BLOCK_CHANCE_TUNNEL) {
+                    level.setBlockAndUpdate(floor, BlockRegistry.RESIN_VENT.get().defaultBlockState());
+                    hiveMemory.registerVentBlock(floor);
+                } else {
+                    var placeCross = random.nextFloat() < 0.10F;
+                    var floorBlockState = placeCross
+                        ? BlockRegistry.RESIN_WEB_CROSS.get().defaultBlockState()
+                        : BlockRegistry.RESIN.get()
+                            .defaultBlockState()
+                            .setValue(ResinBlock.LAYERS, 8);
 
-                level.setBlockAndUpdate(floor, floorBlockState);
+                    level.setBlockAndUpdate(floor, floorBlockState);
 
-                if (placeCross)
-                    hiveMemory.trackOwnedWebCross(floor);
+                    if (placeCross)
+                        hiveMemory.trackOwnedWebCross(floor);
+                }
             }
 
             placedCount++;
@@ -567,6 +587,13 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
                     break;
                 if (mob.getRandom().nextFloat() > 0.35F)
                     continue;
+
+                if (mob.getRandom().nextFloat() < VENT_BLOCK_CHANCE_NEST) {
+                    level.setBlockAndUpdate(pos, BlockRegistry.RESIN_VENT.get().defaultBlockState());
+                    hiveMemory.registerVentBlock(pos);
+                    count++;
+                    continue;
+                }
 
                 if (isFloorBacked(level, pos)) {
                     var placeResinCross = mob.getRandom().nextFloat() < 0.125F;

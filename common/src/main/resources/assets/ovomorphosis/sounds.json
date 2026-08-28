@@ -68,5 +68,10 @@
     "sounds": [
       "ovomorphosis:xenomorph_idle"
     ]
+  },
+  "vent_rattle": {
+    "sounds": [
+      "ovomorphosis:vent_rattle"
+    ]
   }
 }

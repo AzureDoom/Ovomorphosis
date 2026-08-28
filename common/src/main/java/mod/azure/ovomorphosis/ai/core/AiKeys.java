@@ -117,6 +117,27 @@ public final class AiKeys {
     public static final String LURE_COOLDOWN = "lure_cooldown";
 
     /**
+     * Vent entrance position chosen by the planner for
+     * {@link mod.azure.ovomorphosis.ai.goap.AiGoalType#VENT_TRAVERSAL}. Type: {@link BlockPos}.
+     */
+    public static final String VENT_ENTRANCE = "vent_entrance";
+
+    /**
+     * Vent exit position paired with {@link #VENT_ENTRANCE} for the current
+     * {@link mod.azure.ovomorphosis.ai.goap.AiGoalType#VENT_TRAVERSAL}. Type: {@link BlockPos}.
+     */
+    public static final String VENT_EXIT = "vent_exit";
+
+    /**
+     * Cooldown between VENT_TRAVERSAL selections (Xenomorph). Prevents a mob from ducking in and out of vents on every
+     * single replan even when a shortcut remains technically available.
+     */
+    public static final String VENT_TRAVERSAL_COOLDOWN = "vent_traversal_cooldown";
+
+    /** Cooldown between {@code HiveMemory#syncVentBlocksNear} scans — see that method's docs for why it's gated. */
+    public static final String VENT_SYNC_COOLDOWN = "vent_sync_cooldown";
+
+    /**
      * Set to {@code true} by {@code BreakToTargetAction} when it determines a block needs to be broken to reach the
      * target. Cleared when the break completes or the target changes.
      */

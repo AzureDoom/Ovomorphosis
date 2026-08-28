@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -21,6 +22,7 @@ import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.roles.XenoRole;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetClassifier;
+import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
@@ -100,6 +102,42 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
 
     /** Minimum ticks between LURE_TARGET selections (30s), set only when it's actually the winning goal. */
     private static final int LURE_COOLDOWN_TICKS = 600;
+
+    /**
+     * Multiplier applied to straight-line distance to approximate the ordinary route's real cost for
+     * {@link HiveMemory#findVentShortcut} — actual pathfinding winds around obstacles and (for a wall-crawler) through
+     * tunnels, so straight-line distance alone understates it. This is a heuristic, not a literal A* node count; see
+     * {@code PlaceResinAction}/{@code HiveMemory} docs for why splicing vent edges into the real pathfinder wasn't
+     * attempted.
+     */
+    private static final double ORDINARY_ROUTE_ESTIMATE_MULTIPLIER = 1.6D;
+
+    /** Minimum straight-line distance to the target before a vent shortcut is even worth evaluating. */
+    private static final double VENT_MIN_TARGET_DIST = 15.0D;
+
+    /**
+     * Radius (blocks) scanned by {@link HiveMemory#syncVentBlocksNear} — see the vent-sync cooldown below.
+     * <p>
+     * Deliberately wide relative to {@link #VENT_MIN_TARGET_DIST}: a freshly-summoned xenomorph's hive doesn't exist
+     * until its very first tick, and gets created at wherever <em>it</em> happens to be standing at that moment (see
+     * {@code XenomorphEntity#ensureHiveAssignment}) — not wherever a player may have already built vent infrastructure.
+     * A vent placed before that first tick is therefore never linked to any hive at placement time
+     * ({@code VentBlock#onPlace} finds no hive yet to register with), so this scan, run around both the mob and its
+     * target once it has one, is the only way such a pre-existing vent ever gets discovered at all.
+     */
+    private static final int VENT_SYNC_RADIUS = 32;
+
+    /**
+     * Minimum ticks between {@link HiveMemory#syncVentBlocksNear} scans. That scan is a real block-state scan (not a
+     * cheap registry lookup), so it's only run occasionally — mainly as a safety net for vent blocks that predate the
+     * placement hook (e.g. hand-placed before this scan existed, or before the mob's hive existed at all — see
+     * {@link #VENT_SYNC_RADIUS}); ordinarily a vent block registers itself immediately on placement and there's nothing
+     * left for this scan to find.
+     */
+    private static final int VENT_SYNC_COOLDOWN_TICKS = 150;
+
+    /** Minimum ticks between VENT_TRAVERSAL selections, set only once it's actually the winning goal. */
+    private static final int VENT_TRAVERSAL_COOLDOWN_TICKS = 200;
 
     /** Squared distance at which the mob is considered to have "arrived" at its dark hideout. */
     private static final double DARK_HAVEN_ARRIVAL_RANGE_SQR = 6.0 * 6.0;
@@ -284,8 +322,53 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 && cooldowns.ready(AiKeys.LURE_COOLDOWN)
                 && mob.getRandom().nextFloat() < LURE_CHANCE
         ) {
+            // Scored high enough to win when it clears the gate above, but the gate itself (low roll chance +
+            // long cooldown once actually chosen, set below in the destination switch) is what keeps this rare —
+            // not a low score here, which would just make it inconsistent rather than infrequent.
             lureScore = 65f;
         }
+
+        // --- Vent shortcut (VENT_TRAVERSAL) ---------------------------------------------------------------------
+        // A long-distance pathfinding shortcut through the hive's own vent network (see HiveMemory#findVentShortcut)
+        // — only worth evaluating when actively hunting a target far enough away that a shortcut could plausibly
+        // help, and gated by its own cooldown so a mob doesn't duck in and out of vents on every replan. Finding a
+        // route is inherently restricted to vents this hive itself built/registered, which is what makes vent travel
+        // a mature-hive perk rather than a free shortcut available to any lone xenomorph.
+        HiveMemory.VentRoute ventRoute = null;
+        if (memory != null && hasTarget && cooldowns.ready(AiKeys.VENT_SYNC_COOLDOWN)) {
+            // Safety net for vent blocks that predate/bypass the placement hook (see VentBlock) — cheap registry
+            // lookups aren't an option here since there's no world-wide vent registry, only this hive's own map, so
+            // this has to be an actual (bounded, cooldown-gated) block scan. Scanned around both the mob and its
+            // target, since a pre-existing vent could plausibly be near either one.
+            var foundNearMob = memory.syncVentBlocksNear(mob.level(), mob.blockPosition(), VENT_SYNC_RADIUS);
+            var foundNearTarget = memory.syncVentBlocksNear(mob.level(), target.blockPosition(), VENT_SYNC_RADIUS);
+            if ((foundNearMob || foundNearTarget) && mob.level() instanceof ServerLevel serverLevel) {
+                // Mutating the HiveMemory in place doesn't itself mark the underlying SavedData dirty — without
+                // this, a newly-discovered vent would register correctly in memory but silently never make it into
+                // the world save.
+                OvomorphosisSavedData.markHiveDirty(serverLevel);
+            }
+            cooldowns.set(AiKeys.VENT_SYNC_COOLDOWN, VENT_SYNC_COOLDOWN_TICKS);
+        }
+
+        if (
+            memory != null
+                && hasTarget
+                && cooldowns.ready(AiKeys.VENT_TRAVERSAL_COOLDOWN)
+                && mob.distanceToSqr(target) >= VENT_MIN_TARGET_DIST * VENT_MIN_TARGET_DIST
+        ) {
+            var ordinaryEstimate = Math.sqrt(mob.distanceToSqr(target)) * ORDINARY_ROUTE_ESTIMATE_MULTIPLIER;
+            ventRoute = memory
+                .findVentShortcut(mob.level(), mob.blockPosition(), target.blockPosition(), ordinaryEstimate)
+                .orElse(null);
+        }
+
+        // Scored to comfortably beat every other pursuit-goal's practical ceiling (DEFEND_HIVE alone can reach 85,
+        // plus stacking bonuses and hysteresis push several goals well past 100) — a found vent route isn't really
+        // "competing" with those goals for a different objective, it's a strictly faster way to reach the same
+        // target once the cost-margin gate above has already judged it worthwhile, so it should win outright rather
+        // than get outscored by whichever combat posture happens to be active.
+        var ventScore = ventRoute != null ? 150f : 0f;
 
         var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
         if (lastSeenPos != null && !hasTarget) {
@@ -389,6 +472,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         seekDarknessScore -= gfc.getPenalty(AiGoalType.SEEK_DARKNESS, tick);
         ambushFromDarknessScore -= gfc.getPenalty(AiGoalType.AMBUSH_FROM_DARKNESS, tick);
         lureScore -= gfc.getPenalty(AiGoalType.LURE_TARGET, tick);
+        ventScore -= gfc.getPenalty(AiGoalType.VENT_TRAVERSAL, tick);
 
         FleeFireAction.tickFireAttackerMemory(blackboard, tick);
 
@@ -475,6 +559,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         seekDarknessScore = Math.max(0f, seekDarknessScore);
         ambushFromDarknessScore = Math.max(0f, ambushFromDarknessScore);
         lureScore = Math.max(0f, lureScore);
+        ventScore = Math.max(0f, ventScore);
 
         var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
         if (activeGoalType != null) {
@@ -491,6 +576,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 case SEEK_DARKNESS -> seekDarknessScore += HYSTERESIS_BONUS;
                 case AMBUSH_FROM_DARKNESS -> ambushFromDarknessScore += HYSTERESIS_BONUS;
                 case LURE_TARGET -> lureScore += HYSTERESIS_BONUS;
+                case VENT_TRAVERSAL -> ventScore += HYSTERESIS_BONUS;
                 default -> {}
             }
         }
@@ -514,6 +600,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 new Candidate(AiGoalType.SEEK_DARKNESS, seekDarknessScore),
                 new Candidate(AiGoalType.AMBUSH_FROM_DARKNESS, ambushFromDarknessScore),
                 new Candidate(AiGoalType.LURE_TARGET, lureScore),
+                new Candidate(AiGoalType.VENT_TRAVERSAL, ventScore),
             }
         ) {
             if (c.score() > best.score())
@@ -597,7 +684,24 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                 interruptible = true;
                 reason = "Feigning retreat to lure pursuer into a dark ambush";
                 chosenDest = darkHaven.orElse(null);
+                // Only set once this is actually the winning goal (not just eligible) — this is what makes the
+                // rarity in the scoring gate above stick, rather than the roll passing again on the very next
+                // eligible cycle.
                 cooldowns.set(AiKeys.LURE_COOLDOWN, LURE_COOLDOWN_TICKS);
+            }
+            case VENT_TRAVERSAL -> {
+                urgency = GoalUrgency.NORMAL;
+                interruptible = true;
+                reason = "Taking a known vent shortcut toward the target";
+                if (ventRoute != null) {
+                    // GOAL_DESTINATION (from chosenDest) drives the ordinary walk-to-entrance leg; VENT_ENTRANCE/
+                    // VENT_EXIT are read directly by VentTraversalAction once the mob arrives there — see
+                    // XenomorphTree's VENT_TRAVERSAL branch.
+                    chosenDest = ventRoute.entrance();
+                    blackboard.set(AiKeys.VENT_ENTRANCE, ventRoute.entrance());
+                    blackboard.set(AiKeys.VENT_EXIT, ventRoute.exit());
+                    cooldowns.set(AiKeys.VENT_TRAVERSAL_COOLDOWN, VENT_TRAVERSAL_COOLDOWN_TICKS);
+                }
             }
             case AMBUSH_FROM_DARKNESS -> {
                 urgency = GoalUrgency.NORMAL;
@@ -644,6 +748,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             case HUNT_TARGET -> XenoRole.HUNTER;
             case AMBUSH_TARGET, SEEK_DARKNESS,
                 AMBUSH_FROM_DARKNESS, LURE_TARGET -> XenoRole.STALKER;
+            case VENT_TRAVERSAL -> hasTarget ? XenoRole.HUNTER : XenoRole.STALKER;
             case DEFEND_HIVE -> XenoRole.DEFENDER;
             case EXPAND_HIVE -> XenoRole.HIVE_SPREADER;
             case RETREAT_TO_RESIN -> XenoRole.RETREATER;
