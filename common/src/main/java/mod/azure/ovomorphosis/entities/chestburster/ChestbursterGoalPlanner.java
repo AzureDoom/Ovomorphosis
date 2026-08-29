@@ -1,19 +1,15 @@
 package mod.azure.ovomorphosis.entities.chestburster;
 
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.api.goal.GoalUrgency;
+import com.azure.azurecortex.goap.*;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 import mod.azure.ovomorphosis.ai.actions.chestburster.EatFoodAction;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
-import mod.azure.ovomorphosis.ai.goap.GoalPlanner;
-import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 
 /**
  * GOAP planner for {@link ChestbursterEntity}.
@@ -27,7 +23,7 @@ import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
  * bypassing min-commit on the next cycle.</li>
  * </ul>
  */
-public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEntity> {
+public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEntity, AiGoalType> {
 
     private static final int MIN_COMMIT_TICKS = 20;
 
@@ -43,17 +39,17 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
 
     private static final float HYSTERESIS_BONUS = 15f;
 
-    private final EatFoodAction eatFoodAction;
+    private final EatFoodAction<AiGoalType> eatFoodAction;
 
-    public ChestbursterGoalPlanner(EatFoodAction eatFoodAction) {
+    public ChestbursterGoalPlanner(EatFoodAction<AiGoalType> eatFoodAction) {
         this.eatFoodAction = eatFoodAction;
     }
 
     @Override
-    public PlannedGoal<ChestbursterEntity> chooseGoal(
+    public PlannedGoal<ChestbursterEntity, AiGoalType> chooseGoal(
         ChestbursterEntity mob,
         Blackboard blackboard,
-        Cooldowns cooldowns
+        CooldownTracker cooldowns
     ) {
         var tick = (int) mob.level().getGameTime();
 
@@ -62,7 +58,7 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
 
         var feedback = readFeedback(blackboard, tick);
 
-        var threat = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var threat = blackboard.get(CommonBlackboardKeys.TARGET);
         var hasThreat = threat != null && threat.isAlive();
 
         var hideScore = 0f;
@@ -82,7 +78,7 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
             foodScore = 50f + (1f - growthFraction) * (1f / HUNGER_SCORE_SCALE);
         }
 
-        var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
+        var lastSeenPos = blackboard.get(CommonBlackboardKeys.LAST_SEEN_POS);
         if (lastSeenPos != null && !hasThreat) {
             investigateScore = 20f;
         }
@@ -137,13 +133,13 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
         growScore = Math.max(0f, growScore);
         investigateScore = Math.max(0f, investigateScore);
 
-        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        var activeGoalType = blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
         if (activeGoalType != null) {
             switch (activeGoalType) {
-                case HIDE -> hideScore += HYSTERESIS_BONUS;
-                case FIND_FOOD -> foodScore += HYSTERESIS_BONUS;
-                case GROW_SAFE, WANDER -> growScore += HYSTERESIS_BONUS;
-                case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
+                case AiGoalType.HIDE -> hideScore += HYSTERESIS_BONUS;
+                case AiGoalType.FIND_FOOD -> foodScore += HYSTERESIS_BONUS;
+                case AiGoalType.GROW_SAFE, AiGoalType.WANDER -> growScore += HYSTERESIS_BONUS;
+                case AiGoalType.INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
                 default -> {}
             }
         }
@@ -200,25 +196,26 @@ public final class ChestbursterGoalPlanner implements GoalPlanner<ChestbursterEn
         );
     }
 
-    private static PlanFeedback readFeedback(Blackboard blackboard, int tick) {
-        var full = blackboard.get(AiKeys.LAST_PLAN_FEEDBACK, PlanFeedback.class);
+    @SuppressWarnings("unchecked")
+    private static PlanFeedback<AiGoalType> readFeedback(Blackboard blackboard, int tick) {
+        var full = (PlanFeedback<AiGoalType>) blackboard.get(CommonBlackboardKeys.LAST_PLAN_FEEDBACK);
         if (full != null)
             return full;
 
-        var raw = blackboard.get(AiKeys.LAST_FAILURE_REASON, PlanFailureReason.class);
+        var raw = (PlanFailureReason) blackboard.get(CommonBlackboardKeys.LAST_FAILURE_REASON);
         if (raw != null && raw != PlanFailureReason.NONE) {
-            var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+            var activeGoal = (AiGoalType) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
             return PlanFeedback.of(
                 raw,
                 tick,
                 null,
-                activeGoalType != null ? activeGoalType : AiGoalType.NONE
+                activeGoal != null ? activeGoal : AiGoalType.NONE
             );
         }
         return null;
     }
 
-    private static String buildReason(String base, PlanFeedback feedback) {
+    private static String buildReason(String base, PlanFeedback<AiGoalType> feedback) {
         if (feedback == null || feedback.isNone())
             return base;
         return base + " [after " + feedback.reason().name() + "]";

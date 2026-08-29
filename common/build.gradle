@@ -27,6 +27,7 @@ neoForge {
 dependencies {
     compileOnly "org.spongepowered:mixin:0.8.5"
     compileOnly "mod.azure.azurelib:azurelib-common-${minecraft_version}:${azurelib_version}"
+    compileOnly "com.azure.azurecortex:azurecortex-common-${minecraft_version}:${azurecortex_version}"
     compileOnly "io.github.llamalad7:mixinextras-common:0.3.5"
     annotationProcessor "io.github.llamalad7:mixinextras-common:0.3.5"
     compileOnly "maven.modrinth:gigeresque:0.8.16"

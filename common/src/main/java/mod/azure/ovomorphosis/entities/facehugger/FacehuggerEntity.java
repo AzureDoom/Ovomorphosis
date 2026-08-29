@@ -1,5 +1,13 @@
 package mod.azure.ovomorphosis.entities.facehugger;
 
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.EmergencyDetector;
+import com.azure.azurecortex.goap.GoalExecutor;
+import com.azure.azurecortex.goap.GoalFailureCooldowns;
+import com.azure.azurecortex.goap.PlannedGoal;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
+import com.azure.azurecortex.runtime.CortexRuntime;
+import com.azure.azurecortex.sensing.TargetSensor;
 import mod.azure.azurelib.common.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -24,16 +32,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.EmergencyDetector;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
-import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
-import mod.azure.ovomorphosis.ai.nav.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.FacehuggerHostileTargetSelector;
-import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
 import mod.azure.ovomorphosis.util.ClientAnimState;
@@ -45,7 +45,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         EntityDataSerializers.BOOLEAN
     );
 
-    private final MobBrainRuntime<FacehuggerEntity> brainRuntime;
+    private final CortexRuntime<FacehuggerEntity, AiGoalType> brainRuntime;
 
     public final FacehuggerAnimationDispatcher animationDispatcher;
 
@@ -63,9 +63,9 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         this.moveAnalysis = new MoveAnalysis(this);
         this.targetSelector = new FacehuggerHostileTargetSelector<>(32);
 
-        this.brainRuntime = new MobBrainRuntime<>(
+        this.brainRuntime = new CortexRuntime<>(
             this,
-            new TargetingSystem<>(targetSelector, 2),
+            new TargetSensor<>(targetSelector, 2, TargetSensor.lineOfSight()),
             FacehuggerTree.create()
         );
     }
@@ -80,7 +80,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             tickGoalPlanner();
             brainRuntime.tick();
             tickLeapRecovery();
-            CrawlingMovementManager.updateWallCrawlingPhysics(this);
+            CrawlController.updateWallCrawlingPhysics(this);
         }
 
         this.handleAttachmentToHost();
@@ -113,26 +113,26 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         var currentTick = (int) this.level().getGameTime();
 
         @SuppressWarnings("unchecked")
-        var activeGoal = (PlannedGoal<FacehuggerEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+        var activeGoal = (PlannedGoal<FacehuggerEntity, AiGoalType>) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL);
 
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.WANDER || goalType == AiGoalType.NONE;
 
         var infectSuppressed = GoalFailureCooldowns.getOrCreate(blackboard)
             .isSuppressed(AiGoalType.INFECT_HOST, currentTick);
-        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !infectSuppressed;
+        var reactiveReplan = isPassive && blackboard.has(CommonBlackboardKeys.TARGET) && !infectSuppressed;
 
-        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
+        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this, EmergencyDetector.defaultProbes());
 
-        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(CommonBlackboardKeys.GOAL_REPLAN))
             return;
 
-        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency, this))
+        if (!reactiveReplan && !GoalExecutor.shouldReplan(blackboard, currentTick, preplanUrgency, this))
             return;
 
-        cooldowns.set(AiKeys.GOAL_REPLAN, 20);
+        cooldowns.set(CommonBlackboardKeys.GOAL_REPLAN, 20);
         var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
-        GoalApplicator.apply(this, blackboard, newGoal);
+        GoalExecutor.apply(this, blackboard, newGoal);
     }
 
     private void tickLeapRecovery() {
@@ -140,7 +140,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         var cooldowns = brainRuntime.getCooldowns();
 
         @SuppressWarnings("unchecked")
-        var activeGoal = (PlannedGoal<FacehuggerEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+        var activeGoal = (PlannedGoal<FacehuggerEntity, AiGoalType>) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL);
         if (activeGoal == null) {
             leapJustFailed = false;
             return;
@@ -152,12 +152,12 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             return;
         }
 
-        if (brainRuntime.getCurrentAction() == null && blackboard.has(AiKeys.TARGET)) {
+        if (brainRuntime.getCurrentAction() == null && blackboard.has(CommonBlackboardKeys.TARGET)) {
             if (leapJustFailed) {
                 leapJustFailed = false;
-                cooldowns.set(AiKeys.GOAL_REPLAN, 0);
+                cooldowns.set(CommonBlackboardKeys.GOAL_REPLAN, 0);
                 var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
-                GoalApplicator.apply(this, blackboard, newGoal);
+                GoalExecutor.apply(this, blackboard, newGoal);
             } else {
                 leapJustFailed = true;
             }

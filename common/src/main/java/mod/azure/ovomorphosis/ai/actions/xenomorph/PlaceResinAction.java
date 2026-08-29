@@ -1,5 +1,12 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -13,16 +20,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import mod.azure.ovomorphosis.ai.core.*;
+import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.blocks.ResinBlock;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
-public final class PlaceResinAction<E extends Mob> implements Action<E> {
+public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
 
     private static final int MAX_LIGHT_LEVEL = 4;
 
@@ -136,20 +142,25 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         settleTicks = 0;
         placed = false;
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    @SuppressWarnings("unchecked")
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0)
             return ActionOutcome.failed();
 
         var mobPos = mob.blockPosition();
         if (mob.level().getMaxLocalRawBrightness(mobPos) > MAX_LIGHT_LEVEL) {
-            return ActionOutcome.failed(PlanFailureReason.FAILED_TOO_BRIGHT, mobPos, AiGoalType.EXPAND_HIVE);
+            return (ActionOutcome<G>) ActionOutcome.failed(
+                PlanFailureReason.FAILED_UNSUITABLE_CONDITIONS,
+                mobPos,
+                AiGoalType.EXPAND_HIVE
+            );
         }
 
         if (!placed) {
@@ -164,7 +175,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
                 : tickDomePhase(mob, hiveMemory, domeCenter);
 
             if (count <= 0) {
-                return ActionOutcome.failed(
+                return (ActionOutcome<G>) ActionOutcome.failed(
                     PlanFailureReason.FAILED_NO_VALID_PLACEMENT,
                     mobPos,
                     AiGoalType.EXPAND_HIVE
@@ -176,13 +187,13 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         }
 
         if (settleTicks++ >= 20)
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {}
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {}
 
     @Override
     public boolean isInterruptible() {
@@ -633,10 +644,7 @@ public final class PlaceResinAction<E extends Mob> implements Action<E> {
         E mob,
         Blackboard blackboard
     ) {
-        var existing = blackboard.get(
-            AiKeys.HIVE_MEMORY,
-            HiveMemory.class
-        );
+        var existing = blackboard.get(AiKeys.HIVE_MEMORY);
 
         if (existing != null)
             return existing;

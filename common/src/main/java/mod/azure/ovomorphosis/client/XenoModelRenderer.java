@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.client;
 
+import com.azure.azurecortex.navigation.crawl.CrawlCapability;
 import com.mojang.blaze3d.vertex.PoseStack;
 import mod.azure.azurelib.common.render.AzLayerRenderer;
 import mod.azure.azurelib.common.render.AzRendererPipeline;
@@ -12,8 +13,6 @@ import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
 import java.util.UUID;
-
-import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 
 @SuppressWarnings("unused")
 public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRenderer<T> {
@@ -41,9 +40,9 @@ public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRend
         float partialTick,
         float nativeScale
     ) {
-        // if (animatable instanceof WallCrawlingMob wallCrawler) {
-        // var shouldApplyClimb = wallCrawler.ovomorphosis$isWallCrawling()
-        // || wallCrawler.ovomorphosis$getWallCrawlGraceTicks() > 2;
+        // if (animatable instanceof CrawlCapability wallCrawler) {
+        // var shouldApplyClimb = wallCrawler.isWallCrawling()
+        // || wallCrawler.getWallCrawlGraceTicks() > 2;
         //
         // if (shouldApplyClimb) {
         // applyClimbingRotations(animatable, wallCrawler, poseStack, partialTick);
@@ -57,19 +56,19 @@ public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRend
     // TODO: Update for crawling animations + new system
     private static void applyClimbingRotations(
         LivingEntity entity,
-        WallCrawlingMob wallCrawler,
+        CrawlCapability wallCrawler,
         PoseStack poseStack,
         float partialTick
     ) {
         var forward = lerpVec(
-            wallCrawler.ovomorphosis$getOldCrawlForward(),
-            wallCrawler.ovomorphosis$getCrawlForward(),
+            wallCrawler.getOldCrawlForward(),
+            wallCrawler.getCrawlForward(),
             partialTick
         ).scale(-1.0D);
 
         var up = lerpVec(
-            wallCrawler.ovomorphosis$getOldCrawlUp(),
-            wallCrawler.ovomorphosis$getCrawlUp(),
+            wallCrawler.getOldCrawlUp(),
+            wallCrawler.getCrawlUp(),
             partialTick
         );
 
@@ -93,8 +92,8 @@ public class XenoModelRenderer<T extends LivingEntity> extends AzEntityModelRend
 
         var distToBlock = Mth.lerp(
             partialTick,
-            (float) wallCrawler.ovomorphosis$getOldCrawlDistFromBlock(),
-            (float) wallCrawler.ovomorphosis$getCrawlDistFromBlock()
+            (float) wallCrawler.getOldCrawlDistFromBlock(),
+            (float) wallCrawler.getCrawlDistFromBlock()
         );
 
         poseStack.translate(0.0D, -distToBlock * 0.25D, 0.0D);

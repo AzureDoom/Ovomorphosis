@@ -1,5 +1,12 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Mob;
@@ -12,15 +19,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Comparator;
 import java.util.List;
 
-import mod.azure.ovomorphosis.ai.core.Action;
-import mod.azure.ovomorphosis.ai.core.ActionOutcome;
-import mod.azure.ovomorphosis.ai.core.ActionStatus;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
-
-public record DodgeProjectileAction<E extends Mob>(int priority) implements Action<E> {
+public record DodgeProjectileAction<E extends Mob, G>(int priority) implements Action<E, G> {
 
     private static final double SCAN_RADIUS = 8.0D;
 
@@ -41,14 +40,14 @@ public record DodgeProjectileAction<E extends Mob>(int priority) implements Acti
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {}
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {}
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0)
             return ActionOutcome.failed();
 
-        if (cooldowns.isOnCooldown(AiKeys.DODGE_COOLDOWN))
+        if (cooldowns.isOnCooldown(CommonBlackboardKeys.DODGE_COOLDOWN))
             return ActionOutcome.failed();
 
         var incoming = findIncomingProjectile(mob);
@@ -56,12 +55,12 @@ public record DodgeProjectileAction<E extends Mob>(int priority) implements Acti
             return ActionOutcome.failed();
 
         applyDodge(mob, incoming);
-        cooldowns.set(AiKeys.DODGE_COOLDOWN, DODGE_COOLDOWN_TICKS);
-        return ActionOutcome.SUCCESS;
+        cooldowns.set(CommonBlackboardKeys.DODGE_COOLDOWN, DODGE_COOLDOWN_TICKS);
+        return ActionOutcome.success();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {}
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {}
 
     @Override
     public boolean isInterruptible() {
@@ -105,7 +104,7 @@ public record DodgeProjectileAction<E extends Mob>(int priority) implements Acti
         }
 
         var lateral = chosen.scale(DODGE_SPEED);
-        var safe = MovementUtils.findSafeMovement(mob, lateral, new int[] { 0 });
+        var safe = MovementController.findSafeMovement(mob, lateral, new int[] { 0 });
         var impulse = safe.equals(Vec3.ZERO) ? lateral : safe;
 
         mob.setDeltaMovement(impulse.x, DODGE_JUMP, impulse.z);

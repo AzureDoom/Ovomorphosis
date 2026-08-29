@@ -1,13 +1,16 @@
 package mod.azure.ovomorphosis.ai.actions;
 
-import net.minecraft.world.entity.LivingEntity;
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
-
-public final class IdleAction<E extends Mob> implements Action<E> {
+public final class IdleAction<E extends Mob, G> implements Action<E, G> {
 
     private final int minDuration;
 
@@ -26,33 +29,33 @@ public final class IdleAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         this.age = 0;
         this.duration = minDuration + mob.getRandom().nextInt(maxDuration - minDuration + 1);
         mob.setAggressive(false);
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 180);
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0) {
             return ActionOutcome.failed();
         }
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target != null && target.isAlive()) {
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
-        var dangerMove = MovementUtils.steerAwayFromDangerEntities(mob, Vec3.ZERO);
+        var dangerMove = MovementController.steerAwayFromDangerEntities(mob, Vec3.ZERO);
 
         if (dangerMove.lengthSqr() > 0.0001D) {
-            var safe = MovementUtils.findSafeMovement(mob, dangerMove, new int[] { 0 });
+            var safe = MovementController.findSafeMovement(mob, dangerMove, new int[] { 0 });
 
             if (!safe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
                 mob.hasImpulse = true;
-                return ActionOutcome.RUNNING;
+                return ActionOutcome.running();
             }
         }
 
@@ -62,12 +65,12 @@ public final class IdleAction<E extends Mob> implements Action<E> {
             mob.setYRot((float) (mob.getRandom().nextDouble() * 360.0));
         }
 
-        return age >= duration ? ActionOutcome.SUCCESS : ActionOutcome.RUNNING;
+        return age >= duration ? ActionOutcome.success() : ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
     }
 
     @Override

@@ -1,18 +1,14 @@
 package mod.azure.ovomorphosis.entities.facehugger;
 
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.api.goal.GoalUrgency;
+import com.azure.azurecortex.goap.*;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
-import mod.azure.ovomorphosis.ai.goap.GoalPlanner;
-import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 
 /**
@@ -32,7 +28,7 @@ import mod.azure.ovomorphosis.ai.util.TargetingUtils;
  * suppressed — there is no point triggering an immediate replan if the planner will just score that goal near zero
  * anyway.
  */
-public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity> {
+public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity, AiGoalType> {
 
     private static final int MIN_COMMIT_TICKS = 40;
 
@@ -51,10 +47,10 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
     private static final float HYSTERESIS_BONUS = 15f;
 
     @Override
-    public PlannedGoal<FacehuggerEntity> chooseGoal(
+    public PlannedGoal<FacehuggerEntity, AiGoalType> chooseGoal(
         FacehuggerEntity mob,
         Blackboard blackboard,
-        Cooldowns cooldowns
+        CooldownTracker cooldowns
     ) {
         int tick = (int) mob.level().getGameTime();
 
@@ -78,10 +74,10 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
 
         var feedback = readFeedback(blackboard, tick);
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target != null && (!target.isAlive() || !TargetingUtils.faceHuggerTest(mob, target))) {
             target = null;
-            blackboard.set(AiKeys.TARGET, null);
+            blackboard.set(CommonBlackboardKeys.TARGET, null);
             mob.setTarget(null);
         }
 
@@ -89,9 +85,9 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
         var lowHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
 
         if (!lowHealth) {
-            var staleFailCount = blackboard.get(AiKeys.FAILED_GOAL_COUNT, Integer.class);
+            var staleFailCount = blackboard.get(CommonBlackboardKeys.FAILED_GOAL_COUNT);
             if (staleFailCount != null && staleFailCount != 0) {
-                blackboard.set(AiKeys.FAILED_GOAL_COUNT, 0);
+                blackboard.set(CommonBlackboardKeys.FAILED_GOAL_COUNT, 0);
             }
         }
 
@@ -126,7 +122,7 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
             retreatDest = findHidePosition(mob);
         }
 
-        var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
+        var lastSeenPos = blackboard.get(CommonBlackboardKeys.LAST_SEEN_POS);
         if (lastSeenPos != null && target == null) {
             investigateScore = 30f;
             investigateDest = lastSeenPos;
@@ -153,7 +149,7 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
                     }
                     if (failedGoal == AiGoalType.RETREAT_AND_HIDE) {
                         retreatScore -= PENALTY_FAILED_GOAL;
-                        var failCount = blackboard.get(AiKeys.FAILED_GOAL_COUNT, Integer.class);
+                        var failCount = blackboard.get(CommonBlackboardKeys.FAILED_GOAL_COUNT);
                         var count = failCount != null ? Math.max(1, failCount) : 1;
                         var suppressDuration = Math.min(80 * count, 600);
                         gfc.recordFailure(AiGoalType.RETREAT_AND_HIDE, tick, suppressDuration);
@@ -192,14 +188,14 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
         retreatScore = Math.max(0f, retreatScore);
         investigateScore = Math.max(0f, investigateScore);
 
-        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        var activeGoalType = blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
         if (activeGoalType != null) {
             switch (activeGoalType) {
-                case INFECT_HOST -> infectScore += HYSTERESIS_BONUS;
-                case STALK_HOST -> stalkScore += HYSTERESIS_BONUS;
-                case RETREAT_AND_HIDE -> retreatScore += HYSTERESIS_BONUS;
-                case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
-                case WANDER -> wanderScore += HYSTERESIS_BONUS;
+                case AiGoalType.INFECT_HOST -> infectScore += HYSTERESIS_BONUS;
+                case AiGoalType.STALK_HOST -> stalkScore += HYSTERESIS_BONUS;
+                case AiGoalType.RETREAT_AND_HIDE -> retreatScore += HYSTERESIS_BONUS;
+                case AiGoalType.INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
+                case AiGoalType.WANDER -> wanderScore += HYSTERESIS_BONUS;
                 default -> {}
             }
         }
@@ -271,25 +267,26 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
         );
     }
 
-    private static PlanFeedback readFeedback(Blackboard blackboard, int tick) {
-        var full = blackboard.get(AiKeys.LAST_PLAN_FEEDBACK, PlanFeedback.class);
+    @SuppressWarnings("unchecked")
+    private static PlanFeedback<AiGoalType> readFeedback(Blackboard blackboard, int tick) {
+        var full = (PlanFeedback<AiGoalType>) blackboard.get(CommonBlackboardKeys.LAST_PLAN_FEEDBACK);
         if (full != null)
             return full;
 
-        var raw = blackboard.get(AiKeys.LAST_FAILURE_REASON, PlanFailureReason.class);
+        var raw = (PlanFailureReason) blackboard.get(CommonBlackboardKeys.LAST_FAILURE_REASON);
         if (raw != null && raw != PlanFailureReason.NONE) {
-            var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+            var activeGoal = (AiGoalType) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
             return PlanFeedback.of(
                 raw,
                 tick,
                 null,
-                activeGoalType != null ? activeGoalType : AiGoalType.NONE
+                activeGoal != null ? activeGoal : AiGoalType.NONE
             );
         }
         return null;
     }
 
-    private static String buildReason(String base, PlanFeedback feedback) {
+    private static String buildReason(String base, PlanFeedback<AiGoalType> feedback) {
         if (feedback == null || feedback.isNone())
             return base;
         return base + " [after " + feedback.reason().name() + "]";

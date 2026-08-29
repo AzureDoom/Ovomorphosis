@@ -1,5 +1,14 @@
 package mod.azure.ovomorphosis.ai.actions.chestburster;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.config.CortexConfig;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.runtime.CooldownTracker;
+import com.azure.azurecortex.runtime.CortexDebug;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -11,12 +20,10 @@ import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
-import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
-public class EatFoodAction implements Action<ChestbursterEntity> {
+public class EatFoodAction<G> implements Action<ChestbursterEntity, G> {
 
     private final double searchRange;
 
@@ -61,8 +68,8 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
     }
 
     @Override
-    public void start(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(ChestbursterEntity mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         this.food = findNearestCookedFood(mob, ignoredFood(blackboard));
         this.eatTicks = 0;
         this.eatingStarted = false;
@@ -70,10 +77,10 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
     }
 
     @Override
-    public ActionOutcome tick(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(ChestbursterEntity mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (!this.eatingStarted) {
             if (this.food == null || !this.food.isAlive() || this.food.getItem().isEmpty()) {
-                return ActionOutcome.SUCCESS;
+                return ActionOutcome.success();
             }
 
             var d = mob.distanceToSqr(this.food);
@@ -92,11 +99,11 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
                     beginEating(mob);
                 } else if (this.noProgressTicks > 40) {
                     ignoredFood(blackboard).put(this.food.getId(), mob.level().getGameTime() + 200);
-                    cooldowns.set(AiKeys.PASSIVE_DECISION, 60);
-                    return ActionOutcome.SUCCESS;
+                    cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 60);
+                    return ActionOutcome.success();
                 } else {
                     moveTowardFood(mob);
-                    return ActionOutcome.RUNNING;
+                    return ActionOutcome.running();
                 }
             }
         }
@@ -118,14 +125,14 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
         }
 
         if (this.eatTicks >= animationTicks) {
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(ChestbursterEntity mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(ChestbursterEntity mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
         mob.hasImpulse = true;
         this.food = null;
@@ -174,11 +181,11 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
             return;
         }
 
-        var movement = MovementUtils.steerAwayFromDangerEntities(
+        var movement = MovementController.steerAwayFromDangerEntities(
             mob,
             horizontal.normalize().scale(speed)
         );
-        var safe = MovementUtils.findSafeMovement(mob, movement, steerBias);
+        var safe = MovementController.findSafeMovement(mob, movement, steerBias);
 
         if (safe.equals(Vec3.ZERO)) {
             mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
@@ -196,7 +203,8 @@ public class EatFoodAction implements Action<ChestbursterEntity> {
         mob.yBodyRot = yaw;
         mob.yHeadRot = yaw;
 
-        AiDebugUtils.sendParticlePath(mob, mob.position(), destVec);
+        if (CortexConfig.get().enablePathfindingDebug)
+            CortexDebug.sendParticlePath(mob, mob.position(), destVec);
     }
 
     private ItemEntity findNearestCookedFood(ChestbursterEntity mob, Map<Integer, Long> ignored) {

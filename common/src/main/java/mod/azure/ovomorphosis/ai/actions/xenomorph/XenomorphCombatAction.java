@@ -1,18 +1,22 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.action.combat.MeleeHitResolver;
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
-import mod.azure.ovomorphosis.ai.combat.MeleeHitResolver;
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.nav.CrawlingMovementManager;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
-
-public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
+public final class XenomorphCombatAction<E extends Mob, G> implements Action<E, G> {
 
     private enum Phase {
         STALK,
@@ -67,27 +71,27 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         phase = Phase.STALK;
         phaseAge = 0;
         didStrike = false;
         stalkLateralBias = mob.getRandom().nextBoolean() ? 1 : -1;
-        wasCrawlingOnStart = CrawlingMovementManager.wasRecentlyWallCrawling(mob);
+        wasCrawlingOnStart = CrawlController.wasRecentlyWallCrawling(mob);
         mob.hasImpulse = true;
 
         if (wasCrawlingOnStart) {
-            CrawlingMovementManager.setWallCrawling(mob, true);
-            CrawlingMovementManager.updateWallCrawlingPhysics(mob);
+            CrawlController.setWallCrawling(mob, true);
+            CrawlController.updateWallCrawlingPhysics(mob);
         }
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0)
             return ActionOutcome.failed();
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target == null || !target.isAlive())
             return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
 
@@ -104,7 +108,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         wasCrawlingOnStart = false;
         mob.setAggressive(false);
     }
@@ -124,8 +128,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         return cooldownKey;
     }
 
-    // TODO: Fix me for warning
-    private ActionOutcome tickStalk(E mob, LivingEntity target) {
+    private ActionOutcome<G> tickStalk(E mob, LivingEntity target) {
         var distSq = mob.distanceToSqr(target);
 
         if (
@@ -134,17 +137,17 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         ) {
             threatResponseStreak++;
             enterPhase(mob, Phase.THREAT_RESPONSE);
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         if (distSq <= 5D * 5D) {
             enterPhase(mob, Phase.STRIKE);
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         if (phaseAge > 140) {
             enterPhase(mob, Phase.STRIKE);
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         if (phaseAge % 14 == 0 && mob.getRandom().nextFloat() < 0.3F) {
@@ -156,14 +159,14 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
         var desired = toTarget.scale(0.38D).add(lateral);
         applyDangerSteering(mob, desired);
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
-    private ActionOutcome tickStrike(
+    private ActionOutcome<G> tickStrike(
         E mob,
         LivingEntity target,
         Blackboard blackboard,
-        Cooldowns cooldowns
+        CooldownTracker cooldowns
     ) {
         if (phaseAge == 1) {
             mob.setAggressive(true);
@@ -176,11 +179,11 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
                 threatResponseStreak = 0;
 
                 if (!target.isAlive()) {
-                    blackboard.set(AiKeys.TARGET, null);
+                    blackboard.set(CommonBlackboardKeys.TARGET, null);
                     mob.setTarget(null);
                     cooldowns.set(cooldownKey, cooldownTicks);
                     mob.setAggressive(false);
-                    return ActionOutcome.SUCCESS;
+                    return ActionOutcome.success();
                 }
             }
         }
@@ -190,10 +193,15 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
             enterPhase(mob, Phase.CIRCLE_OUT);
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
-    private ActionOutcome tickCircleOut(E mob, LivingEntity target, Cooldowns cooldowns, boolean isThreatResponse) {
+    private ActionOutcome<G> tickCircleOut(
+        E mob,
+        LivingEntity target,
+        CooldownTracker cooldowns,
+        boolean isThreatResponse
+    ) {
         mob.setAggressive(false);
 
         var toTarget = target.position().subtract(mob.position());
@@ -217,7 +225,7 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
             circleDir = -circleDir;
         }
 
-        var safe = MovementUtils.findSafeMovement(mob, movement, new int[] { 0 });
+        var safe = MovementController.findSafeMovement(mob, movement, new int[] { 0 });
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
         mob.hasImpulse = true;
 
@@ -229,13 +237,13 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
             }
             stalkLateralBias = circleDir;
             cooldowns.set(cooldownKey, cooldownTicks);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
-    private ActionOutcome tickThreatResponse(E mob, LivingEntity target, Cooldowns cooldowns) {
+    private ActionOutcome<G> tickThreatResponse(E mob, LivingEntity target, CooldownTracker cooldowns) {
         if (phaseAge == 1) {
             mob.setAggressive(false);
             circleDir = mob.getRandom().nextBoolean() ? 1 : -1;
@@ -251,8 +259,8 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
 
     private void maintainCrawl(E mob) {
         if (wasCrawlingOnStart) {
-            CrawlingMovementManager.setWallCrawling(mob, true);
-            CrawlingMovementManager.updateWallCrawlingPhysics(mob);
+            CrawlController.setWallCrawling(mob, true);
+            CrawlController.updateWallCrawlingPhysics(mob);
         }
     }
 
@@ -262,10 +270,10 @@ public final class XenomorphCombatAction<E extends Mob> implements Action<E> {
     }
 
     private void applyDangerSteering(E mob, Vec3 desired) {
-        var danger = MovementUtils.steerAwayFromDangerEntities(mob, Vec3.ZERO);
+        var danger = MovementController.steerAwayFromDangerEntities(mob, Vec3.ZERO);
         Vec3 result;
         if (danger.lengthSqr() > 0.0001D) {
-            var safe = MovementUtils.findSafeMovement(mob, danger, new int[] { 0 });
+            var safe = MovementController.findSafeMovement(mob, danger, new int[] { 0 });
             result = safe.equals(Vec3.ZERO) ? danger : safe;
         } else {
             result = desired;

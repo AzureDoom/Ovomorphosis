@@ -1,5 +1,7 @@
 package mod.azure.ovomorphosis.entities.ovomorph;
 
+import com.azure.azurecortex.runtime.CortexRuntime;
+import com.azure.azurecortex.sensing.TargetSensor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -24,9 +26,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.util.OvomorphHostTargetSelector;
-import mod.azure.ovomorphosis.ai.util.TargetingSystem;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
@@ -47,18 +48,15 @@ public class OvomorphEntity extends AbstractAlienEntity {
 
     private int deathTickCounter;
 
-    private final MobBrainRuntime<OvomorphEntity> brainRuntime;
+    private final CortexRuntime<OvomorphEntity, AiGoalType> brainRuntime;
 
     public final OvomorphAnimationDispatcher animationDispatcher;
 
     public OvomorphEntity(EntityType<? extends AbstractAlienEntity> entityType, Level level) {
         super(entityType, level);
-        this.brainRuntime = new MobBrainRuntime<>(
+        this.brainRuntime = new CortexRuntime<>(
             this,
-            new TargetingSystem<>(
-                new OvomorphHostTargetSelector<>(),
-                10
-            ),
+            new TargetSensor<>(new OvomorphHostTargetSelector<>(), 10, TargetSensor.lineOfSight()),
             OvomorphTree.create()
         );
         this.animationDispatcher = new OvomorphAnimationDispatcher(this);

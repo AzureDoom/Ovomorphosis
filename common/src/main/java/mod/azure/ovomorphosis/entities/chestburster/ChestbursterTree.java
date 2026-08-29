@@ -1,21 +1,20 @@
 package mod.azure.ovomorphosis.entities.chestburster;
 
-import net.minecraft.world.entity.LivingEntity;
+import com.azure.azurecortex.api.behavior.BehaviorNode;
+import com.azure.azurecortex.api.behavior.BehaviorResult;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlannedGoal;
 
 import mod.azure.ovomorphosis.ai.actions.*;
 import mod.azure.ovomorphosis.ai.actions.chestburster.EatFoodAction;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.BehaviorNode;
-import mod.azure.ovomorphosis.ai.core.BehaviorResult;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 
 public class ChestbursterTree {
 
-    public static BehaviorNode<ChestbursterEntity> create(EatFoodAction eatAction) {
-        var idle = new IdleAction<ChestbursterEntity>(40, 100, 1);
+    public static BehaviorNode<ChestbursterEntity, AiGoalType> create(EatFoodAction eatAction) {
+        var idle = new IdleAction<ChestbursterEntity, AiGoalType>(40, 100, 1);
 
-        var wander = new WanderAction<ChestbursterEntity>(
+        var wander = new WanderAction<ChestbursterEntity, AiGoalType>(
             0.1D,
             9,
             6.0D,
@@ -24,22 +23,22 @@ public class ChestbursterTree {
             true
         );
 
-        var flee = new FleeAction<ChestbursterEntity>(
+        var flee = new FleeAction<ChestbursterEntity, AiGoalType>(
             0.18D,
             20,
             70
         );
 
-        var fleeExplosive = new ExplosiveFleeAction<ChestbursterEntity>(
+        var fleeExplosive = new ExplosiveFleeAction<ChestbursterEntity, AiGoalType>(
             0.18D,
             10,
             20,
             120
         );
 
-        var fleeFire = new FleeFireAction<ChestbursterEntity>(110);
+        var fleeFire = new FleeFireAction<ChestbursterEntity, AiGoalType>(110);
 
-        var swim = new SwimAction<ChestbursterEntity>(200);
+        var swim = new SwimAction<ChestbursterEntity, AiGoalType>(200);
 
         return (chestburster, blackboard, cooldowns) -> {
 
@@ -56,13 +55,13 @@ public class ChestbursterTree {
             }
 
             @SuppressWarnings("unchecked")
-            var goal = (PlannedGoal<ChestbursterEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+            var goal = (PlannedGoal<ChestbursterEntity, AiGoalType>) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL);
             var goalType = goal != null ? goal.type() : AiGoalType.NONE;
 
             return switch (goalType) {
 
                 case HIDE -> {
-                    var threat = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+                    var threat = blackboard.get(CommonBlackboardKeys.TARGET);
                     if (threat != null && threat.isAlive()) {
                         yield BehaviorResult.run(flee, flee.priority());
                     }
@@ -77,8 +76,8 @@ public class ChestbursterTree {
                 }
 
                 default -> {
-                    if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
-                        cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
+                    if (!cooldowns.isOnCooldown(CommonBlackboardKeys.PASSIVE_DECISION)) {
+                        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 180);
                         if (chestburster.getRandom().nextFloat() < 0.65F) {
                             yield BehaviorResult.run(wander, 10);
                         }

@@ -1,5 +1,7 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
@@ -10,7 +12,6 @@ import net.minecraft.world.item.TridentItem;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -19,16 +20,16 @@ import mod.azure.ovomorphosis.util.ModTags;
  * blackboard.
  * <h3>Keys written</h3>
  * <ul>
- * <li>{@link AiKeys#TARGET_IS_RANGED} — target is holding a bow, crossbow, or trident, or has recently fired a
- * projectile nearby.</li>
- * <li>{@link AiKeys#TARGET_IS_FIRE_USER} — already maintained by {@link FleeFireAction}; this class only refreshes it
- * when fire danger is not active so it correctly resets to {@code false}.</li>
- * <li>{@link AiKeys#TARGET_IS_ISOLATED} — no other players or mobs within 12 blocks of the target. Influences
- * carry/capture scoring.</li>
+ * <li>{@link CommonBlackboardKeys#TARGET_IS_RANGED} — target is holding a bow, crossbow, or trident, or has recently
+ * fired a projectile nearby.</li>
+ * <li>{@link CommonBlackboardKeys#TARGET_IS_FIRE_USER} — already maintained by {@link FleeFireAction}; this class only
+ * refreshes it when fire danger is not active so it correctly resets to {@code false}.</li>
+ * <li>{@link CommonBlackboardKeys#TARGET_IS_ISOLATED} — no other players or mobs within 12 blocks of the target.
+ * Influences carry/capture scoring.</li>
  * <li>{@link AiKeys#TARGET_IS_NEAR_HIVE} — target is within 20 blocks of the nearest known resin web cross. Triggers
  * hive-defense scoring.</li>
- * <li>{@link AiKeys#TARGET_IS_ARMORED} — target has at least two armor slots filled. Influences grab eligibility and
- * combat approach choice.</li>
+ * <li>{@link CommonBlackboardKeys#TARGET_IS_ARMORED} — target has at least two armor slots filled. Influences grab
+ * eligibility and combat approach choice.</li>
  * <li>{@link AiKeys#TARGET_IS_VALID_HOST} — target passes the facehugger host validity test, meaning it could be
  * infected. Influences carrier scoring.</li>
  * <li>{@link AiKeys#TARGET_IS_TOO_DANGEROUS_TO_GRAB} — target is ranged, armored, facing the mob and close, or is a
@@ -53,14 +54,14 @@ public final class TargetClassifier {
      * @param blackboard the mob's blackboard
      */
     public static void classify(AbstractAlienEntity mob, Blackboard blackboard) {
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
 
         if (target == null || !target.isAlive()) {
             clearAll(blackboard);
             return;
         }
 
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
 
         var isRanged = isRangedCombatant(mob, target);
         var isIsolated = isIsolated(mob, target);
@@ -75,17 +76,17 @@ public final class TargetClassifier {
             || (tooHeavy)
             || target.getType().is(ModTags.XENO_GRAB_BLACKLIST);
 
-        blackboard.set(AiKeys.TARGET_IS_RANGED, isRanged);
-        blackboard.set(AiKeys.TARGET_IS_ISOLATED, isIsolated);
+        blackboard.set(CommonBlackboardKeys.TARGET_IS_RANGED, isRanged);
+        blackboard.set(CommonBlackboardKeys.TARGET_IS_ISOLATED, isIsolated);
         blackboard.set(AiKeys.TARGET_IS_NEAR_HIVE, isNearHive);
-        blackboard.set(AiKeys.TARGET_IS_ARMORED, isArmored);
+        blackboard.set(CommonBlackboardKeys.TARGET_IS_ARMORED, isArmored);
         blackboard.set(AiKeys.TARGET_IS_VALID_HOST, isValidHost);
         blackboard.set(AiKeys.TARGET_IS_TOO_DANGEROUS_TO_GRAB, tooDangerous);
 
-        var fireDangerExpiry = blackboard.get(AiKeys.FIRE_DANGER_UNTIL_TICK, Integer.class);
+        var fireDangerExpiry = blackboard.get(CommonBlackboardKeys.FIRE_DANGER_UNTIL_TICK);
         var currentTick = (int) mob.level().getGameTime();
         if (fireDangerExpiry != null && currentTick >= fireDangerExpiry) {
-            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, false);
+            blackboard.set(CommonBlackboardKeys.TARGET_IS_FIRE_USER, false);
         }
     }
 
@@ -156,12 +157,12 @@ public final class TargetClassifier {
     }
 
     private static void clearAll(Blackboard blackboard) {
-        blackboard.set(AiKeys.TARGET_IS_RANGED, false);
-        blackboard.set(AiKeys.TARGET_IS_ISOLATED, false);
+        blackboard.set(CommonBlackboardKeys.TARGET_IS_RANGED, false);
+        blackboard.set(CommonBlackboardKeys.TARGET_IS_ISOLATED, false);
         blackboard.set(AiKeys.TARGET_IS_NEAR_HIVE, false);
-        blackboard.set(AiKeys.TARGET_IS_ARMORED, false);
+        blackboard.set(CommonBlackboardKeys.TARGET_IS_ARMORED, false);
         blackboard.set(AiKeys.TARGET_IS_VALID_HOST, false);
         blackboard.set(AiKeys.TARGET_IS_TOO_DANGEROUS_TO_GRAB, false);
-        blackboard.set(AiKeys.TARGET_IS_FIRE_USER, false);
+        blackboard.set(CommonBlackboardKeys.TARGET_IS_FIRE_USER, false);
     }
 }

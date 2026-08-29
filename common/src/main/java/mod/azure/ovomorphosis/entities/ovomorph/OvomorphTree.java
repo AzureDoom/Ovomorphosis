@@ -1,25 +1,25 @@
 package mod.azure.ovomorphosis.entities.ovomorph;
 
-import net.minecraft.world.entity.LivingEntity;
+import com.azure.azurecortex.api.behavior.BehaviorNode;
+import com.azure.azurecortex.api.behavior.BehaviorResult;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
 
 import mod.azure.ovomorphosis.ai.actions.IdleAction;
 import mod.azure.ovomorphosis.ai.actions.ovomorph.HatchFacehuggerAction;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.BehaviorNode;
-import mod.azure.ovomorphosis.ai.core.BehaviorResult;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 
 public class OvomorphTree {
 
-    public static BehaviorNode<OvomorphEntity> create() {
-        var hatch = new HatchFacehuggerAction();
-        var idle = new IdleAction<OvomorphEntity>(40, 100, 1);
+    public static BehaviorNode<OvomorphEntity, AiGoalType> create() {
+        var hatch = new HatchFacehuggerAction<AiGoalType>();
+        var idle = new IdleAction<OvomorphEntity, AiGoalType>(40, 100, 1);
 
         return (egg, blackboard, cooldowns) -> {
             if (egg.getEggState() == EggStates.HATCHED.ordinal() || !egg.hasFacehugger()) {
                 return BehaviorResult.run(idle, 5);
             }
 
-            var host = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+            var host = blackboard.get(CommonBlackboardKeys.TARGET);
             if (
                 egg.getEggState() == EggStates.HATCHING.ordinal()
                     || (host != null && host.isAlive())

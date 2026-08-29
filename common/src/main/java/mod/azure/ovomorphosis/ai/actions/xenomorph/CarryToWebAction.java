@@ -1,5 +1,16 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.navigation.astar.IncrementalPathSession;
+import com.azure.azurecortex.navigation.astar.PathNodeCache;
+import com.azure.azurecortex.navigation.crawl.CrawlTraversalEvaluator;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -12,17 +23,12 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.nav.CrawlingCustomAStar;
-import mod.azure.ovomorphosis.ai.nav.IncrementalPathSession;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
-import mod.azure.ovomorphosis.ai.nav.PathNodeCache;
+import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 
-public final class CarryToWebAction<E extends Mob> implements Action<E> {
+public final class CarryToWebAction<E extends Mob, G> implements Action<E, G> {
 
     /**
      * Ticks without meaningful positional displacement (despite an active path) before the action gives up and drops
@@ -128,8 +134,8 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         webTarget = null;
         path = Collections.emptyList();
         pathIndex = 0;
@@ -155,11 +161,11 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0)
             return ActionOutcome.failed();
 
-        var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var victim = blackboard.get(CommonBlackboardKeys.TARGET);
         if (victim == null || !victim.isAlive()) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
@@ -171,7 +177,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             webTarget = resolveWebTarget(mob, blackboard);
             if (webTarget == null) {
                 dropPassengerSafely(mob, victim);
-                return ActionOutcome.failed(PlanFailureReason.FAILED_NO_WEB);
+                return ActionOutcome.failed(PlanFailureReason.FAILED_MISSING_INFRASTRUCTURE);
             }
             path = Collections.emptyList();
             lastDistSqToWeb = Double.MAX_VALUE;
@@ -186,7 +192,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
                 webTarget = resolveWebTarget(mob, blackboard);
                 if (webTarget == null) {
                     dropPassengerSafely(mob, victim);
-                    return ActionOutcome.failed(PlanFailureReason.FAILED_NO_WEB);
+                    return ActionOutcome.failed(PlanFailureReason.FAILED_MISSING_INFRASTRUCTURE);
                 }
                 lastDistSqToWeb = Double.MAX_VALUE;
             }
@@ -230,7 +236,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         var webVec = Vec3.atBottomCenterOf(webTarget);
         if (mob.distanceToSqr(webVec) <= 1.8D * 1.8D) {
             deposit(mob, victim, blackboard, cooldowns);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         pathAttemptFailedThisTick = false;
@@ -244,13 +250,13 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             return ActionOutcome.blocked(PlanFailureReason.FAILED_STUCK, mob.blockPosition());
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         if (reason == ActionStatus.INTERRUPTED || reason == ActionStatus.FAILURE) {
-            var victim = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+            var victim = blackboard.get(CommonBlackboardKeys.TARGET);
             if (victim != null && victim.isPassenger() && victim.getVehicle() == mob) {
                 dropPassengerSafely(mob, victim);
             }
@@ -293,7 +299,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
      * {@link ResinWebRegistry}). No world scan is performed here.
      */
     private BlockPos resolveWebTarget(E mob, Blackboard blackboard) {
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
         if (memory == null)
             return null;
 
@@ -352,8 +358,8 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
      * Still, callers should gate it behind {@link AiKeys#HIVE_SYNC_COOLDOWN} to avoid even that small overhead running
      * every tick.
      */
-    private void syncMemoryFromRegistry(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+    private void syncMemoryFromRegistry(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
         if (memory == null)
             return;
 
@@ -361,14 +367,14 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
         cooldowns.set(AiKeys.HIVE_SYNC_COOLDOWN, 60);
     }
 
-    private void deposit(E mob, LivingEntity victim, Blackboard blackboard, Cooldowns cooldowns) {
+    private void deposit(E mob, LivingEntity victim, Blackboard blackboard, CooldownTracker cooldowns) {
         victim.stopRiding();
         var centre = Vec3.atBottomCenterOf(webTarget);
         victim.setPos(centre.x, webTarget.getY(), centre.z);
         victim.setDeltaMovement(Vec3.ZERO);
         victim.setNoGravity(false);
 
-        blackboard.set(AiKeys.TARGET, null);
+        blackboard.set(CommonBlackboardKeys.TARGET, null);
         mob.setTarget(null);
 
         cooldowns.set(AiKeys.CARRY_COOLDOWN, 200);
@@ -414,7 +420,7 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
                     pathSession = null;
                 }
             } else {
-                newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 1024, 2);
+                newPath = CrawlTraversalEvaluator.INSTANCE.findPath(mob, searchStart, searchGoal, 1024, 2);
             }
 
             if (newPath != null) {
@@ -451,8 +457,8 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
             return;
 
         var normalised = horizontal.normalize().scale(0.28D);
-        var movement = MovementUtils.steerAwayFromDangerEntities(mob, normalised);
-        var safe = MovementUtils.findSafeMovement(mob, movement, steerBias);
+        var movement = MovementController.steerAwayFromDangerEntities(mob, normalised);
+        var safe = MovementController.findSafeMovement(mob, movement, steerBias);
 
         var toApply = safe.equals(Vec3.ZERO) ? normalised : safe;
 

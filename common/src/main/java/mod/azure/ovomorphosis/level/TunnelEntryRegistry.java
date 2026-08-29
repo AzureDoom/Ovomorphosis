@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.level;
 
+import com.azure.azurecortex.navigation.astar.PathNodeCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Mob;
@@ -8,8 +9,6 @@ import net.minecraft.world.level.Level;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
-import mod.azure.ovomorphosis.ai.nav.PathNodeCache;
 
 /**
  * Server-side, chunk-bucketed index of known tunnel-entry positions (tight tunnels and vertical shafts), used so

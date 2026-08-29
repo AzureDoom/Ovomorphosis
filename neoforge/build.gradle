@@ -46,6 +46,12 @@ dependencies {
     compileOnly("com.avp.alien:avp_alien-neoforge-1.21.1:0.2.0-fork") {
         exclude group: 'org.slf4j', module: 'slf4j-api'
     }
+    jarJar(implementation("com.azure.azurecortex:azurecortex-neoforge-${minecraft_version}:${azurecortex_version}")) {
+        version {
+            strictly "[${azurecortex_version}]"
+            prefer azurecortex_version
+        }
+    }
     implementation "curse.maven:spark-361579:6225208"
 }
 
@@ -54,7 +60,8 @@ if (keyPropsFile.exists()) {
     publishMods {
         def releaseProp = new Properties()
         releaseProp.load(new FileInputStream(keyPropsFile))
-        file = jar.archiveFile
+        def jarFile = file("build/libs/ovomorphosis-neoforge-${minecraft_version}-${project.version}.jar")
+        file = jarFile
         changelog = rootProject.file("changelog.md").text
         type = STABLE
         modLoaders.add("neoforge")
