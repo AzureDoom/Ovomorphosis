@@ -150,10 +150,6 @@ public final class WanderAction<E extends Mob> implements Action<E> {
         var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
         if (memory != null) {
             var nearest = memory.findNearestOwnedWebCross(level, origin, 80.0);
-            // No RESIN_WEB_CROSS placed yet — e.g. the hive is still early in the dome phase, before
-            // PlaceResinAction has happened to roll one of those instead of the far more common layered nest
-            // resin. Fall back to the claimed dome center itself so idle wandering still has a homing target in
-            // that phase too, instead of no bias at all until the first web cross happens to get placed.
             resinCentre = nearest.orElseGet(() -> memory.getDomeCenter().orElse(null));
         }
 
