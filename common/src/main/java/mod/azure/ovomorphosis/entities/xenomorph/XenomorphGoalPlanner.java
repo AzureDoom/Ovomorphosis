@@ -1,26 +1,21 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.api.goal.GoalUrgency;
+import com.azure.azurecortex.goap.*;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.Optional;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
-import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
-import mod.azure.ovomorphosis.ai.goap.GoalPlanner;
-import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.roles.XenoRole;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetClassifier;
@@ -31,7 +26,7 @@ import mod.azure.ovomorphosis.util.ModTags;
  * GOAP planner for {@link XenomorphEntity}.
  * <h3>Anti-thrash design</h3> Four mechanisms prevent goal oscillation:
  * <ol>
- * <li><b>Min-commit lock</b> — {@link GoalApplicator#shouldReplan} suppresses the planner until
+ * <li><b>Min-commit lock</b> — {@link GoalExecutor#shouldReplan} suppresses the planner until
  * {@link PlannedGoal#canReplan} is true (default 40 ticks). The entity's tick method must call {@code shouldReplan}
  * before invoking this planner.</li>
  * <li><b>Hysteresis bonus</b> — the currently active goal type receives a flat {@link #HYSTERESIS_BONUS} score
@@ -41,7 +36,7 @@ import mod.azure.ovomorphosis.util.ModTags;
  * applies a linearly decaying penalty to their scores, persisting well beyond the 80-tick {@link PlanFeedback}
  * freshness window.</li>
  * <li><b>Emergency override tier</b> — goals scored at or above {@link #EMERGENCY_SCORE_THRESHOLD} are tagged
- * {@link GoalUrgency#EMERGENCY}, which causes {@link GoalApplicator#shouldReplan} to bypass the min-commit lock on the
+ * {@link GoalUrgency#EMERGENCY}, which causes {@link GoalExecutor#shouldReplan} to bypass the min-commit lock on the
  * caller side.</li>
  * </ol>
  * <h3>Failure recording</h3> When the feedback switch fires for path/stuck/blocked failures the planner now calls
@@ -49,7 +44,7 @@ import mod.azure.ovomorphosis.util.ModTags;
  * repeatedly is suppressed for a full {@link GoalFailureCooldowns#DEFAULT_DURATION} (200 ticks) rather than just the
  * 80-tick feedback window.
  */
-public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> {
+public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, AiGoalType> {
 
     /** Health fraction at/below which survival overrides everything else ("critical" tier). */
     private static final float RETREAT_HEALTH_FRACTION = 0.30f;
@@ -65,9 +60,9 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
     private static final int DARK_HAVEN_MAX_LIGHT = 4;
 
     /**
-     * How stale {@link mod.azure.ovomorphosis.ai.core.AiKeys#LAST_SEEN_TICK} can be before INVESTIGATE gives up on
-     * extrapolating an interception point and just walks to the raw last-seen block instead. Beyond this, the target
-     * could plausibly be almost anywhere, so guessing a specific heading stops being worth the confidence it implies.
+     * How stale {@link CommonBlackboardKeys#LAST_SEEN_TICK} can be before INVESTIGATE gives up on extrapolating an
+     * interception point and just walks to the raw last-seen block instead. Beyond this, the target could plausibly be
+     * almost anywhere, so guessing a specific heading stops being worth the confidence it implies.
      */
     private static final int MAX_PREDICTION_STALENESS_TICKS = 60;
 
@@ -91,8 +86,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
     /**
      * Per-eligible-planning-cycle chance of a healthy, actively-pursued mob choosing to feign retreat toward a dark
      * ambush spot instead of continuing to press the fight (see {@link AiGoalType#LURE_TARGET}). Deliberately low —
-     * combined with {@link mod.azure.ovomorphosis.ai.core.AiKeys#LURE_COOLDOWN} below, this is meant to surface only
-     * occasionally across a long fight, not on a predictable schedule.
+     * combined with {@link AiKeys#LURE_COOLDOWN} below, this is meant to surface only occasionally across a long fight,
+     * not on a predictable schedule.
      */
     private static final float LURE_CHANCE = 0.08f;
 
@@ -175,24 +170,24 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
     private static final float EMERGENCY_SCORE_THRESHOLD = 85f;
 
     @Override
-    public PlannedGoal<XenomorphEntity> chooseGoal(
+    public PlannedGoal<XenomorphEntity, AiGoalType> chooseGoal(
         XenomorphEntity mob,
         Blackboard blackboard,
-        Cooldowns cooldowns
+        CooldownTracker cooldowns
     ) {
         var tick = (int) mob.level().getGameTime();
         var gfc = GoalFailureCooldowns.getOrCreate(blackboard);
         gfc.evictExpired(tick);
 
         var feedback = readFeedback(blackboard, tick);
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         var hasTarget = target != null && target.isAlive();
         var healthFraction = mob.getHealth() / mob.getMaxHealth();
         var criticalHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
         var woundedHealth = !criticalHealth && healthFraction <= WOUNDED_HEALTH_FRACTION;
         var healthyAggressive = healthFraction > WOUNDED_HEALTH_FRACTION;
 
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
         if (memory != null) {
             memory.recomputeNeedsIfDue(mob.level(), tick);
         }
@@ -211,12 +206,12 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         var tooBright = ambientLight > 4;
 
         TargetClassifier.classify(mob, blackboard);
-        var targetIsRanged = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_RANGED, Boolean.class));
-        var targetIsIsolated = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_ISOLATED, Boolean.class));
-        var targetIsNearHive = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_NEAR_HIVE, Boolean.class));
-        var targetIsValidHost = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_VALID_HOST, Boolean.class));
+        var targetIsRanged = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_RANGED));
+        var targetIsIsolated = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_ISOLATED));
+        var targetIsNearHive = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_NEAR_HIVE));
+        var targetIsValidHost = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_VALID_HOST));
         var targetTooDangerous = Boolean.TRUE.equals(
-            blackboard.get(AiKeys.TARGET_IS_TOO_DANGEROUS_TO_GRAB, Boolean.class)
+            blackboard.get(AiKeys.TARGET_IS_TOO_DANGEROUS_TO_GRAB)
         );
 
         var huntScore = 0f;
@@ -333,7 +328,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
 
         var ventScore = ventRoute != null ? 150f : 0f;
 
-        var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
+        var lastSeenPos = blackboard.get(CommonBlackboardKeys.LAST_SEEN_POS);
         if (lastSeenPos != null && !hasTarget) {
             investigateScore = 35f;
         }
@@ -371,7 +366,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                     huntScore -= PENALTY_FAILED * 0.5f;
                     gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 80);
                 }
-                case FAILED_TOO_BRIGHT -> {
+                case FAILED_UNSUITABLE_CONDITIONS -> {
                     lightsScore += BOOST_LIGHTS;
                     if (failedGoal == AiGoalType.EXPAND_HIVE) {
                         hiveScore -= PENALTY_FAILED;
@@ -387,7 +382,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
                     wanderScore += 25f;
                     gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 60);
                 }
-                case FAILED_NO_WEB -> {
+                case FAILED_MISSING_INFRASTRUCTURE -> {
                     hiveScore += BOOST_HIVE;
                     gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 120);
                 }
@@ -437,13 +432,13 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
 
         FleeFireAction.tickFireAttackerMemory(blackboard, tick);
 
-        var fireAttacker = blackboard.get(AiKeys.LAST_FIRE_ATTACKER, LivingEntity.class);
-        var fireUserIsTarget = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_FIRE_USER, Boolean.class));
+        var fireAttacker = blackboard.get(CommonBlackboardKeys.LAST_FIRE_ATTACKER);
+        var fireUserIsTarget = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_FIRE_USER));
         var fireDangerActive = FleeFireAction.isFireDangerActive(blackboard, tick);
 
         if (fireAttacker != null && target != null) {
             var isSame = fireAttacker == target;
-            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, isSame);
+            blackboard.set(CommonBlackboardKeys.TARGET_IS_FIRE_USER, isSame);
             fireUserIsTarget = isSame;
         }
 
@@ -496,7 +491,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
 
         var nearestBreach = memory != null
             ? memory.findNearestPendingBreach(mob.level(), mob.blockPosition(), BREACH_AWARENESS_RANGE)
-            : java.util.Optional.<BlockPos>empty();
+            : Optional.<BlockPos>empty();
         if (nearestBreach.isPresent()) {
             hiveScore += BREACH_REPAIR_BONUS;
         }
@@ -514,23 +509,34 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         lureScore = Math.max(0f, lureScore);
         ventScore = Math.max(0f, ventScore);
 
-        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        var activeGoalType = blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
         if (activeGoalType != null) {
-            switch (activeGoalType) {
-                case HUNT_TARGET -> huntScore += HYSTERESIS_BONUS;
-                case AMBUSH_TARGET -> ambushScore += HYSTERESIS_BONUS;
-                case BREAK_OBSTACLE -> breakScore += HYSTERESIS_BONUS;
-                case KILL_LIGHTS -> lightsScore += HYSTERESIS_BONUS;
-                case EXPAND_HIVE -> hiveScore += HYSTERESIS_BONUS;
-                case DEFEND_HIVE -> defendScore += HYSTERESIS_BONUS;
-                case RETREAT_TO_RESIN -> retreatScore += HYSTERESIS_BONUS;
-                case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
-                case WANDER -> wanderScore += HYSTERESIS_BONUS;
-                case SEEK_DARKNESS -> seekDarknessScore += HYSTERESIS_BONUS;
-                case AMBUSH_FROM_DARKNESS -> ambushFromDarknessScore += HYSTERESIS_BONUS;
-                case LURE_TARGET -> lureScore += HYSTERESIS_BONUS;
-                case VENT_TRAVERSAL -> ventScore += HYSTERESIS_BONUS;
-                default -> {}
+            if (activeGoalType.equals(AiGoalType.HUNT_TARGET)) {
+                huntScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.AMBUSH_TARGET)) {
+                ambushScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.BREAK_OBSTACLE)) {
+                breakScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.KILL_LIGHTS)) {
+                lightsScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.EXPAND_HIVE)) {
+                hiveScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.DEFEND_HIVE)) {
+                defendScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.RETREAT_TO_RESIN)) {
+                retreatScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.INVESTIGATE)) {
+                investigateScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.WANDER)) {
+                wanderScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.SEEK_DARKNESS)) {
+                seekDarknessScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.AMBUSH_FROM_DARKNESS)) {
+                ambushFromDarknessScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.LURE_TARGET)) {
+                lureScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.VENT_TRAVERSAL)) {
+                ventScore += HYSTERESIS_BONUS;
             }
         }
 
@@ -708,13 +714,15 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         };
     }
 
-    private static PlanFeedback readFeedback(Blackboard blackboard, int tick) {
-        var full = blackboard.get(AiKeys.LAST_PLAN_FEEDBACK, PlanFeedback.class);
+    @SuppressWarnings("unchecked")
+    private static PlanFeedback<AiGoalType> readFeedback(Blackboard blackboard, int tick) {
+        var full = (PlanFeedback<AiGoalType>) blackboard.get(CommonBlackboardKeys.LAST_PLAN_FEEDBACK);
         if (full != null)
             return full;
-        var raw = blackboard.get(AiKeys.LAST_FAILURE_REASON, PlanFailureReason.class);
+
+        var raw = (PlanFailureReason) blackboard.get(CommonBlackboardKeys.LAST_FAILURE_REASON);
         if (raw != null && raw != PlanFailureReason.NONE) {
-            var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+            var activeGoal = (AiGoalType) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
             return PlanFeedback.of(raw, tick, null, activeGoal != null ? activeGoal : AiGoalType.NONE);
         }
         return null;
@@ -744,8 +752,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
         BlockPos lastSeenPos,
         int tick
     ) {
-        var velocity = blackboard.get(AiKeys.LAST_SEEN_VELOCITY, Vec3.class);
-        var lastSeenTick = blackboard.get(AiKeys.LAST_SEEN_TICK, Integer.class);
+        var velocity = blackboard.get(CommonBlackboardKeys.LAST_SEEN_VELOCITY);
+        var lastSeenTick = blackboard.get(CommonBlackboardKeys.LAST_SEEN_TICK);
 
         if (velocity == null || lastSeenTick == null)
             return lastSeenPos;
@@ -778,7 +786,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity> 
             && !level.getBlockState(below).getCollisionShape(level, below).isEmpty();
     }
 
-    private static String buildReason(String base, PlanFeedback feedback) {
+    private static String buildReason(String base, PlanFeedback<AiGoalType> feedback) {
         if (feedback == null || feedback.isNone())
             return base;
         return base + " [after " + feedback.reason().name() + "]";

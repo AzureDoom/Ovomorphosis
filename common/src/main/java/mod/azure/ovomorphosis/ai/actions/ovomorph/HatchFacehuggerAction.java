@@ -1,29 +1,29 @@
 package mod.azure.ovomorphosis.ai.actions.ovomorph;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
-import mod.azure.ovomorphosis.ai.core.Action;
-import mod.azure.ovomorphosis.ai.core.ActionOutcome;
-import mod.azure.ovomorphosis.ai.core.ActionStatus;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.EggStates;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
 
-public final class HatchFacehuggerAction implements Action<OvomorphEntity> {
+public final class HatchFacehuggerAction<G> implements Action<OvomorphEntity, G> {
 
     private int ticks;
 
     private int hatchAt;
 
     @Override
-    public void start(OvomorphEntity egg, Blackboard blackboard, Cooldowns cooldowns) {
+    public void start(OvomorphEntity egg, Blackboard blackboard, CooldownTracker cooldowns) {
         ticks = 0;
         hatchAt = 40 + egg.getRandom().nextInt(60 - 40 + 1);
         egg.setEggState(EggStates.HATCHING.ordinal());
@@ -32,7 +32,7 @@ public final class HatchFacehuggerAction implements Action<OvomorphEntity> {
     }
 
     @Override
-    public ActionOutcome tick(OvomorphEntity egg, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(OvomorphEntity egg, Blackboard blackboard, CooldownTracker cooldowns) {
         ticks++;
 
         if (ticks >= hatchAt) {
@@ -81,14 +81,14 @@ public final class HatchFacehuggerAction implements Action<OvomorphEntity> {
 
                 egg.level().addFreshEntity(facehugger);
             }
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(OvomorphEntity egg, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(OvomorphEntity egg, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         egg.setHasFacehugger(false);
         egg.setEggState(EggStates.HATCHED.ordinal());
     }

@@ -1,5 +1,13 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.goap.PlanFeedback;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
@@ -11,15 +19,8 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import mod.azure.ovomorphosis.ai.actions.MoveToTargetAction;
-import mod.azure.ovomorphosis.ai.core.Action;
-import mod.azure.ovomorphosis.ai.core.ActionOutcome;
-import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -46,7 +47,7 @@ import mod.azure.ovomorphosis.util.ModTags;
  *
  * @param <E> xenomorph entity type
  */
-public class BreakToTargetAction<E extends AbstractAlienEntity> implements Action<E> {
+public class BreakToTargetAction<E extends AbstractAlienEntity> implements Action<E, AiGoalType> {
 
     private static final int DOOR_SEARCH_RADIUS = 6;
 
@@ -67,7 +68,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
     public BreakToTargetAction() {}
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         targetBlock = null;
         breakProgress = 0f;
         breakId = mob.getId() ^ 0x3A7F_0000;
@@ -75,7 +76,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         tunnelStepX = 0;
         tunnelStepZ = 0;
 
-        var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        var activeGoal = (AiGoalType) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
         if (
             activeGoal == AiGoalType.BREAK_OBSTACLE
                 && !blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)
@@ -86,8 +87,8 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+    public ActionOutcome<AiGoalType> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target == null || !target.isAlive()) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
@@ -101,18 +102,18 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         }
 
         if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)) {
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         var level = mob.level();
 
         if (targetBlock == null) {
-            if (cooldowns.isOnCooldown(AiKeys.BREAK_TO_TARGET_SCAN)) {
-                return ActionOutcome.RUNNING;
+            if (cooldowns.isOnCooldown(AiKeys.BREAK_TO_TARGET_SCAN_COOLDOWN)) {
+                return ActionOutcome.running();
             }
-            cooldowns.set(AiKeys.BREAK_TO_TARGET_SCAN, 10);
+            cooldowns.set(AiKeys.BREAK_TO_TARGET_SCAN_COOLDOWN, 10);
 
-            var hint = blackboard.get(AiKeys.BREAK_TO_TARGET_SCAN, BlockPos.class);
+            var hint = blackboard.get(AiKeys.BREAK_TO_TARGET_SCAN);
             if (hint != null && isBreakable(level, hint, level.getBlockState(hint))) {
                 targetBlock = hint;
             } else {
@@ -157,7 +158,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             targetBlock = null;
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
             blackboard.remove(AiKeys.BREAK_TO_TARGET_SCAN);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         var state = level.getBlockState(targetBlock);
@@ -166,7 +167,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             level.destroyBlockProgress(breakId, targetBlock, -1);
             targetBlock = null;
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         var center = Vec3.atCenterOf(targetBlock);
@@ -193,19 +194,19 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
                 if (isBreakable(level, nextLayer, nextState) && isWithinReach(mob, nextLayer)) {
                     targetBlock = nextLayer;
                     layersTunneled++;
-                    return ActionOutcome.RUNNING;
+                    return ActionOutcome.running();
                 }
             }
 
             targetBlock = null;
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         if (targetBlock != null) {
             mob.level().destroyBlockProgress(breakId, targetBlock, -1);
         }
@@ -296,8 +297,9 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
      * feedback, or none of its traced positions turn out to be breakable (in which case the caller falls back to its
      * own ray-march).
      */
+    @SuppressWarnings("unchecked")
     private static BlockPos pickFromFeedback(AbstractAlienEntity mob, Blackboard blackboard) {
-        var feedback = blackboard.get(AiKeys.LAST_PLAN_FEEDBACK, PlanFeedback.class);
+        var feedback = (PlanFeedback<AiGoalType>) blackboard.get(CommonBlackboardKeys.LAST_PLAN_FEEDBACK);
         if (feedback == null || feedback.reason() != PlanFailureReason.FAILED_BLOCKED)
             return null;
 

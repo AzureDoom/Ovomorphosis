@@ -1,5 +1,16 @@
 package mod.azure.ovomorphosis.ai.actions;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.config.CortexConfig;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.runtime.CooldownTracker;
+import com.azure.azurecortex.runtime.CortexDebug;
+import com.azure.azurecortex.runtime.InterruptCategory;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.item.PrimedTnt;
@@ -8,12 +19,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Comparator;
 
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
-import mod.azure.ovomorphosis.ai.util.AiDebugUtils;
-
-public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
+public final class ExplosiveFleeAction<E extends Mob, G> implements Action<E, G> {
 
     private static final double STUCK_THRESHOLD = 0.05D;
 
@@ -41,8 +47,8 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         this.stuckTicks = 0;
         this.lastPosition = mob.position();
         mob.setAggressive(false);
@@ -50,7 +56,7 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0) {
             return ActionOutcome.failed();
         }
@@ -58,7 +64,7 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
         var explosive = nearestExplosive(mob, detectionRadius);
         if (explosive == null || mob.distanceToSqr(explosive) >= safeDistanceSqr) {
             slowDown(mob);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         var current = mob.position();
@@ -84,11 +90,11 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
         }
 
         var desired = horizontal.normalize().scale(speed);
-        var safe = MovementUtils.findSafeMovement(mob, desired, steerBias);
+        var safe = MovementController.findSafeMovement(mob, desired, steerBias);
 
         if (safe.equals(Vec3.ZERO)) {
             stuckTicks += 3;
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
@@ -101,16 +107,17 @@ public final class ExplosiveFleeAction<E extends Mob> implements Action<E> {
         mob.setAggressive(false);
 
         var debugTarget = mob.position().add(safe.scale(6.0D));
-        AiDebugUtils.sendParticlePath(
-            mob,
-            mob.position(),
-            debugTarget
-        );
-        return ActionOutcome.RUNNING;
+        if (CortexConfig.get().enablePathfindingDebug)
+            CortexDebug.sendParticlePath(
+                mob,
+                mob.position(),
+                debugTarget
+            );
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         slowDown(mob);
     }
 

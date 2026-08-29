@@ -1,5 +1,11 @@
 package mod.azure.ovomorphosis.entities.chestburster;
 
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.EmergencyDetector;
+import com.azure.azurecortex.goap.GoalExecutor;
+import com.azure.azurecortex.goap.PlannedGoal;
+import com.azure.azurecortex.runtime.CortexRuntime;
+import com.azure.azurecortex.sensing.TargetSensor;
 import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -20,14 +26,8 @@ import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.actions.chestburster.EatFoodAction;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.EmergencyDetector;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
-import mod.azure.ovomorphosis.ai.util.NearestHostileTargetSelector;
-import mod.azure.ovomorphosis.ai.util.TargetingSystem;
+import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
@@ -42,13 +42,13 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         EntityDataSerializers.FLOAT
     );
 
-    private final MobBrainRuntime<ChestbursterEntity> brainRuntime;
+    private final CortexRuntime<ChestbursterEntity, AiGoalType> brainRuntime;
 
     public final ChestbursterAnimationDispatcher animationDispatcher;
 
     private final ChestbursterGoalPlanner goalPlanner;
 
-    private final EatFoodAction eatAction = new EatFoodAction(
+    private final EatFoodAction<AiGoalType> eatAction = new EatFoodAction<>(
         16.0,
         0.5,
         0.22,
@@ -62,9 +62,13 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         this.animationDispatcher = new ChestbursterAnimationDispatcher(this);
         this.moveAnalysis = new MoveAnalysis(this);
         this.goalPlanner = new ChestbursterGoalPlanner(eatAction);
-        this.brainRuntime = new MobBrainRuntime<>(
+        this.brainRuntime = new CortexRuntime<>(
             this,
-            new TargetingSystem<>(new NearestHostileTargetSelector<>(32), 10),
+            new TargetSensor<>(
+                TargetSensor.nearestMatching(32.0D, TargetingUtils.validTarget(this)),
+                10,
+                TargetSensor.lineOfSight()
+            ),
             ChestbursterTree.create(eatAction)
         );
     }
@@ -108,27 +112,27 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
         var currentTick = (int) this.level().getGameTime();
 
         @SuppressWarnings("unchecked")
-        var activeGoal = (PlannedGoal<ChestbursterEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+        var activeGoal = (PlannedGoal<ChestbursterEntity, AiGoalType>) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL);
 
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.GROW_SAFE
             || goalType == AiGoalType.WANDER
             || goalType == AiGoalType.NONE;
 
-        var reactiveReplan = (isPassive && blackboard.has(AiKeys.TARGET))
+        var reactiveReplan = (isPassive && blackboard.has(CommonBlackboardKeys.TARGET))
             || (goalType == AiGoalType.GROW_SAFE && eatAction.canStart(this, blackboard));
 
-        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
+        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this, EmergencyDetector.defaultProbes());
 
-        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(CommonBlackboardKeys.GOAL_REPLAN))
             return;
 
-        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency, this))
+        if (!reactiveReplan && !GoalExecutor.shouldReplan(blackboard, currentTick, preplanUrgency, this))
             return;
 
-        cooldowns.set(AiKeys.GOAL_REPLAN, 20);
+        cooldowns.set(CommonBlackboardKeys.GOAL_REPLAN, 20);
         var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
-        GoalApplicator.apply(this, blackboard, newGoal);
+        GoalExecutor.apply(this, blackboard, newGoal);
     }
 
     @Override

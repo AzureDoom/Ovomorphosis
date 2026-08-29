@@ -1,16 +1,21 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
-import net.minecraft.world.entity.LivingEntity;
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
+import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
-public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Action<E> {
+public final class GrabAndExecuteAction<E extends XenomorphEntity, G> implements Action<E, G> {
 
     private static final int HOLD_DURATION_TICKS = 200;
 
@@ -32,8 +37,8 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         holdTicks = 0;
         grabbed = false;
         killed = false;
@@ -42,14 +47,14 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0) {
             return ActionOutcome.failed();
         }
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target == null || !target.isAlive()) {
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         if (!grabbed) {
@@ -83,19 +88,19 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity> implements Ac
             target.stopRiding();
             target.kill();
             cooldowns.set(AiKeys.GRAB_COOLDOWN, 200);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         holdTicks = 0;
         grabbed = false;
         killed = false;
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target != null && target.getVehicle() == mob) {
             target.stopRiding();
         }

@@ -1,31 +1,31 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
-import net.minecraft.core.BlockPos;
+import com.azure.azurecortex.action.combat.AttackProfile;
+import com.azure.azurecortex.action.combat.AttackSelector;
+import com.azure.azurecortex.api.behavior.BehaviorNode;
+import com.azure.azurecortex.api.behavior.BehaviorResult;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
+import com.azure.azurecortex.runtime.InterruptCategory;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.LivingEntity;
 
 import java.util.List;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.actions.*;
 import mod.azure.ovomorphosis.ai.actions.xenomorph.*;
-import mod.azure.ovomorphosis.ai.combat.AttackProfile;
-import mod.azure.ovomorphosis.ai.combat.AttackSelector;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.BehaviorNode;
-import mod.azure.ovomorphosis.ai.core.BehaviorResult;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.nav.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.roles.XenoRole;
-import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
  * Behavior tree for {@link XenomorphEntity}.
- * <h3>GOAP integration</h3> The tree reads {@link AiKeys#ACTIVE_GOAL_TYPE} set by {@link XenomorphGoalPlanner} and uses
- * it to unlock or bias branches that would otherwise be gated by simple conditions. This means:
+ * <h3>GOAP integration</h3> The tree reads {@link CommonBlackboardKeys#ACTIVE_GOAL_TYPE} set by
+ * {@link XenomorphGoalPlanner} and uses it to unlock or bias branches that would otherwise be gated by simple
+ * conditions. This means:
  * <ul>
  * <li>{@link AiGoalType#BREAK_OBSTACLE} explicitly enables the break-to-target branch even if the mob hasn't registered
  * stuck ticks yet — the planner decided breaking is needed based on failure feedback, and the tree honors that.</li>
@@ -50,9 +50,9 @@ public class XenomorphTree {
 
     /**
      * Health fraction at or below which health is treated as a life-threatening emergency capable of preempting a
-     * {@link mod.azure.ovomorphosis.ai.core.InterruptCategory#LOCKED} action. Deliberately lower than the planner's
-     * softer {@code RETREAT_HEALTH_FRACTION} (30%) so the two don't fight: the planner's normal retreat goal handles
-     * the common case, and this only engages when things are dire enough to justify breaking through a lock.
+     * {@link InterruptCategory#LOCKED} action. Deliberately lower than the planner's softer
+     * {@code RETREAT_HEALTH_FRACTION} (30%) so the two don't fight: the planner's normal retreat goal handles the
+     * common case, and this only engages when things are dire enough to justify breaking through a lock.
      */
     private static final float CRITICAL_HEALTH_FRACTION = 0.15f;
 
@@ -72,27 +72,27 @@ public class XenomorphTree {
      */
     private static final double BREACH_ARRIVAL_RANGE_SQR = 10.0 * 10.0;
 
-    public static BehaviorNode<XenomorphEntity> create() {
-        var dodge = new DodgeProjectileAction<XenomorphEntity>(130);
-        var fleeFire = new FleeFireAction<XenomorphEntity>(125);
-        var fleeExplosive = new ExplosiveFleeAction<XenomorphEntity>(0.46D, 10.0D, 20.0D, 120);
-        var destinationMove = new MoveToDestinationAction<XenomorphEntity>(0.6D, 0.3D, 25, true);
-        var moveToTargetCombat = new MoveToTargetAction<XenomorphEntity>(1.2D, 0.53D, 20, true);
-        var moveToTargetAmbush = new MoveToTargetAction<XenomorphEntity>(0.6D, 0.22D, 18, true);
-        var swim = new SwimAction<XenomorphEntity>(95);
+    public static BehaviorNode<XenomorphEntity, AiGoalType> create() {
+        var dodge = new DodgeProjectileAction<XenomorphEntity, AiGoalType>(130);
+        var fleeFire = new FleeFireAction<XenomorphEntity, AiGoalType>(125);
+        var fleeExplosive = new ExplosiveFleeAction<XenomorphEntity, AiGoalType>(0.46D, 10.0D, 20.0D, 120);
+        var destinationMove = new MoveToDestinationAction<XenomorphEntity, AiGoalType>(0.6D, 0.3D, 25, true);
+        var moveToTargetCombat = new MoveToTargetAction<XenomorphEntity, AiGoalType>(1.2D, 0.53D, 20, true);
+        var moveToTargetAmbush = new MoveToTargetAction<XenomorphEntity, AiGoalType>(0.6D, 0.22D, 18, true);
+        var swim = new SwimAction<XenomorphEntity, AiGoalType>(95);
 
-        var lunge = new LungeAction<XenomorphEntity>(
+        var lunge = new LungeAction<XenomorphEntity, AiGoalType>(
             105,
             x -> x.animationDispatcher.serverWindUp(),
             x -> x.animationDispatcher.clientInAir()
         );
-        var swipeCombo = new XenomorphCombatAction<XenomorphEntity>(
+        var swipeCombo = new XenomorphCombatAction<XenomorphEntity, AiGoalType>(
             "swipe_combo",
             35,
             100,
             x -> x.animationDispatcher.serverAttack()
         );
-        var tailPunish = new TimedAttackAction<XenomorphEntity>(
+        var tailPunish = new TimedAttackAction<XenomorphEntity, AiGoalType>(
             "tail_attack",
             45,
             8,
@@ -100,11 +100,11 @@ public class XenomorphTree {
             110,
             x -> x.animationDispatcher.serverTailAttack()
         );
-        var grabAndExecute = new GrabAndExecuteAction<>(
+        var grabAndExecute = new GrabAndExecuteAction<XenomorphEntity, AiGoalType>(
             120,
             x -> x.animationDispatcher.serverExecute()
         );
-        var carryToWeb = new CarryToWebAction<XenomorphEntity>(
+        var carryToWeb = new CarryToWebAction<XenomorphEntity, AiGoalType>(
             115,
             x -> x.animationDispatcher.serverExecute(),
             x -> x.animationDispatcher.clientIdle()
@@ -115,55 +115,55 @@ public class XenomorphTree {
             new AttackProfile<>("swipe_combo", swipeCombo, "swipe_combo", 0.0D, 2.5D, 100)
         );
 
-        var placeResin = new PlaceResinAction<XenomorphEntity>(3, 100);
-        var ventTraversal = new VentTraversalAction<XenomorphEntity>(90);
-        var destroyLight = new DestroyLightSourceAction<XenomorphEntity>(5);
+        var placeResin = new PlaceResinAction<XenomorphEntity, AiGoalType>(3, 100);
+        var ventTraversal = new VentTraversalAction<XenomorphEntity, AiGoalType>(90);
+        var destroyLight = new DestroyLightSourceAction<XenomorphEntity, AiGoalType>(5);
         var breakToTarget = new BreakToTargetAction<XenomorphEntity>();
-        var wander = new WanderAction<XenomorphEntity>(0.06D, 10, 6.0D, 60, 160, true);
-        var idle = new IdleAction<XenomorphEntity>(40, 100, 2);
+        var wander = new WanderAction<XenomorphEntity, AiGoalType>(0.06D, 10, 6.0D, 60, 160, true);
+        var idle = new IdleAction<XenomorphEntity, AiGoalType>(40, 100, 2);
 
         return (xenomorph, blackboard, cooldowns) -> {
 
-            var currentTarget = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+            var currentTarget = blackboard.get(CommonBlackboardKeys.TARGET);
             if (currentTarget != null && !currentTarget.isAlive()) {
-                blackboard.set(AiKeys.TARGET, null);
+                blackboard.set(CommonBlackboardKeys.TARGET, null);
                 xenomorph.setTarget(null);
                 currentTarget = null;
             }
 
-            var goalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+            var goalType = blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
             if (goalType == null)
                 goalType = AiGoalType.WANDER;
 
-            var role = blackboard.get(AiKeys.XENO_ROLE, XenoRole.class);
+            var role = blackboard.get(AiKeys.XENO_ROLE);
             if (role == null)
                 role = XenoRole.IDLE;
 
-            if (cooldowns.ready(AiKeys.DODGE_COOLDOWN) && dodge.hasIncomingProjectile(xenomorph)) {
+            if (cooldowns.ready(CommonBlackboardKeys.DODGE_COOLDOWN) && dodge.hasIncomingProjectile(xenomorph)) {
                 return BehaviorResult.run(dodge, 130);
             }
 
             {
-                var fleeCooldownExpiry = blackboard.get(AiKeys.FIRE_FLEE_COOLDOWN, Integer.class);
+                var fleeCooldownExpiry = blackboard.get(CommonBlackboardKeys.FIRE_FLEE_COOLDOWN);
                 var currentTick = (int) xenomorph.level().getGameTime();
                 var fleeOnCooldown = fleeCooldownExpiry != null && currentTick < fleeCooldownExpiry;
 
                 if (!fleeOnCooldown) {
-                    var fireTolerance = blackboard.get(AiKeys.FIRE_TOLERANCE, Float.class);
+                    var fireTolerance = blackboard.get(CommonBlackboardKeys.FIRE_TOLERANCE);
                     var fireToleranceVal = fireTolerance != null ? fireTolerance : 0f;
                     var hasNearbyFire = FleeFireAction.shouldFleefire(xenomorph);
 
                     if (xenomorph.isOnFire()) {
                         fireToleranceVal = FleeFireAction.MAX_TOLERANCE;
-                        blackboard.set(AiKeys.FIRE_TOLERANCE, fireToleranceVal);
-                        blackboard.set(AiKeys.FIRE_FLEE_COOLDOWN, null);
+                        blackboard.set(CommonBlackboardKeys.FIRE_TOLERANCE, fireToleranceVal);
+                        blackboard.set(CommonBlackboardKeys.FIRE_FLEE_COOLDOWN, null);
                         return BehaviorResult.run(fleeFire, 125);
                     } else if (hasNearbyFire) {
                         fireToleranceVal = Math.min(
                             FleeFireAction.MAX_TOLERANCE,
                             fireToleranceVal + FleeFireAction.TOLERANCE_GAIN_RATE
                         );
-                        blackboard.set(AiKeys.FIRE_TOLERANCE, fireToleranceVal);
+                        blackboard.set(CommonBlackboardKeys.FIRE_TOLERANCE, fireToleranceVal);
 
                         if (fireToleranceVal >= FleeFireAction.TOLERANCE_THRESHOLD) {
                             return BehaviorResult.run(fleeFire, 125);
@@ -173,7 +173,7 @@ public class XenomorphTree {
                             0f,
                             fireToleranceVal - FleeFireAction.TOLERANCE_DRAIN_RATE
                         );
-                        blackboard.set(AiKeys.FIRE_TOLERANCE, fireToleranceVal);
+                        blackboard.set(CommonBlackboardKeys.FIRE_TOLERANCE, fireToleranceVal);
                     }
                 }
             }
@@ -186,7 +186,7 @@ public class XenomorphTree {
                 xenomorph.getMaxHealth() > 0f
                     && xenomorph.getHealth() <= xenomorph.getMaxHealth() * CRITICAL_HEALTH_FRACTION
             ) {
-                var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+                var memory = blackboard.get(AiKeys.HIVE_MEMORY);
                 var safeHaven = memory != null
                     ? memory.findNearestDarkOwnedWebCross(
                         xenomorph.level(),
@@ -198,37 +198,37 @@ public class XenomorphTree {
                         .orElse(null)
                     : null;
                 if (safeHaven != null) {
-                    blackboard.set(AiKeys.DESTINATION, safeHaven);
+                    blackboard.set(CommonBlackboardKeys.DESTINATION, safeHaven);
                     return BehaviorResult.runEmergency(destinationMove, 122);
                 }
             }
 
             if (goalType == AiGoalType.RETREAT_TO_RESIN) {
-                var dest = blackboard.get(AiKeys.GOAL_DESTINATION, BlockPos.class);
+                var dest = blackboard.get(CommonBlackboardKeys.GOAL_DESTINATION);
                 if (dest != null) {
-                    blackboard.set(AiKeys.DESTINATION, dest);
+                    blackboard.set(CommonBlackboardKeys.DESTINATION, dest);
                     return BehaviorResult.run(destinationMove, 90);
                 }
             }
 
             if (goalType == AiGoalType.LURE_TARGET) {
-                var dest = blackboard.get(AiKeys.GOAL_DESTINATION, BlockPos.class);
+                var dest = blackboard.get(CommonBlackboardKeys.GOAL_DESTINATION);
                 var pursuerCaughtUp = currentTarget != null
                     && currentTarget.isAlive()
                     && TargetingUtils.isInAttackRange(xenomorph, currentTarget, 2.0D);
                 if (dest != null && !pursuerCaughtUp) {
-                    blackboard.set(AiKeys.DESTINATION, dest);
+                    blackboard.set(CommonBlackboardKeys.DESTINATION, dest);
                     return BehaviorResult.run(destinationMove, 90);
                 }
             }
 
             if (goalType == AiGoalType.VENT_TRAVERSAL) {
-                var entrance = blackboard.get(AiKeys.VENT_ENTRANCE, BlockPos.class);
-                var exit = blackboard.get(AiKeys.VENT_EXIT, BlockPos.class);
+                var entrance = blackboard.get(AiKeys.VENT_ENTRANCE);
+                var exit = blackboard.get(AiKeys.VENT_EXIT);
                 if (entrance != null && exit != null) {
                     var arrivedAtEntrance = xenomorph.blockPosition().distSqr(entrance) <= VENT_ARRIVAL_RANGE_SQR;
                     if (!arrivedAtEntrance) {
-                        blackboard.set(AiKeys.DESTINATION, entrance);
+                        blackboard.set(CommonBlackboardKeys.DESTINATION, entrance);
                         return BehaviorResult.run(destinationMove, 90);
                     }
                     return BehaviorResult.run(ventTraversal, 90);
@@ -242,21 +242,21 @@ public class XenomorphTree {
                 return BehaviorResult.run(wander, 11);
             }
 
-            var destination = blackboard.get(AiKeys.DESTINATION, BlockPos.class);
+            var destination = blackboard.get(CommonBlackboardKeys.DESTINATION);
             if (destination != null && currentTarget == null) {
                 return BehaviorResult.run(destinationMove, 25);
             }
 
             if (goalType == AiGoalType.INVESTIGATE && currentTarget == null) {
-                var dest = blackboard.get(AiKeys.GOAL_DESTINATION, BlockPos.class);
+                var dest = blackboard.get(CommonBlackboardKeys.GOAL_DESTINATION);
                 if (dest != null) {
-                    blackboard.set(AiKeys.DESTINATION, dest);
+                    blackboard.set(CommonBlackboardKeys.DESTINATION, dest);
                     return BehaviorResult.run(destinationMove, 22);
                 }
             }
 
             if (currentTarget != null && currentTarget.isAlive()) {
-                var targetIsFireUser = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_FIRE_USER, Boolean.class));
+                var targetIsFireUser = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_FIRE_USER));
                 var fireDangerActive = FleeFireAction.isFireDangerActive(
                     blackboard,
                     (int) xenomorph.level().getGameTime()
@@ -344,21 +344,21 @@ public class XenomorphTree {
                 return BehaviorResult.run(swim, 200);
             }
 
-            if (CrawlingMovementManager.wasRecentlyWallCrawling(xenomorph)) {
-                if (blackboard.get(AiKeys.DESTINATION, BlockPos.class) == null) {
+            if (CrawlController.wasRecentlyWallCrawling(xenomorph)) {
+                if (blackboard.get(CommonBlackboardKeys.DESTINATION) == null) {
                     var groundPos = TargetingUtils.findNearbyGroundPos(xenomorph);
                     if (groundPos != null)
-                        blackboard.set(AiKeys.DESTINATION, groundPos);
+                        blackboard.set(CommonBlackboardKeys.DESTINATION, groundPos);
                 }
                 return BehaviorResult.run(destinationMove, 5);
             }
 
             if (goalType == AiGoalType.EXPAND_HIVE) {
-                var breachDest = blackboard.get(AiKeys.HIVE_BREACH_DEST, BlockPos.class);
+                var breachDest = blackboard.get(AiKeys.HIVE_BREACH_DEST);
                 if (breachDest != null) {
                     var closeEnough = xenomorph.blockPosition().distSqr(breachDest) <= BREACH_ARRIVAL_RANGE_SQR;
                     if (!closeEnough) {
-                        blackboard.set(AiKeys.DESTINATION, breachDest);
+                        blackboard.set(CommonBlackboardKeys.DESTINATION, breachDest);
                         return BehaviorResult.run(destinationMove, 9);
                     }
                 }
@@ -376,13 +376,13 @@ public class XenomorphTree {
                 goalType == AiGoalType.EXPAND_HIVE
                     || (cooldowns.ready(AiKeys.RESIN_PLACE_COOLDOWN)
                         && xenomorph.getRandom().nextFloat() < 0.75F
-                        && !CrawlingMovementManager.wasRecentlyWallCrawling(xenomorph))
+                        && !CrawlController.wasRecentlyWallCrawling(xenomorph))
             ) {
                 return BehaviorResult.run(placeResin, 9);
             }
 
-            if (!cooldowns.isOnCooldown(AiKeys.PASSIVE_DECISION)) {
-                cooldowns.set(AiKeys.PASSIVE_DECISION, 180);
+            if (!cooldowns.isOnCooldown(CommonBlackboardKeys.PASSIVE_DECISION)) {
+                cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 180);
                 if (xenomorph.getRandom().nextFloat() < 0.65F) {
                     return BehaviorResult.run(wander, 10);
                 }
@@ -399,7 +399,7 @@ public class XenomorphTree {
     }
 
     private static CombatVerdict evaluateCarryOrKill(XenomorphEntity xenomorph, Blackboard blackboard) {
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
         var configCarryChance = CommonMod
             .getConfig().entityConfigs.xenomorphConfigs.xenoCarryToResinChance;
 

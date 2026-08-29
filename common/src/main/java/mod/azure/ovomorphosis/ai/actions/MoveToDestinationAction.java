@@ -1,5 +1,24 @@
 package mod.azure.ovomorphosis.ai.actions;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.config.CortexConfig;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.navigation.astar.AStarPathfinder;
+import com.azure.azurecortex.navigation.astar.IncrementalPathSession;
+import com.azure.azurecortex.navigation.astar.PathNodeCache;
+import com.azure.azurecortex.navigation.astar.PhasedPathSession;
+import com.azure.azurecortex.navigation.crawl.CrawlCapability;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
+import com.azure.azurecortex.navigation.crawl.CrawlTraversalEvaluator;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.navigation.movement.NavigationQueries;
+import com.azure.azurecortex.navigation.traversal.CollisionQueries;
+import com.azure.azurecortex.navigation.traversal.TraversalQueries;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
@@ -9,18 +28,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.nav.*;
-import mod.azure.ovomorphosis.ai.util.*;
-
 /**
- * Moves the mob to {@link AiKeys#DESTINATION}, using the same A* path-following and wall-crawl logic as
+ * Moves the mob to {@link CommonBlackboardKeys#DESTINATION}, using the same A* path-following and wall-crawl logic as
  * {@link MoveToTargetAction}. The action succeeds when within {@code stopDistance} of the destination, and clears
- * {@link AiKeys#DESTINATION} on SUCCESS or FAILURE.
+ * {@link CommonBlackboardKeys#DESTINATION} on SUCCESS or FAILURE.
  */
-public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
+@SuppressWarnings("unused")
+public final class MoveToDestinationAction<E extends Mob, G> implements Action<E, G> {
 
     /**
      * Hard cap on {@link #noProgressTicks} before this action gives up and bubbles
@@ -67,9 +81,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     /**
      * Set by {@link #applyPathMovement} / {@link #applyFlatFallback} when they have an outcome to report this tick (a
      * hard-cap {@link ActionOutcome.Failed}, or a soft-threshold {@link ActionOutcome.Blocked}) rather than a plain
-     * {@link ActionOutcome#RUNNING}.
+     * {@link ActionOutcome#running()}.
      */
-    private ActionOutcome pendingOutcome = null;
+    private ActionOutcome<G> pendingOutcome = null;
 
     /**
      * The in-progress incremental fallback chain (primary crawl → relaxed crawl → plain ground A*, all sharing one
@@ -120,8 +134,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         mob.setAggressive(true);
         lastPos = mob.position();
         stuckTicks = 0;
@@ -142,13 +156,13 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0) {
             mob.setAggressive(false);
             return ActionOutcome.failed();
         }
 
-        var destination = blackboard.get(AiKeys.DESTINATION, BlockPos.class);
+        var destination = blackboard.get(CommonBlackboardKeys.DESTINATION);
         if (destination == null) {
             mob.setAggressive(false);
             return ActionOutcome.failed();
@@ -159,7 +173,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if (mob.distanceToSqr(destVec) <= stopDistanceSqr) {
             mob.setDeltaMovement(mob.getDeltaMovement().scale(0.4D));
             faceDestination(mob, destination);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         if (repathCooldown > 0)
@@ -196,12 +210,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var fluidGoalRadius = feetOrBelowInFluid ? 2 : 0;
 
         var mobIsInOrAtTunnel = canCrawl
-            && (CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.below())
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeetPos.above())
-                || (!mobOnSolidGround && CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos))
+            && (CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, mobFeetPos)
+                || CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, mobFeetPos.below())
+                || CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, mobFeetPos.above())
+                || (!mobOnSolidGround && CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos))
                 || (!mobOnSolidGround
-                    && CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below())));
+                    && CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, mobFeetPos.below())));
 
         var nextWaypointNeedsCrawl = false;
         if (canCrawl && !path.isEmpty() && pathIndex < path.size()) {
@@ -213,10 +227,10 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                     .getCollisionShape(mob.level(), belowLa)
                     .isEmpty();
                 if (
-                    CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                        || (!laHasGroundBelow && CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la))
-                        || (MovementUtils.isSafeClimbNode(mob.level(), la)
-                            && !CustomAStar.canStandAt(mob.level(), mob, la))
+                    CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, la)
+                        || (!laHasGroundBelow && CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, la))
+                        || (CollisionQueries.isSafeClimbNode(mob.level(), la, mob)
+                            && !AStarPathfinder.canStandAt(mob.level(), mob, la))
                 ) {
                     nextWaypointNeedsCrawl = true;
                     break;
@@ -225,10 +239,10 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         if (mobOnSolidGround && !mobIsInOrAtTunnel && !nextWaypointNeedsCrawl) {
-            CrawlingMovementManager.setWallCrawling(mob, false);
+            CrawlController.setWallCrawling(mob, false);
         }
 
-        var isCrawlingNow = canCrawl && CrawlingMovementManager.isWallCrawling(mob);
+        var isCrawlingNow = canCrawl && CrawlController.isWallCrawling(mob);
 
         if (
             canCrawl
@@ -237,11 +251,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 && !mobIsInOrAtTunnel
                 && !nextWaypointNeedsCrawl
                 && !mob.horizontalCollision
-                && !MovementUtils.isSafeClimbNode(mob.level(), mobFeetPos)
+                && !CollisionQueries.isSafeClimbNode(mob.level(), mobFeetPos, mob)
         ) {
-            CrawlingMovementManager.setWallCrawling(mob, false);
-            if (mob instanceof WallCrawlingMob wc) {
-                wc.ovomorphosis$setWallCrawlGraceTicks(0);
+            CrawlController.setWallCrawling(mob, false);
+            if (mob instanceof CrawlCapability wc) {
+                wc.setWallCrawlGraceTicks(0);
             }
             isCrawlingNow = false;
         }
@@ -258,29 +272,26 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if ((repathCooldown <= 0 && destinationMovedFar) || path.isEmpty() || pathIndex >= path.size()) {
             lastPathedDestination = destination;
 
-            final var searchStart = pathStart;
-            final var searchGoal = destination;
-
             List<BlockPos> newPath;
 
-            if (CommonMod.getConfig().enableIncrementalPathfinding) {
+            if (CortexConfig.get().enableIncrementalPathfinding) {
                 var stale = phasedSession != null
-                    && (phasedSessionStart.distSqr(searchStart) > PATH_SESSION_START_DRIFT_SQ
-                        || phasedSessionGoal.distSqr(searchGoal) > PATH_SESSION_GOAL_DRIFT_SQ
+                    && (phasedSessionStart.distSqr(pathStart) > PATH_SESSION_START_DRIFT_SQ
+                        || phasedSessionGoal.distSqr(destination) > PATH_SESSION_GOAL_DRIFT_SQ
                         || phasedSessionAgeTicks > PATH_SESSION_MAX_AGE_TICKS);
 
                 if (phasedSession == null || stale) {
                     sessionCache.clear();
                     phasedSession = new PhasedPathSession(
-                        buildPhases(mob, searchStart, searchGoal, fluidGoalRadius)
+                        buildPhases(mob, pathStart, destination, fluidGoalRadius)
                     );
-                    phasedSessionStart = searchStart;
-                    phasedSessionGoal = searchGoal;
+                    phasedSessionStart = pathStart;
+                    phasedSessionGoal = destination;
                     phasedSessionAgeTicks = 0;
                 }
 
                 phasedSessionAgeTicks++;
-                var status = phasedSession.step(CommonMod.getConfig().incrementalPathfindingNodeBudget);
+                var status = phasedSession.step(CortexConfig.get().incrementalPathfindingNodeBudget);
 
                 newPath = switch (status) {
                     case RUNNING -> null;
@@ -293,16 +304,34 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 }
             } else {
                 if (canCrawl) {
-                    newPath = CrawlingCustomAStar.findPath(mob, searchStart, searchGoal, 96, fluidGoalRadius);
+                    newPath = CrawlTraversalEvaluator.INSTANCE.findPath(
+                        mob,
+                        pathStart,
+                        destination,
+                        96,
+                        fluidGoalRadius
+                    );
                     if (newPath.isEmpty()) {
-                        newPath = CrawlingCustomAStar
-                            .findPath(mob, searchStart, searchGoal, 96, Math.max(fluidGoalRadius, 1));
+                        newPath = CrawlTraversalEvaluator.INSTANCE
+                            .findPath(mob, pathStart, destination, 96, Math.max(fluidGoalRadius, 1));
                     }
                     if (newPath.isEmpty()) {
-                        newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, Math.max(fluidGoalRadius, 1));
+                        newPath = AStarPathfinder.INSTANCE.findPath(
+                            mob,
+                            pathStart,
+                            destination,
+                            64,
+                            Math.max(fluidGoalRadius, 1)
+                        );
                     }
                 } else {
-                    newPath = CustomAStar.findPath(mob, searchStart, searchGoal, 64, Math.max(fluidGoalRadius, 1));
+                    newPath = AStarPathfinder.INSTANCE.findPath(
+                        mob,
+                        pathStart,
+                        destination,
+                        64,
+                        Math.max(fluidGoalRadius, 1)
+                    );
                 }
             }
 
@@ -332,18 +361,18 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 var waypointCenter = Vec3.atBottomCenterOf(waypointBlock);
 
                 var waypointIsTightPassage =
-                    CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock)
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock)
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
-                        || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
+                    CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, waypointBlock)
+                        || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock)
+                        || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                        || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
 
                 var approachingTunnel = waypointIsTightPassage;
                 if (!approachingTunnel) {
                     for (var lookahead = pathIndex; lookahead < Math.min(path.size(), pathIndex + 4); lookahead++) {
                         var la = path.get(lookahead);
                         if (
-                            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                            CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, la)
+                                || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, la)
                         ) {
                             approachingTunnel = true;
                             break;
@@ -356,8 +385,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                     for (var lookahead = pathIndex; lookahead < Math.min(path.size(), pathIndex + 4); lookahead++) {
                         var la = path.get(lookahead);
                         if (
-                            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, la)
-                                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, la)
+                            CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, la)
+                                || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, la)
                         ) {
                             tunnelTargetBlock = la;
                             break;
@@ -383,20 +412,20 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                         if (canCrawl && entranceYError > 0.25D && closeEnoughToClimb) {
                             var climbY = Mth.clamp(entranceYError * 0.6D, speed * 0.5D, speed);
                             move = new Vec3(move.x, climbY, move.z);
-                            CrawlingMovementManager.setWallCrawling(mob, true);
-                            CrawlingMovementManager.updateCrawlOrientation(mob, move);
+                            CrawlController.setWallCrawling(mob, true);
+                            CrawlController.updateCrawlOrientation(mob, move);
                         } else if (canCrawl) {
                             if (closeEnoughToClimb) {
-                                CrawlingMovementManager.setWallCrawling(mob, true);
-                                CrawlingMovementManager.updateCrawlOrientation(mob, move);
-                            } else if (mob instanceof WallCrawlingMob wc) {
-                                wc.ovomorphosis$setWallCrawlGraceTicks(0);
+                                CrawlController.setWallCrawling(mob, true);
+                                CrawlController.updateCrawlOrientation(mob, move);
+                            } else if (mob instanceof CrawlCapability wc) {
+                                wc.setWallCrawlGraceTicks(0);
                             }
                         }
                         mob.setDeltaMovement(move);
                         mob.hasImpulse = true;
                         faceMovementDirection(mob, move);
-                        return ActionOutcome.RUNNING;
+                        return ActionOutcome.running();
                     } else if (waypointIsTightPassage) {
                         pathIndex++;
                         if (pathIndex < path.size()) {
@@ -423,7 +452,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                         pendingOutcome = null;
                         return outcome;
                     }
-                    return ActionOutcome.RUNNING;
+                    return ActionOutcome.running();
                 }
             }
         }
@@ -436,21 +465,21 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 pendingOutcome = null;
                 return outcome;
             }
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         halt(mob);
         faceDestination(mob, destination);
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         if (reason == ActionStatus.SUCCESS || reason == ActionStatus.FAILURE) {
-            blackboard.remove(AiKeys.DESTINATION);
+            blackboard.remove(CommonBlackboardKeys.DESTINATION);
         }
         if (canCrawl) {
-            CrawlingMovementManager.setWallCrawling(mob, false);
+            CrawlController.setWallCrawling(mob, false);
         }
         mob.setDeltaMovement(
             mob.getDeltaMovement().x * 0.25D,
@@ -506,15 +535,15 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var mobFeet = BlockPos.containing(mob.getX(), mob.getBoundingBox().minY, mob.getZ());
 
         var waypointIsVerticalShaft =
-            CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock);
+            CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock);
         var waypointLeadsIntoVerticalShaft =
             waypointIsVerticalShaft
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
+                || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below(2));
 
         if (shouldUseCrawlingNow) {
-            var waypointIsTopSurface = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
-                && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
+            var waypointIsTopSurface = AStarPathfinder.canStandAt(mob.level(), mob, waypointBlock)
+                && !CollisionQueries.isSafeClimbNode(mob.level(), waypointBlock, mob)
                 && waypointBlock.getY() > mobFeet.getY();
             var horizToWp = new Vec3(waypoint.x - mob.getX(), 0.0D, waypoint.z - mob.getZ());
             if (
@@ -525,8 +554,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             ) {
                 var overDir = horizToWp.lengthSqr() > 1.0e-4D ? horizToWp.normalize() : Vec3.ZERO;
                 var crest = new Vec3(overDir.x * speed, Math.max(speed * 0.6D, 0.3D), overDir.z * speed);
-                CrawlingMovementManager.setWallCrawling(mob, true);
-                CrawlingMovementManager.updateCrawlOrientation(mob, crest);
+                CrawlController.setWallCrawling(mob, true);
+                CrawlController.updateCrawlOrientation(mob, crest);
                 mob.setDeltaMovement(crest);
                 mob.hasImpulse = true;
                 faceMovementDirection(mob, crest);
@@ -560,8 +589,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 move = new Vec3(intoWall.x, Math.max(mob.getDeltaMovement().y, speed * 0.85D), intoWall.z);
             }
 
-            CrawlingMovementManager.setWallCrawling(mob, true);
-            CrawlingMovementManager.updateCrawlOrientation(mob, move);
+            CrawlController.setWallCrawling(mob, true);
+            CrawlController.updateCrawlOrientation(mob, move);
             mob.setDeltaMovement(move);
             mob.hasImpulse = true;
             faceMovementDirection(mob, move);
@@ -571,7 +600,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if (waypointLeadsIntoVerticalShaft && destination.getY() < mob.getY() - 0.75D) {
             var shaftBlock = waypointIsVerticalShaft
                 ? waypointBlock
-                : CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
+                : CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, waypointBlock.below())
                     ? waypointBlock.below()
                     : waypointBlock.below(2);
 
@@ -585,29 +614,29 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 var yPull = mob.isNoGravity() ? -speed * 0.3D : mob.getDeltaMovement().y * 0.25D;
                 shaftVelocity = new Vec3(centerMove.x, yPull, centerMove.z);
             } else {
-                if (mob instanceof WallCrawlingMob wc)
-                    wc.ovomorphosis$setWallCrawlGraceTicks(0);
-                CrawlingMovementManager.setWallCrawling(mob, false);
+                if (mob instanceof CrawlCapability wc)
+                    wc.setWallCrawlGraceTicks(0);
+                CrawlController.setWallCrawling(mob, false);
                 shaftVelocity = new Vec3(centerError.x * 0.35D, -speed * 0.85D, centerError.z * 0.35D);
             }
 
-            CrawlingMovementManager.setWallCrawling(mob, true);
-            CrawlingMovementManager.updateCrawlOrientation(mob, shaftVelocity);
+            CrawlController.setWallCrawling(mob, true);
+            CrawlController.updateCrawlOrientation(mob, shaftVelocity);
             mob.setDeltaMovement(shaftVelocity);
             mob.hasImpulse = true;
             faceMovementDirection(mob, shaftVelocity);
             return;
         }
 
-        var waypointIsTunnel = CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, waypointBlock);
+        var waypointIsTunnel = CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, waypointBlock);
         var mobIsInTunnel =
-            CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet)
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below())
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.above())
-                || CrawlingCustomAStar.tunnelCanStandAt(mob.level(), mob, mobFeet.below(2))
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet)
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below())
-                || CrawlingCustomAStar.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below(2));
+            CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, mobFeet)
+                || CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, mobFeet.below())
+                || CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, mobFeet.above())
+                || CrawlTraversalEvaluator.tunnelCanStandAt(mob.level(), mob, mobFeet.below(2))
+                || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet)
+                || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below())
+                || CrawlTraversalEvaluator.verticalShaftCanCrawlAt(mob.level(), mob, mobFeet.below(2));
 
         if (waypointIsTunnel || mobIsInTunnel) {
             var horizontal = new Vec3(direction.x, 0.0D, direction.z);
@@ -625,7 +654,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 }
 
                 var descendingInTunnel = yError < -0.20D;
-                CrawlingMovementManager.setWallCrawling(mob, !descendingInTunnel);
+                CrawlController.setWallCrawling(mob, !descendingInTunnel);
 
                 var tunnelSpeed = waypointIsTunnel ? speed : speed * 1.25D;
                 var tunnelVelocity = new Vec3(
@@ -635,7 +664,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 );
 
                 if (!descendingInTunnel)
-                    CrawlingMovementManager.updateCrawlOrientation(mob, tunnelVelocity);
+                    CrawlController.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
                 mob.hasImpulse = true;
                 faceMovementDirection(mob, tunnelVelocity);
@@ -646,13 +675,13 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 var vertical = Mth.clamp(yError * 0.35D, -0.32D, 0.32D);
                 var tunnelVelocity = new Vec3(0.0D, vertical, 0.0D);
                 var descending = yError < -0.20D;
-                CrawlingMovementManager.setWallCrawling(mob, !descending);
-                if (descending && mob instanceof WallCrawlingMob wc) {
-                    wc.ovomorphosis$setWallCrawlGraceTicks(0);
+                CrawlController.setWallCrawling(mob, !descending);
+                if (descending && mob instanceof CrawlCapability wc) {
+                    wc.setWallCrawlGraceTicks(0);
                     vertical = Math.min(vertical, -speed * 0.6D);
                     tunnelVelocity = new Vec3(0.0D, vertical, 0.0D);
                 }
-                CrawlingMovementManager.updateCrawlOrientation(mob, tunnelVelocity);
+                CrawlController.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
                 mob.hasImpulse = true;
                 faceDestination(mob, destination);
@@ -660,8 +689,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             }
         }
 
-        var waypointIsGroundOnly = CustomAStar.canStandAt(mob.level(), mob, waypointBlock)
-            && !MovementUtils.isSafeClimbNode(mob.level(), waypointBlock)
+        var waypointIsGroundOnly = AStarPathfinder.canStandAt(mob.level(), mob, waypointBlock)
+            && !CollisionQueries.isSafeClimbNode(mob.level(), waypointBlock, mob)
             && waypointBlock.getY() <= mobFeet.getY();
         var canAttachToWall = shouldUseCrawlingNow
             && !waypointIsGroundOnly
@@ -686,7 +715,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 } else {
                     crawlVelocity = new Vec3(intoWall.x, verticalSpeed, intoWall.z);
                     if (crawlVelocity.horizontalDistanceSqr() < 0.0001D) {
-                        CrawlingMovementManager.setWallCrawling(mob, false);
+                        CrawlController.setWallCrawling(mob, false);
                         faceDestination(mob, destination);
                         return;
                     }
@@ -703,14 +732,14 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 var moveDir = horizontal.normalize().scale(speed);
                 crawlVelocity = new Vec3(moveDir.x + intoWall.x, intoWall.y, moveDir.z + intoWall.z);
             } else {
-                crawlVelocity = MovementUtils.computeWallCrawlVelocity(mob, waypoint, speed);
+                crawlVelocity = NavigationQueries.computeWallCrawlVelocity(mob, waypoint, speed);
             }
 
             if (crawlVelocity.lengthSqr() < 1e-6D)
                 crawlVelocity = Vec3.ZERO;
 
-            CrawlingMovementManager.setWallCrawling(mob, true);
-            CrawlingMovementManager.updateCrawlOrientation(mob, crawlVelocity);
+            CrawlController.setWallCrawling(mob, true);
+            CrawlController.updateCrawlOrientation(mob, crawlVelocity);
             mob.setDeltaMovement(crawlVelocity);
             mob.hasImpulse = true;
             faceMovementDirection(mob, crawlVelocity);
@@ -718,14 +747,14 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         if (canCrawl)
-            CrawlingMovementManager.setWallCrawling(mob, false);
+            CrawlController.setWallCrawling(mob, false);
 
         if (shouldUseCrawlingNow) {
             var toWaypoint = new Vec3(direction.x, 0.0D, direction.z);
             if (toWaypoint.lengthSqr() > 0.01D) {
-                CrawlingMovementManager.setWallCrawling(mob, false);
-                if (mob instanceof WallCrawlingMob wc)
-                    wc.ovomorphosis$setWallCrawlGraceTicks(0);
+                CrawlController.setWallCrawling(mob, false);
+                if (mob instanceof CrawlCapability wc)
+                    wc.setWallCrawlGraceTicks(0);
                 var move = toWaypoint.normalize().scale(speed);
                 var yVel = Math.min(mob.getDeltaMovement().y, -0.15D);
                 mob.setDeltaMovement(move.x, yVel, move.z);
@@ -741,9 +770,9 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             if (shouldUseCrawlingNow && direction.y > 0.1D) {
                 var wallDir = findNearestWallDirection(mob);
                 if (wallDir != null) {
-                    CrawlingMovementManager.setWallCrawling(mob, true);
+                    CrawlController.setWallCrawling(mob, true);
                     var pushVelocity = new Vec3(wallDir.x * speed * 0.3D, speed * 0.6D, wallDir.z * speed * 0.3D);
-                    CrawlingMovementManager.updateCrawlOrientation(mob, pushVelocity);
+                    CrawlController.updateCrawlOrientation(mob, pushVelocity);
                     mob.setDeltaMovement(pushVelocity);
                     mob.hasImpulse = true;
                     faceDestination(mob, destination);
@@ -758,8 +787,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if (!shouldUseCrawlingNow && waypointBlock.getY() < mob.blockPosition().getY()) {
             var toGoal = new Vec3(direction.x, 0.0D, direction.z);
             if (toGoal.lengthSqr() > 0.01D) {
-                if (canCrawl && mob instanceof WallCrawlingMob wc)
-                    wc.ovomorphosis$setWallCrawlGraceTicks(0);
+                if (canCrawl && mob instanceof CrawlCapability wc)
+                    wc.setWallCrawlGraceTicks(0);
                 var stepDown = toGoal.normalize().scale(speed);
                 mob.setDeltaMovement(stepDown.x, Math.min(mob.getDeltaMovement().y, -0.15D), stepDown.z);
                 mob.hasImpulse = true;
@@ -769,12 +798,12 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         }
 
         var forward = horizontal.normalize();
-        var movement = MovementUtils.steerAwayFromDangerEntities(mob, forward.scale(speed));
+        var movement = MovementController.steerAwayFromDangerEntities(mob, forward.scale(speed));
 
         if (detourTicks > 0) {
             detourTicks--;
             var detourMove = detourDirection.scale(speed);
-            var detourSafe = MovementUtils.findSafeMovement(mob, detourMove, steerBias);
+            var detourSafe = MovementController.findSafeMovement(mob, detourMove, steerBias);
             if (!detourSafe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(detourSafe.x, mob.getDeltaMovement().y, detourSafe.z);
                 mob.hasImpulse = true;
@@ -787,11 +816,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         if (stuckTicks > 10) {
             if (
                 shouldUseCrawlingNow
-                    && CrawlingMovementManager.isWallCrawling(mob)
+                    && CrawlController.isWallCrawling(mob)
                     && destination.getY() < mob.getY() - 1.0D
                     && waypointBlock.getY() < mob.blockPosition().getY()
             ) {
-                CrawlingMovementManager.setWallCrawling(mob, false);
+                CrawlController.setWallCrawling(mob, false);
                 var downForward = new Vec3(direction.x, 0.0D, direction.z);
                 if (downForward.lengthSqr() > 0.0001D)
                     downForward = downForward.normalize().scale(speed * 0.6D);
@@ -799,8 +828,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
                 mob.hasImpulse = true;
                 stuckTicks = 0;
                 repathCooldown = 0;
-                if (mob instanceof WallCrawlingMob wc)
-                    wc.ovomorphosis$setWallCrawlGraceTicks(0);
+                if (mob instanceof CrawlCapability wc)
+                    wc.setWallCrawlGraceTicks(0);
                 faceDestination(mob, destination);
                 return;
             }
@@ -818,8 +847,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             if (destBelow && stuckTicks > 15) {
                 var nudge = new Vec3(direction.x, 0.0D, direction.z);
                 if (nudge.lengthSqr() > 0.0001D) {
-                    if (mob instanceof WallCrawlingMob wc)
-                        wc.ovomorphosis$setWallCrawlGraceTicks(0);
+                    if (mob instanceof CrawlCapability wc)
+                        wc.setWallCrawlGraceTicks(0);
                     mob.setDeltaMovement(
                         nudge.normalize().scale(speed).x,
                         mob.getDeltaMovement().y,
@@ -836,11 +865,11 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             var left = new Vec3(-forward.z, 0.0D, forward.x);
             var right = new Vec3(forward.z, 0.0D, -forward.x);
 
-            if (!destBelow && MovementUtils.isSafeAhead(mob, left, 1.25D)) {
+            if (!destBelow && TraversalQueries.isSafeAhead(mob, left, 1.25D)) {
                 detourDirection = left;
                 detourTicks = 20;
                 stuckTicks = 0;
-            } else if (!destBelow && MovementUtils.isSafeAhead(mob, right, 1.25D)) {
+            } else if (!destBelow && TraversalQueries.isSafeAhead(mob, right, 1.25D)) {
                 detourDirection = right;
                 detourTicks = 20;
                 stuckTicks = 0;
@@ -854,7 +883,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
             }
         }
 
-        var safe = MovementUtils.findSafeMovement(mob, movement, steerBias);
+        var safe = MovementController.findSafeMovement(mob, movement, steerBias);
         if (safe.equals(Vec3.ZERO)) {
             halt(mob);
             faceDestination(mob, destination);
@@ -886,8 +915,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
 
         var horizontal = new Vec3(direction.x, 0.0D, direction.z);
         if (horizontal.lengthSqr() > 0.01D) {
-            var movement = MovementUtils.steerAwayFromDangerEntities(mob, horizontal.normalize().scale(speed));
-            var safe = MovementUtils.findSafeMovement(mob, movement, steerBias);
+            var movement = MovementController.steerAwayFromDangerEntities(mob, horizontal.normalize().scale(speed));
+            var safe = MovementController.findSafeMovement(mob, movement, steerBias);
             if (!safe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
                 mob.hasImpulse = true;
@@ -969,8 +998,8 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
         var yError = waypointCenter.y - mob.getY();
 
         var level = mob.level();
-        var isTunnel = CrawlingCustomAStar.tunnelCanStandAt(level, mob, waypoint);
-        var isVerticalShaft = CrawlingCustomAStar.verticalShaftCanCrawlAt(level, mob, waypoint);
+        var isTunnel = CrawlTraversalEvaluator.tunnelCanStandAt(level, mob, waypoint);
+        var isVerticalShaft = CrawlTraversalEvaluator.verticalShaftCanCrawlAt(level, mob, waypoint);
 
         if (isVerticalShaft) {
             return horizontalDistSqr <= 0.40D * 0.40D && Math.abs(yError) < 0.55D;
@@ -999,7 +1028,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
      */
     private boolean isOrdinaryStepUp(E mob, BlockPos node, BlockPos mobFeet) {
         return node.getY() - mobFeet.getY() == 1
-            && CustomAStar.canStandAt(mob.level(), mob, node);
+            && AStarPathfinder.canStandAt(mob.level(), mob, node);
     }
 
     private boolean needsCrawlStepUp(E mob, BlockPos waypointBlock, BlockPos mobFeet) {
@@ -1085,7 +1114,7 @@ public final class MoveToDestinationAction<E extends Mob> implements Action<E> {
     }
 
     private boolean canAttachToClimbSurface(E mob, Vec3 waypoint) {
-        if (MovementUtils.needsWallCrawl(mob, waypoint))
+        if (NavigationQueries.needsWallCrawl(mob, waypoint))
             return true;
         if (mob.horizontalCollision)
             return true;

@@ -1,5 +1,13 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -15,14 +23,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.List;
 
-import mod.azure.ovomorphosis.ai.core.Action;
-import mod.azure.ovomorphosis.ai.core.ActionOutcome;
-import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.nav.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
@@ -38,20 +39,21 @@ import mod.azure.ovomorphosis.util.ModTags;
  * {@link #MAX_WAIT_TICKS} rather than stalling forever if a player simply won't look away.</li>
  * <li>{@link Phase#TRAVERSING} — the mob is hidden ({@link Mob#setInvisible}) and made non-colliding
  * ({@link Mob#noPhysics}), teleported to the entrance, and a duration proportional to the entrance-exit distance is
- * counted down. Periodically during this phase, {@link mod.azure.ovomorphosis.registry.SoundRegistry#VENT_RATTLE} is
- * played from a few other known vent positions near the hive (not necessarily on the direct line between entrance and
- * exit — see {@link HiveMemory#getVentPositionsNear}) so a listening player gets a sense of movement through the duct
- * network without being able to pin down exactly where the mob will emerge.</li>
+ * counted down. Periodically during this phase, {@link SoundRegistry#VENT_RATTLE} is played from a few other known vent
+ * positions near the hive (not necessarily on the direct line between entrance and exit — see
+ * {@link HiveMemory#getVentPositionsNear}) so a listening player gets a sense of movement through the duct network
+ * without being able to pin down exactly where the mob will emerge.</li>
  * <li>{@link Phase#WAITING_TO_EXIT} — same visibility polling as entry, against the exit position.</li>
  * <li>Reveal — visibility/collision restored, mob teleported to the exit, crawl animation flag cleared, action reports
- * {@link ActionOutcome#SUCCESS}. The target reference is untouched throughout (this action never touches
- * {@link AiKeys#TARGET}), so whatever goal was driving the hunt resumes naturally from the mob's new position.</li>
+ * {@link ActionOutcome#success()}. The target reference is untouched throughout (this action never touches
+ * {@link CommonBlackboardKeys#TARGET}), so whatever goal was driving the hunt resumes naturally from the mob's new
+ * position.</li>
  * </ol>
  * {@link #stop} unconditionally restores visibility/collision/crawl-state and clears any vent-blocked flags this action
  * set, regardless of which phase it's stopped in (success, failure, or interruption) — this is what guarantees a
  * preempted mid-traversal mob can never be left permanently invisible or non-colliding.
  */
-public final class VentTraversalAction<E extends Mob> implements Action<E> {
+public final class VentTraversalAction<E extends Mob, G> implements Action<E, G> {
 
     private enum Phase {
         WAITING_TO_ENTER,
@@ -108,20 +110,20 @@ public final class VentTraversalAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         phase = Phase.WAITING_TO_ENTER;
         ticksInPhase = 0;
         traversalTicksElapsed = 0;
         everHidden = false;
         ambientSpots = List.of();
-        entrance = blackboard.get(AiKeys.VENT_ENTRANCE, BlockPos.class);
-        exit = blackboard.get(AiKeys.VENT_EXIT, BlockPos.class);
+        entrance = blackboard.get(AiKeys.VENT_ENTRANCE);
+        exit = blackboard.get(AiKeys.VENT_EXIT);
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         var level = mob.level();
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
 
         if (entrance == null || exit == null || memory == null) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
@@ -136,7 +138,7 @@ public final class VentTraversalAction<E extends Mob> implements Action<E> {
         };
     }
 
-    private ActionOutcome tickWaitingToEnter(E mob, Level level, HiveMemory memory) {
+    private ActionOutcome<G> tickWaitingToEnter(E mob, Level level, HiveMemory memory) {
         if (!level.getBlockState(entrance).is(ModTags.VENT_BLOCKS)) {
             memory.evictStaleVentBlocks(level);
             return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION, entrance);
@@ -148,17 +150,17 @@ public final class VentTraversalAction<E extends Mob> implements Action<E> {
                 memory.setVentBlocked(entrance, false);
                 return ActionOutcome.failed(PlanFailureReason.FAILED_BLOCKED, entrance);
             }
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         memory.setVentBlocked(entrance, false);
         enterVent(mob, level, memory);
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     private void enterVent(E mob, Level level, HiveMemory memory) {
         level.playSound(null, entrance, SoundRegistry.VENT_RATTLE.get(), SoundSource.HOSTILE, 1.0F, 0.9F);
-        CrawlingMovementManager.setWallCrawling(mob, true);
+        CrawlController.setWallCrawling(mob, true);
         mob.setInvisible(true);
         mob.noPhysics = true;
         everHidden = true;
@@ -193,7 +195,8 @@ public final class VentTraversalAction<E extends Mob> implements Action<E> {
         ticksInPhase = 0;
     }
 
-    private ActionOutcome tickTraversing(E mob, Level level, HiveMemory memory) {
+    @SuppressWarnings("unused")
+    private ActionOutcome<G> tickTraversing(E mob, Level level, HiveMemory memory) {
         traversalTicksElapsed++;
 
         if (
@@ -211,21 +214,21 @@ public final class VentTraversalAction<E extends Mob> implements Action<E> {
             ticksInPhase = 0;
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
-    private ActionOutcome tickWaitingToExit(E mob, Level level, HiveMemory memory) {
+    private ActionOutcome<G> tickWaitingToExit(E mob, Level level, HiveMemory memory) {
         var emergeAt = level.getBlockState(exit).is(ModTags.VENT_BLOCKS) ? exit : entrance;
 
         var stalledTooLong = ticksInPhase > MAX_WAIT_TICKS;
         if (!stalledTooLong && isWatchedByAnyPlayer(level, emergeAt)) {
             memory.setVentBlocked(emergeAt, true);
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         memory.setVentBlocked(emergeAt, false);
         revealAt(mob, level, memory, emergeAt);
-        return ActionOutcome.SUCCESS;
+        return ActionOutcome.success();
     }
 
     private void revealAt(E mob, Level level, HiveMemory memory, BlockPos pos) {
@@ -233,20 +236,20 @@ public final class VentTraversalAction<E extends Mob> implements Action<E> {
         mob.setInvisible(false);
         mob.noPhysics = false;
         everHidden = false;
-        CrawlingMovementManager.setWallCrawling(mob, false);
+        CrawlController.setWallCrawling(mob, false);
         memory.markVentUsed(pos, mob.level().getGameTime());
         level.playSound(null, pos, SoundRegistry.VENT_RATTLE.get(), SoundSource.HOSTILE, 1.0F, 1.1F);
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         if (everHidden) {
             mob.setInvisible(false);
             mob.noPhysics = false;
         }
-        CrawlingMovementManager.setWallCrawling(mob, false);
+        CrawlController.setWallCrawling(mob, false);
 
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
         if (memory != null) {
             if (entrance != null)
                 memory.setVentBlocked(entrance, false);

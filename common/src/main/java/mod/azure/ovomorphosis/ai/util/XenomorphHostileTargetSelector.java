@@ -1,16 +1,17 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.sensing.TargetSensor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayDeque;
 
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
-public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity> implements TargetSelector<E> {
+public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity> implements TargetSensor.Selector<E> {
 
     private final double range;
 
@@ -41,7 +42,7 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
 
     @Override
     public LivingEntity findTarget(E mob, Blackboard blackboard) {
-        var current = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var current = blackboard.get(CommonBlackboardKeys.TARGET);
 
         var nearby = mob.level()
             .getEntitiesOfClass(
@@ -67,6 +68,7 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
         ) {
 
             var currentDistSq = mob.distanceToSqr(current);
+
             if (closest == null || currentDistSq * 0.6 <= closestDistSq) {
                 return current;
             }
@@ -77,9 +79,9 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
             return closest;
         }
 
-        if (!heardQueue.isEmpty() && blackboard.get(AiKeys.DESTINATION, BlockPos.class) == null) {
+        if (!heardQueue.isEmpty() && blackboard.get(CommonBlackboardKeys.DESTINATION) == null) {
             var nextPos = heardQueue.pollFirst();
-            blackboard.set(AiKeys.DESTINATION, nextPos);
+            blackboard.set(CommonBlackboardKeys.DESTINATION, nextPos);
         }
 
         return null;

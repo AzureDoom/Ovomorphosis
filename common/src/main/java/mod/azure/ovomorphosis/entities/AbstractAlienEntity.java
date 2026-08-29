@@ -1,6 +1,11 @@
 package mod.azure.ovomorphosis.entities;
 
+import com.azure.azurecortex.api.navigation.MovementCapability;
+import com.azure.azurecortex.navigation.crawl.CrawlCapability;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
+import com.azure.azurecortex.navigation.crawl.CrawlState;
 import mod.azure.azurelib.util.MoveAnalysis;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -12,17 +17,17 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
-import mod.azure.ovomorphosis.ai.nav.CrawlingManager;
-import mod.azure.ovomorphosis.ai.util.WallCrawlingMob;
 import mod.azure.ovomorphosis.util.ClientAnimState;
 import mod.azure.ovomorphosis.util.MobUtils;
 import mod.azure.ovomorphosis.util.ModTags;
 
-public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMob {
+public class AbstractAlienEntity extends PathfinderMob implements MovementCapability, CrawlCapability {
 
     public MoveAnalysis moveAnalysis;
 
@@ -53,7 +58,7 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
     protected static final EntityDataAccessor<Float> FIRE_TOLERANCE_NBT =
         SynchedEntityData.defineId(AbstractAlienEntity.class, EntityDataSerializers.FLOAT);
 
-    protected final CrawlingManager crawlingManager = new CrawlingManager(
+    protected final CrawlState crawlState = new CrawlState(
         this,
         DATA_WALL_CRAWLING,
         DATA_CRAWL_FORWARD_X,
@@ -112,60 +117,79 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
         this.setFireToleranceNbt(tag.getFloat("fireToleranceNbt"));
     }
 
-    @SuppressWarnings("ConstantValue")
     @Override
-    public boolean ovomorphosis$isWallCrawling() {
-        return crawlingManager != null && crawlingManager.isWallCrawling();
+    public boolean isHazardBlock(Level level, BlockPos pos, BlockState state) {
+        return state.is(ModTags.DANGER_BLOCKS);
     }
 
     @Override
-    public void ovomorphosis$setWallCrawling(boolean crawling) {
-        crawlingManager.setWallCrawling(crawling);
+    public boolean isPassableSolid(Level level, BlockPos pos, BlockState state) {
+        return state.is(ModTags.RESIN);
     }
 
     @Override
-    public int ovomorphosis$getWallCrawlGraceTicks() {
-        return crawlingManager.getWallCrawlGraceTicks();
+    public boolean isHazardFluid(Level level, BlockPos pos, FluidState fluid) {
+        return fluid.is(ModTags.DANGER_FLUIDS);
     }
 
     @Override
-    public void ovomorphosis$setWallCrawlGraceTicks(int ticks) {
-        crawlingManager.setWallCrawlGraceTicks(ticks);
+    public boolean isHazardEntityType(EntityType<?> type) {
+        return type.is(ModTags.DANGER_ENTITIES);
     }
 
     @Override
-    public Vec3 ovomorphosis$getCrawlForward() {
-        return crawlingManager.getCrawlForward();
+    public boolean isWallCrawling() {
+        return crawlState.isWallCrawling();
     }
 
     @Override
-    public Vec3 ovomorphosis$getOldCrawlForward() {
-        return crawlingManager.getOldCrawlForward();
+    public void setWallCrawling(boolean crawling) {
+        crawlState.setWallCrawling(crawling);
     }
 
     @Override
-    public Vec3 ovomorphosis$getCrawlUp() {
-        return crawlingManager.getCrawlUp();
+    public int getWallCrawlGraceTicks() {
+        return crawlState.getWallCrawlGraceTicks();
     }
 
     @Override
-    public Vec3 ovomorphosis$getOldCrawlUp() {
-        return crawlingManager.getOldCrawlUp();
+    public void setWallCrawlGraceTicks(int ticks) {
+        crawlState.setWallCrawlGraceTicks(ticks);
     }
 
     @Override
-    public double ovomorphosis$getCrawlDistFromBlock() {
-        return crawlingManager.getCrawlDistFromBlock();
+    public Vec3 getCrawlForward() {
+        return crawlState.getCrawlForward();
     }
 
     @Override
-    public double ovomorphosis$getOldCrawlDistFromBlock() {
-        return crawlingManager.getOldCrawlDistFromBlock();
+    public Vec3 getOldCrawlForward() {
+        return crawlState.getOldCrawlForward();
     }
 
     @Override
-    public void ovomorphosis$setCrawlOrientation(Vec3 forward, Vec3 up, double distFromBlock) {
-        crawlingManager.setCrawlOrientation(forward, up, distFromBlock);
+    public Vec3 getCrawlUp() {
+        return crawlState.getCrawlUp();
+    }
+
+    @Override
+    public Vec3 getOldCrawlUp() {
+        return crawlState.getOldCrawlUp();
+    }
+
+    @Override
+    public double getCrawlDistFromBlock() {
+        return crawlState.getCrawlDistFromBlock();
+    }
+
+    @Override
+    public double getOldCrawlDistFromBlock() {
+        return crawlState.getOldCrawlDistFromBlock();
+    }
+
+    @Override
+    public void setCrawlOrientation(Vec3 forward, Vec3 up, double distFromBlock) {
+        crawlState.setCrawlOrientation(forward, up, distFromBlock);
     }
 
     @Override
@@ -173,7 +197,8 @@ public class AbstractAlienEntity extends PathfinderMob implements WallCrawlingMo
         super.tick();
         this.setAirSupply(this.getMaxAirSupply());
 
-        crawlingManager.tick();
+        crawlState.tick();
+        CrawlController.updateWallCrawlingPhysics(this);
 
         if (isInWater() || isInLava()) {
             setSwimming(true);

@@ -1,5 +1,13 @@
 package mod.azure.ovomorphosis.entities.xenomorph;
 
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.EmergencyDetector;
+import com.azure.azurecortex.goap.GoalExecutor;
+import com.azure.azurecortex.goap.GoalFailureCooldowns;
+import com.azure.azurecortex.goap.PlannedGoal;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
+import com.azure.azurecortex.runtime.CortexRuntime;
+import com.azure.azurecortex.sensing.TargetSensor;
 import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -33,9 +41,7 @@ import java.util.function.BiConsumer;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.MobBrainRuntime;
 import mod.azure.ovomorphosis.ai.goap.*;
-import mod.azure.ovomorphosis.ai.nav.CrawlingMovementManager;
 import mod.azure.ovomorphosis.ai.util.*;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
@@ -62,7 +68,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
     private final DynamicGameEventListener<GameEventListener> dynamicGameEventListener;
 
-    private final MobBrainRuntime<XenomorphEntity> brainRuntime;
+    private final CortexRuntime<XenomorphEntity, AiGoalType> brainRuntime;
 
     private final XenomorphGoalPlanner goalPlanner = new XenomorphGoalPlanner();
 
@@ -102,9 +108,9 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             }
         });
 
-        this.brainRuntime = new MobBrainRuntime<>(
+        this.brainRuntime = new CortexRuntime<>(
             this,
-            new TargetingSystem<>(targetSelector, 10),
+            new TargetSensor<>(targetSelector, 10, TargetSensor.lineOfSight()),
             XenomorphTree.create()
         );
     }
@@ -188,12 +194,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         super.tick();
         if (!this.level().isClientSide()) {
             if (this.level() instanceof ServerLevel serverLevel) {
-                var hiveMemory =
-                    brainRuntime.getBlackboard()
-                        .get(
-                            AiKeys.HIVE_MEMORY,
-                            HiveMemory.class
-                        );
+                var hiveMemory = brainRuntime.getBlackboard().get(AiKeys.HIVE_MEMORY);
 
                 if (hiveMemory == null) {
                     ensureHiveAssignment(serverLevel);
@@ -202,7 +203,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
             if (!this.isNoAi()) {
                 tickGoalPlanner();
                 brainRuntime.tick();
-                CrawlingMovementManager.updateWallCrawlingPhysics(this);
+                CrawlController.updateWallCrawlingPhysics(this);
             }
             if (this.isAlive()) {
                 grow(this, 1);
@@ -234,7 +235,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         int currentTick = (int) this.level().getGameTime();
 
         @SuppressWarnings("unchecked")
-        var activeGoal = (PlannedGoal<XenomorphEntity>) blackboard.get(AiKeys.ACTIVE_GOAL, PlannedGoal.class);
+        var activeGoal = (PlannedGoal<XenomorphEntity, AiGoalType>) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL);
 
         var goalType = activeGoal != null ? activeGoal.type() : AiGoalType.NONE;
         var isPassive = goalType == AiGoalType.WANDER
@@ -244,20 +245,20 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
         var huntSuppressed = GoalFailureCooldowns.getOrCreate(blackboard)
             .isSuppressed(AiGoalType.HUNT_TARGET, currentTick);
-        var reactiveReplan = isPassive && blackboard.has(AiKeys.TARGET) && !huntSuppressed;
+        var reactiveReplan = isPassive && blackboard.has(CommonBlackboardKeys.TARGET) && !huntSuppressed;
 
-        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this);
+        var preplanUrgency = EmergencyDetector.detectPreplanUrgency(this, EmergencyDetector.defaultProbes());
 
-        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(AiKeys.GOAL_REPLAN))
+        if (!reactiveReplan && preplanUrgency == null && cooldowns.isOnCooldown(CommonBlackboardKeys.GOAL_REPLAN))
             return;
 
-        if (!reactiveReplan && !GoalApplicator.shouldReplan(blackboard, currentTick, preplanUrgency, this))
+        if (!reactiveReplan && !GoalExecutor.shouldReplan(blackboard, currentTick, preplanUrgency, this))
             return;
 
-        cooldowns.set(AiKeys.GOAL_REPLAN, 20);
+        cooldowns.set(CommonBlackboardKeys.GOAL_REPLAN, 20);
         var newGoal = goalPlanner.chooseGoal(this, blackboard, cooldowns);
 
-        GoalApplicator.apply(this, blackboard, newGoal);
+        GoalExecutor.apply(this, blackboard, newGoal);
     }
 
     @Override
@@ -391,7 +392,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     public @NotNull EntityDimensions getDimensions(@NotNull Pose pose) {
         var growthScale = this.getGrowthScale();
 
-        if (this.ovomorphosis$isWallCrawling()) {
+        if (CrawlController.isWallCrawling(this)) {
             return EntityDimensions.scalable(0.6F * growthScale, 0.6F * growthScale);
         }
 
@@ -554,7 +555,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
                 lookTicks = 0;
             }
 
-            if (this.ovomorphosis$isWallCrawling()) {
+            if (CrawlController.isWallCrawling(this)) {
                 playAnimation(ClientAnimState.CRAWLING);
             } else if (this.isAggressive() && !this.swinging) {
                 playAnimation(ClientAnimState.RUN);

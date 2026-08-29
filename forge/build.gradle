@@ -58,6 +58,12 @@ dependencies {
             prefer '0.4.1'
         }
     }
+    modImplementation(jarJar("com.azure.azurecortex:azurecortex-forge-${minecraft_version}:${azurecortex_version}")) {
+        version {
+            strictly "[${azurecortex_version}]"
+            prefer azurecortex_version
+        }
+    }
     modImplementation "mod.azure.azurelib:azurelib-neo-${minecraft_version}:${azurelib_version}"
     modImplementation "curse.maven:spark-361579:4738952"
 }

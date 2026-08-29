@@ -1,5 +1,14 @@
 package mod.azure.ovomorphosis.ai.actions;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.navigation.movement.MovementController;
+import com.azure.azurecortex.runtime.CooldownTracker;
+import com.azure.azurecortex.runtime.InterruptCategory;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
@@ -10,18 +19,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-import mod.azure.ovomorphosis.ai.core.Action;
-import mod.azure.ovomorphosis.ai.core.ActionOutcome;
-import mod.azure.ovomorphosis.ai.core.ActionStatus;
-import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
-import mod.azure.ovomorphosis.ai.core.InterruptCategory;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.nav.MovementUtils;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
-public final class FleeFireAction<E extends Mob> implements Action<E> {
+public final class FleeFireAction<E extends Mob, G> implements Action<E, G> {
 
     private static final int SCAN_RADIUS = 4;
 
@@ -62,14 +62,14 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         stuckTicks = 0;
         lastPos = mob.position();
         mob.setAggressive(false);
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0)
             return ActionOutcome.failed();
 
@@ -82,23 +82,23 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
 
         var nearestFire = findNearestFire(mob);
         if (nearestFire != null) {
-            blackboard.set(AiKeys.LAST_FIRE_POS, nearestFire);
+            blackboard.set(CommonBlackboardKeys.LAST_FIRE_POS, nearestFire);
             updateFireAttacker(mob, blackboard, nearestFire);
         } else {
-            nearestFire = blackboard.get(AiKeys.LAST_FIRE_POS, BlockPos.class);
+            nearestFire = blackboard.get(CommonBlackboardKeys.LAST_FIRE_POS);
         }
 
         var onFire = mob.isOnFire();
 
         if (nearestFire == null && !onFire) {
             writeTolerance(blackboard);
-            blackboard.set(AiKeys.LAST_FIRE_POS, null);
+            blackboard.set(CommonBlackboardKeys.LAST_FIRE_POS, null);
             blackboard.set(
-                AiKeys.FIRE_FLEE_COOLDOWN,
+                CommonBlackboardKeys.FIRE_FLEE_COOLDOWN,
                 (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS
             );
             slowDown(mob);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         mob.setAggressive(false);
@@ -107,13 +107,13 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
             var distSq = mob.distanceToSqr(Vec3.atCenterOf(nearestFire));
             if (distSq >= SAFE_DIST_SQ && !onFire) {
                 writeTolerance(blackboard);
-                blackboard.set(AiKeys.LAST_FIRE_POS, null);
+                blackboard.set(CommonBlackboardKeys.LAST_FIRE_POS, null);
                 blackboard.set(
-                    AiKeys.FIRE_FLEE_COOLDOWN,
+                    CommonBlackboardKeys.FIRE_FLEE_COOLDOWN,
                     (int) mob.level().getGameTime() + POST_FLEE_COOLDOWN_TICKS
                 );
                 slowDown(mob);
-                return ActionOutcome.SUCCESS;
+                return ActionOutcome.success();
             }
         }
 
@@ -148,7 +148,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         }
 
         var desired = horizontal.normalize().scale(FLEE_SPEED);
-        var safe = MovementUtils.findSafeMovement(mob, desired, steerBias);
+        var safe = MovementController.findSafeMovement(mob, desired, steerBias);
         var move = safe.equals(Vec3.ZERO) ? desired : safe;
 
         mob.setDeltaMovement(move.x, mob.getDeltaMovement().y, move.z);
@@ -159,11 +159,11 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         mob.yBodyRot = yaw;
         mob.yHeadRot = yaw;
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         slowDown(mob);
     }
 
@@ -188,7 +188,8 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
 
     /**
      * Attempts to identify which entity caused the fire near {@code mob} and writes it to
-     * {@link AiKeys#LAST_FIRE_ATTACKER}, {@link AiKeys#TARGET_IS_FIRE_USER}, and {@link AiKeys#FIRE_DANGER_UNTIL_TICK}.
+     * {@link CommonBlackboardKeys#LAST_FIRE_ATTACKER}, {@link CommonBlackboardKeys#TARGET_IS_FIRE_USER}, and
+     * {@link CommonBlackboardKeys#FIRE_DANGER_UNTIL_TICK}.
      * <p>
      * Attribution strategy (in priority order):
      * <ol>
@@ -250,15 +251,18 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
         }
 
         if (attacker != null) {
-            blackboard.set(AiKeys.LAST_FIRE_ATTACKER, attacker);
-            var existingExpiry = blackboard.get(AiKeys.FIRE_DANGER_UNTIL_TICK, Integer.class);
+            blackboard.set(CommonBlackboardKeys.LAST_FIRE_ATTACKER, attacker);
+            var existingExpiry = blackboard.get(CommonBlackboardKeys.FIRE_DANGER_UNTIL_TICK);
             var newExpiry = currentTick + FIRE_DANGER_DURATION;
             if (existingExpiry == null || newExpiry > existingExpiry) {
-                blackboard.set(AiKeys.FIRE_DANGER_UNTIL_TICK, newExpiry);
+                blackboard.set(CommonBlackboardKeys.FIRE_DANGER_UNTIL_TICK, newExpiry);
             }
 
-            var currentTarget = blackboard.get(AiKeys.TARGET, LivingEntity.class);
-            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, currentTarget != null && currentTarget == attacker);
+            var currentTarget = blackboard.get(CommonBlackboardKeys.TARGET);
+            blackboard.set(
+                CommonBlackboardKeys.TARGET_IS_FIRE_USER,
+                currentTarget != null && currentTarget == attacker
+            );
         }
     }
 
@@ -297,16 +301,16 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
     }
 
     public static boolean isFireDangerActive(Blackboard blackboard, int currentTick) {
-        var expiry = blackboard.get(AiKeys.FIRE_DANGER_UNTIL_TICK, Integer.class);
+        var expiry = blackboard.get(CommonBlackboardKeys.FIRE_DANGER_UNTIL_TICK);
         return expiry != null && currentTick < expiry;
     }
 
     public static void tickFireAttackerMemory(Blackboard blackboard, int currentTick) {
-        var expiry = blackboard.get(AiKeys.FIRE_DANGER_UNTIL_TICK, Integer.class);
+        var expiry = blackboard.get(CommonBlackboardKeys.FIRE_DANGER_UNTIL_TICK);
         if (expiry != null && currentTick >= expiry) {
-            blackboard.set(AiKeys.LAST_FIRE_ATTACKER, null);
-            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, false);
-            blackboard.set(AiKeys.FIRE_DANGER_UNTIL_TICK, null);
+            blackboard.set(CommonBlackboardKeys.LAST_FIRE_ATTACKER, null);
+            blackboard.set(CommonBlackboardKeys.TARGET_IS_FIRE_USER, false);
+            blackboard.set(CommonBlackboardKeys.FIRE_DANGER_UNTIL_TICK, null);
         }
     }
 
@@ -342,7 +346,7 @@ public final class FleeFireAction<E extends Mob> implements Action<E> {
     }
 
     private static void writeTolerance(Blackboard blackboard) {
-        blackboard.set(AiKeys.FIRE_TOLERANCE, 0.0F);
+        blackboard.set(CommonBlackboardKeys.FIRE_TOLERANCE, 0.0F);
     }
 
     private static <E extends Mob> void slowDown(E mob) {

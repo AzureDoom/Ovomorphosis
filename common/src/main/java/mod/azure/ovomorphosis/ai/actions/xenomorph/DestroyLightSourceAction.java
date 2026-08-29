@@ -1,5 +1,12 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.GameRules;
@@ -10,13 +17,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.HashSet;
 import java.util.Set;
 
-import mod.azure.ovomorphosis.ai.core.Action;
-import mod.azure.ovomorphosis.ai.core.ActionOutcome;
-import mod.azure.ovomorphosis.ai.core.ActionStatus;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
 /**
@@ -24,13 +25,13 @@ import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
  * construction and ambush opportunities.
  * <p>
  * This action handles its own locomotion via direct velocity (matching how {@code MoveToTargetAction} works) rather
- * than delegating to {@code MoveToDestinationAction} via {@link AiKeys#DESTINATION}. Delegation via DESTINATION caused
- * the tree to immediately select {@code MoveToDestinationAction} (priority 25) on the next tick and interrupt this
- * action before it could do anything.
+ * than delegating to {@code MoveToDestinationAction} via {@link CommonBlackboardKeys#DESTINATION}. Delegation via
+ * DESTINATION caused the tree to immediately select {@code MoveToDestinationAction} (priority 25) on the next tick and
+ * interrupt this action before it could do anything.
  *
  * @param <E> xenomorph entity type
  */
-public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements Action<E> {
+public class DestroyLightSourceAction<E extends AbstractAlienEntity, G> implements Action<E, G> {
 
     private final int postBreakCooldownTicks;
 
@@ -53,7 +54,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         lightBlock = null;
         breakProgress = 0f;
         breakId = mob.getId() ^ 0x11AC_0000;
@@ -62,7 +63,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         var level = mob.level();
 
         if (
@@ -90,7 +91,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
         if (state.isAir() || getLightEmission(state) < 8) {
             level.destroyBlockProgress(breakId, lightBlock, -1);
             lightBlock = null;
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
         if (isFireBlock(state) && !mob.isFireHardened()) {
@@ -142,7 +143,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
             }
 
             mob.getLookControl().setLookAt(target.x, target.y, target.z, 30f, 30f);
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         mob.setDeltaMovement(
@@ -167,14 +168,14 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity> implements 
             lightBlock = null;
             breakProgress = 0f;
             cooldowns.set(AiKeys.LIGHT_SCAN_COOLDOWN, postBreakCooldownTicks);
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         if (lightBlock != null) {
             mob.level().destroyBlockProgress(breakId, lightBlock, -1);
         }

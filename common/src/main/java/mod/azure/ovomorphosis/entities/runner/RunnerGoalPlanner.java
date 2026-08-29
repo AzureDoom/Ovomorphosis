@@ -1,22 +1,17 @@
 package mod.azure.ovomorphosis.entities.runner;
 
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.api.goal.GoalUrgency;
+import com.azure.azurecortex.goap.*;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
-import mod.azure.ovomorphosis.ai.core.Cooldowns;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
-import mod.azure.ovomorphosis.ai.goap.GoalApplicator;
-import mod.azure.ovomorphosis.ai.goap.GoalFailureCooldowns;
-import mod.azure.ovomorphosis.ai.goap.GoalPlanner;
-import mod.azure.ovomorphosis.ai.goap.GoalUrgency;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
-import mod.azure.ovomorphosis.ai.goap.PlanFeedback;
-import mod.azure.ovomorphosis.ai.goap.PlannedGoal;
 import mod.azure.ovomorphosis.ai.roles.XenoRole;
-import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.ai.util.TargetClassifier;
 
 /**
@@ -31,13 +26,13 @@ import mod.azure.ovomorphosis.ai.util.TargetClassifier;
  * </ul>
  * <h3>Anti-thrash design</h3> Identical to the Xenomorph planner:
  * <ol>
- * <li>Min-commit lock via {@link GoalApplicator#shouldReplan}.</li>
+ * <li>Min-commit lock via {@link GoalExecutor#shouldReplan}.</li>
  * <li>Hysteresis bonus on the active goal.</li>
  * <li>Per-goal failure cooldowns via {@link GoalFailureCooldowns}.</li>
  * <li>Emergency override tier at {@link #EMERGENCY_SCORE_THRESHOLD}.</li>
  * </ol>
  */
-public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
+public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity, AiGoalType> {
 
     private static final float RETREAT_HEALTH_FRACTION = 0.30f;
 
@@ -56,7 +51,11 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
     private static final float EMERGENCY_SCORE_THRESHOLD = 85f;
 
     @Override
-    public PlannedGoal<RunnerEntity> chooseGoal(RunnerEntity mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public PlannedGoal<RunnerEntity, AiGoalType> chooseGoal(
+        RunnerEntity mob,
+        Blackboard blackboard,
+        CooldownTracker cooldowns
+    ) {
         int tick = (int) mob.level().getGameTime();
 
         var gfc = GoalFailureCooldowns.getOrCreate(blackboard);
@@ -64,13 +63,13 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
 
         var feedback = readFeedback(blackboard, tick);
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         var hasTarget = target != null && target.isAlive();
 
         var healthFraction = mob.getHealth() / mob.getMaxHealth();
         var lowHealth = healthFraction <= RETREAT_HEALTH_FRACTION;
 
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
         var nearWeb = memory != null
             && memory.findNearestOwnedWebCross(mob.level(), mob.blockPosition(), 20.0D).isPresent();
         var hasWebInRange = memory != null
@@ -80,8 +79,8 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
         var tooBright = ambientLight > 4;
 
         TargetClassifier.classify(mob, blackboard);
-        var targetIsRanged = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_RANGED, Boolean.class));
-        var targetIsNearHive = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_NEAR_HIVE, Boolean.class));
+        var targetIsRanged = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_RANGED));
+        var targetIsNearHive = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_NEAR_HIVE));
 
         var huntScore = 0f;
         var ambushScore = 0f;
@@ -136,7 +135,7 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
             retreatScore = 40f;
         }
 
-        var lastSeenPos = blackboard.get(AiKeys.LAST_SEEN_POS, BlockPos.class);
+        var lastSeenPos = blackboard.get(CommonBlackboardKeys.LAST_SEEN_POS);
         if (lastSeenPos != null && !hasTarget) {
             investigateScore = 35f;
         }
@@ -163,7 +162,7 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
                     huntScore -= PENALTY_FAILED * 0.5f;
                     gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 80);
                 }
-                case FAILED_TOO_BRIGHT -> {
+                case FAILED_UNSUITABLE_CONDITIONS -> {
                     lightsScore += BOOST_LIGHTS;
                     huntScore -= PENALTY_FAILED * 0.5f;
                     gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 60);
@@ -207,13 +206,13 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
 
         FleeFireAction.tickFireAttackerMemory(blackboard, tick);
 
-        var fireAttacker = blackboard.get(AiKeys.LAST_FIRE_ATTACKER, LivingEntity.class);
-        var fireUserIsTarget = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_FIRE_USER, Boolean.class));
+        var fireAttacker = blackboard.get(CommonBlackboardKeys.LAST_FIRE_ATTACKER);
+        var fireUserIsTarget = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_FIRE_USER));
         var fireDangerActive = FleeFireAction.isFireDangerActive(blackboard, tick);
 
         if (fireAttacker != null && target != null) {
             var isSame = fireAttacker == target;
-            blackboard.set(AiKeys.TARGET_IS_FIRE_USER, isSame);
+            blackboard.set(CommonBlackboardKeys.TARGET_IS_FIRE_USER, isSame);
             fireUserIsTarget = isSame;
         }
 
@@ -242,20 +241,28 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
         seekDarknessScore = Math.max(0f, seekDarknessScore);
         ambushFromDarknessScore = Math.max(0f, ambushFromDarknessScore);
 
-        var activeGoalType = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+        var activeGoalType = blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
         if (activeGoalType != null) {
-            switch (activeGoalType) {
-                case HUNT_TARGET -> huntScore += HYSTERESIS_BONUS;
-                case AMBUSH_TARGET -> ambushScore += HYSTERESIS_BONUS;
-                case BREAK_OBSTACLE -> breakScore += HYSTERESIS_BONUS;
-                case KILL_LIGHTS -> lightsScore += HYSTERESIS_BONUS;
-                case DEFEND_HIVE -> defendScore += HYSTERESIS_BONUS;
-                case RETREAT_TO_RESIN -> retreatScore += HYSTERESIS_BONUS;
-                case INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
-                case WANDER -> wanderScore += HYSTERESIS_BONUS;
-                case SEEK_DARKNESS -> seekDarknessScore += HYSTERESIS_BONUS;
-                case AMBUSH_FROM_DARKNESS -> ambushFromDarknessScore += HYSTERESIS_BONUS;
-                default -> {}
+            if (activeGoalType.equals(AiGoalType.HUNT_TARGET)) {
+                huntScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.AMBUSH_TARGET)) {
+                ambushScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.BREAK_OBSTACLE)) {
+                breakScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.KILL_LIGHTS)) {
+                lightsScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.DEFEND_HIVE)) {
+                defendScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.RETREAT_TO_RESIN)) {
+                retreatScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.INVESTIGATE)) {
+                investigateScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.WANDER)) {
+                wanderScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.SEEK_DARKNESS)) {
+                seekDarknessScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.AMBUSH_FROM_DARKNESS)) {
+                ambushFromDarknessScore += HYSTERESIS_BONUS;
             }
         }
 
@@ -385,13 +392,15 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
         };
     }
 
-    private static PlanFeedback readFeedback(Blackboard blackboard, int tick) {
-        var full = blackboard.get(AiKeys.LAST_PLAN_FEEDBACK, PlanFeedback.class);
+    @SuppressWarnings("unchecked")
+    private static PlanFeedback<AiGoalType> readFeedback(Blackboard blackboard, int tick) {
+        var full = (PlanFeedback<AiGoalType>) blackboard.get(CommonBlackboardKeys.LAST_PLAN_FEEDBACK);
         if (full != null)
             return full;
-        var raw = blackboard.get(AiKeys.LAST_FAILURE_REASON, PlanFailureReason.class);
+
+        var raw = (PlanFailureReason) blackboard.get(CommonBlackboardKeys.LAST_FAILURE_REASON);
         if (raw != null && raw != PlanFailureReason.NONE) {
-            var activeGoal = blackboard.get(AiKeys.ACTIVE_GOAL_TYPE, AiGoalType.class);
+            var activeGoal = (AiGoalType) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
             return PlanFeedback.of(raw, tick, null, activeGoal != null ? activeGoal : AiGoalType.NONE);
         }
         return null;
@@ -402,7 +411,7 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity> {
         return target.getLookAngle().dot(toMob) > 0.5D;
     }
 
-    private static String buildReason(String base, PlanFeedback feedback) {
+    private static String buildReason(String base, PlanFeedback<AiGoalType> feedback) {
         if (feedback == null || feedback.isNone())
             return base;
         return base + " [after " + feedback.reason().name() + "]";

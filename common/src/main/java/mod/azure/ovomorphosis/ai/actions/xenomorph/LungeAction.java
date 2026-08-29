@@ -1,17 +1,22 @@
 package mod.azure.ovomorphosis.ai.actions.xenomorph;
 
+import com.azure.azurecortex.action.combat.MeleeHitResolver;
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.goap.PlanFailureReason;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
 
-import mod.azure.ovomorphosis.ai.combat.MeleeHitResolver;
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.goap.PlanFailureReason;
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 
-public final class LungeAction<E extends AbstractAlienEntity> implements Action<E> {
+public final class LungeAction<E extends AbstractAlienEntity, G> implements Action<E, G> {
 
     private enum Phase {
         WIND_UP,
@@ -43,8 +48,8 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
         this.lungeAnimation = lungeAnimation;
     }
 
-    public static boolean canLunge(AbstractAlienEntity mob, LivingEntity target, Cooldowns cooldowns) {
-        if (cooldowns.isOnCooldown(AiKeys.LUNGE_COOLDOWN))
+    public static boolean canLunge(AbstractAlienEntity mob, LivingEntity target, CooldownTracker cooldowns) {
+        if (cooldowns.isOnCooldown(CommonBlackboardKeys.LUNGE_COOLDOWN))
             return false;
 
         var distSq = mob.distanceToSqr(target);
@@ -81,8 +86,8 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
     }
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {
-        cooldowns.set(AiKeys.PASSIVE_DECISION, 1);
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         phase = Phase.WIND_UP;
         phaseAge = 0;
         lungeDir = null;
@@ -91,11 +96,11 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
     }
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.getHealth() <= 0)
             return ActionOutcome.failed();
 
-        var target = blackboard.get(AiKeys.TARGET, LivingEntity.class);
+        var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target == null || !target.isAlive()) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
         }
@@ -110,7 +115,7 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         mob.setAggressive(false);
         lungeDir = null;
     }
@@ -125,7 +130,7 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
         return priority;
     }
 
-    private ActionOutcome tickWindUp(E mob, LivingEntity target) {
+    private ActionOutcome<G> tickWindUp(E mob, LivingEntity target) {
         mob.setDeltaMovement(0, mob.getDeltaMovement().y, 0);
         mob.getLookControl().setLookAt(target, 30f, 30f);
 
@@ -147,41 +152,41 @@ public final class LungeAction<E extends AbstractAlienEntity> implements Action<
             phase = Phase.AIRBORNE;
             phaseAge = 0;
         }
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
-    private ActionOutcome tickAirborne(E mob, LivingEntity target, Cooldowns cooldowns) {
+    private ActionOutcome<G> tickAirborne(E mob, LivingEntity target, CooldownTracker cooldowns) {
         if (TargetingUtils.isInAttackRange(mob, target, 2.8D)) {
             phase = Phase.LAND;
             phaseAge = 0;
-            return ActionOutcome.RUNNING;
+            return ActionOutcome.running();
         }
 
         if (mob.onGround() && phaseAge > 2) {
-            cooldowns.set(AiKeys.LUNGE_COOLDOWN, 80 / 2);
-            return ActionOutcome.SUCCESS;
+            cooldowns.set(CommonBlackboardKeys.LUNGE_COOLDOWN, 80 / 2);
+            return ActionOutcome.success();
         }
 
         if (phaseAge >= 30) {
-            cooldowns.set(AiKeys.LUNGE_COOLDOWN, 80 / 2);
-            return ActionOutcome.SUCCESS;
+            cooldowns.set(CommonBlackboardKeys.LUNGE_COOLDOWN, 80 / 2);
+            return ActionOutcome.success();
         }
 
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
-    private ActionOutcome tickLand(E mob, LivingEntity target, Blackboard blackboard, Cooldowns cooldowns) {
+    private ActionOutcome<G> tickLand(E mob, LivingEntity target, Blackboard blackboard, CooldownTracker cooldowns) {
         if (phaseAge == 1) {
             if (MeleeHitResolver.tryStrike(mob, target, 2.8D)) {
                 if (!target.isAlive()) {
-                    blackboard.set(AiKeys.TARGET, null);
+                    blackboard.set(CommonBlackboardKeys.TARGET, null);
                     mob.setTarget(null);
                 }
             }
         }
 
-        cooldowns.set(AiKeys.LUNGE_COOLDOWN, 80);
+        cooldowns.set(CommonBlackboardKeys.LUNGE_COOLDOWN, 80);
         mob.setAggressive(false);
-        return ActionOutcome.SUCCESS;
+        return ActionOutcome.success();
     }
 }

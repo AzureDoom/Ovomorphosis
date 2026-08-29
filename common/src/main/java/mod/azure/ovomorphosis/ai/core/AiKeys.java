@@ -1,289 +1,184 @@
 package mod.azure.ovomorphosis.ai.core;
 
+import com.azure.azurecortex.api.blackboard.BlackboardKey;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.LivingEntity;
 
-import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
-import mod.azure.ovomorphosis.ai.goap.*;
+import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.roles.XenoRole;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphGoalPlanner;
 
 /**
- * Typed blackboard keys shared across all Ovomorphosis mobs.
+ * Ovomorphosis-specific blackboard keys — hive/vent/resin/grab mechanics, and the facehugger/xenomorph concepts
+ * AzureCortex has no generic notion of.
  * <p>
- * Keys are intentionally {@code String} constants so they remain readable in debug output. Use the typed
- * {@link Blackboard#get}/{@link Blackboard#set} helpers to avoid raw casts.
+ * Everything that was generic across any AzureCortex-based agent (target tracking, goal/plan bookkeeping, fire reaction
+ * state, dodge/lunge cooldowns, ...) has moved to {@link CommonBlackboardKeys} as part of the AzureCortex extraction —
+ * that class now defines the exact same keys this class used to, under the same string names, so no blackboard data is
+ * invalidated by the switch. Update call sites from {@code AiKeys.X} to {@code CommonBlackboardKeys.X} for anything not
+ * listed below:
+ * <ul>
+ * <li>{@code TARGET}, {@code GOAL_TARGET}, {@code LAST_SEEN_POS}, {@code LAST_SEEN_VELOCITY}, {@code LAST_SEEN_TICK},
+ * {@code LAST_KNOWN_TARGET_POS}, {@code GOAL_DESTINATION}, {@code DESTINATION}</li>
+ * <li>{@code ACTIVE_GOAL}, {@code ACTIVE_GOAL_TYPE}, {@code LAST_GOAL_REASON}, {@code GOAL_REPLAN},
+ * {@code PASSIVE_DECISION}, {@code FAILED_GOAL_COUNT}, {@code GOAL_FAILURE_COOLDOWNS}, {@code LAST_PLAN_FEEDBACK},
+ * {@code LAST_FAILURE_REASON}, {@code PLAN_WORLD_STATE}</li>
+ * <li>{@code DODGE_COOLDOWN}, {@code LUNGE_COOLDOWN}, {@code SWIM_STRANDED_SINCE_TICK}</li>
+ * <li>{@code FIRE_TOLERANCE}, {@code FIRE_FLEE_COOLDOWN}, {@code LAST_FIRE_POS}, {@code LAST_FIRE_ATTACKER},
+ * {@code TARGET_IS_FIRE_USER}, {@code FIRE_DANGER_UNTIL_TICK}</li>
+ * <li>{@code TARGET_IS_RANGED}, {@code TARGET_IS_ISOLATED}, {@code TARGET_IS_ARMORED}</li>
+ * </ul>
+ * Note that most of the keys above changed from raw {@code String} constants to typed {@link BlackboardKey} constants
+ * as part of the move — see {@link CommonBlackboardKeys} for the exact types, and update any
+ * {@code blackboard.get}/{@code blackboard.set} call using the old string-and-cast form to the typed accessor.
+ * <p>
+ * Everything remaining below is unchanged: still Ovomorphosis-specific, still declared here.
  */
 public final class AiKeys {
 
     private AiKeys() {}
 
-    public static final String TARGET = "target";
+    // --- Facehugger ---
 
-    public static final String GOAL_TARGET = "goal_target";
-
-    /**
-     * Last confirmed world position where the active target was seen. Used by INVESTIGATE goals.
-     * <p>
-     * Written by {@link mod.azure.ovomorphosis.ai.util.TargetingSystem} only on ticks where the mob has genuine,
-     * unobstructed line of sight to the target — as opposed to {@link #LAST_KNOWN_TARGET_POS}, which tracks the
-     * target's live position regardless of visibility. That distinction is what makes this key meaningful as a "last
-     * seen" snapshot: it freezes the moment sight is lost (e.g. the target ducks around a corner) rather than
-     * continuing to update, giving {@link #LAST_SEEN_VELOCITY}/{@link #LAST_SEEN_TICK} something genuine to extrapolate
-     * a search point from.
-     */
-    public static final String LAST_SEEN_POS = "last_seen_pos";
-
-    /**
-     * The target's horizontal velocity ({@link net.minecraft.world.phys.Vec3}, y always {@code 0}) at the moment
-     * {@link #LAST_SEEN_POS} was last updated. Used by INVESTIGATE goals to extrapolate a believable interception point
-     * ({@code lastSeenPos + normalize(lastSeenVelocity) * predictionDistance}) rather than only ever walking to the
-     * exact last-seen block.
-     */
-    public static final String LAST_SEEN_VELOCITY = "last_seen_velocity";
-
-    /**
-     * Game tick at which {@link #LAST_SEEN_POS} was last updated. Lets INVESTIGATE goals scale how far to extrapolate
-     * ahead by how long the target has actually been out of sight, and discard the prediction entirely once it's stale
-     * enough that the target could be almost anywhere.
-     */
-    public static final String LAST_SEEN_TICK = "last_seen_tick";
-
-    /**
-     * Wherever the target currently is, updated every tick it's alive regardless of line of sight. Distinct from
-     * {@link #LAST_SEEN_POS}, which only updates when the target is genuinely visible.
-     */
-    public static final String LAST_KNOWN_TARGET_POS = "last_known_target_pos";
-
-    /**
-     * Navigation destination set by the planner for the current goal. Actions should read this rather than computing
-     * their own destination from the target.
-     */
-    public static final String GOAL_DESTINATION = "goal_destination";
-
-    /**
-     * Low-level destination consumed by {@code MoveToDestinationAction}. Set by actions that need to drive the
-     * navigator directly (e.g. RetreatAndHideAction, WanderAction).
-     */
-    public static final String DESTINATION = "destination";
-
-    /** Type: {@link PlannedGoal}. The full goal record currently committed by the planner. */
-    public static final String ACTIVE_GOAL = "active_goal";
-
-    /** Type: {@link AiGoalType}. Convenience shorthand extracted from {@link #ACTIVE_GOAL}. */
-    public static final String ACTIVE_GOAL_TYPE = "active_goal_type";
-
-    /** Human-readable string explaining why the planner chose the current goal. */
-    public static final String LAST_GOAL_REASON = "last_goal_reason";
-
-    /**
-     * Prevents the passive (non-threat) branch of the behavior tree from ticking every frame. Set to a high value on
-     * passive-action start; cleared to 1 on interruption.
-     */
-    public static final String PASSIVE_DECISION = "passive_decision";
-
-    /**
-     * Rate-limits how often the GOAP planner is allowed to re-evaluate goals. Typically set to 20 ticks after each
-     * replan.
-     */
-    public static final String GOAL_REPLAN = "goal_replan";
-
-    /** Cooldown between leap-and-attach attempts (Facehugger). */
+    /** Cooldown between leap-and-attach attempts. */
     public static final String GRAB_COOLDOWN = "grab_cooldown";
 
     /**
-     * Game tick at which a mob was first noticed swimming with no live target and no blackboard destination.
-     * {@code SwimAction} uses this to give the mob a brief grace period of ordinary bobbing before it commits to
-     * beelining for the nearest shore — without it, any mob that happens to be idle while merely wet immediately
-     * abandons whatever it was doing to force its way onto land.
+     * Type: {@link Boolean}. {@code true} when target passes the facehugger host validity test (can be infected).
      */
-    public static final String SWIM_STRANDED_SINCE_TICK = "swim_stranded_since_tick";
+    public static final BlackboardKey<Boolean> TARGET_IS_VALID_HOST = BlackboardKey.of(
+        "target_is_valid_host",
+        Boolean.class
+    );
 
-    /** Cooldown between resin block placements (Xenomorph hive building). */
+    /**
+     * Type: {@link Boolean}. {@code true} when the target is a danger entity, ranged and at distance, heavily armored,
+     * or on the grab blacklist. Suppresses grab and carry scoring.
+     */
+    public static final BlackboardKey<Boolean> TARGET_IS_TOO_DANGEROUS_TO_GRAB = BlackboardKey.of(
+        "target_is_too_dangerous_to_grab",
+        Boolean.class
+    );
+
+    // --- Chestburster ---
+
+    /**
+     * Food positions the chestburster has decided not to pursue. Type not yet pinned down precisely at the original
+     * call sites (likely a position collection) — kept as a raw {@code String} rather than guessed into a typed
+     * {@link BlackboardKey}; worth typing properly once its actual value shape is confirmed.
+     */
+    public static final String IGNORED_FOOD = "burster_ignored_food";
+
+    // --- Xenomorph: hive ---
+
+    /** Cooldown between resin block placements. */
     public static final String RESIN_PLACE_COOLDOWN = "resin_place_cooldown";
 
-    /** Cooldown between carry-to-web actions (Xenomorph). */
+    /** Cooldown between carry-to-web actions. */
     public static final String CARRY_COOLDOWN = "carry_cooldown";
 
-    /** Cooldown between light-source destruction scans (Xenomorph). */
+    /** Cooldown between light-source destruction scans. */
     public static final String LIGHT_SCAN_COOLDOWN = "light_scan_cooldown";
 
     /**
-     * Cooldown between LURE_TARGET selections (Xenomorph). Deliberately long relative to how rarely the goal scores
-     * highly in the first place — see {@code XenomorphGoalPlanner}'s lure scoring — so a false-retreat-into-ambush
-     * doesn't repeat often enough for a player to recognize it as a scripted mechanic.
+     * Cooldown between {@code LURE_TARGET} selections. Deliberately long relative to how rarely the goal scores highly
+     * in the first place — see {@link XenomorphGoalPlanner}'s lure scoring — so a false-retreat-into-ambush doesn't
+     * repeat often enough for a player to recognize it as a scripted mechanic.
      */
     public static final String LURE_COOLDOWN = "lure_cooldown";
 
     /**
-     * Vent entrance position chosen by the planner for
-     * {@link mod.azure.ovomorphosis.ai.goap.AiGoalType#VENT_TRAVERSAL}. Type: {@link BlockPos}.
+     * Type: {@link BlockPos}. Vent entrance position chosen by the planner for {@link AiGoalType#VENT_TRAVERSAL}.
      */
-    public static final String VENT_ENTRANCE = "vent_entrance";
+    public static final BlackboardKey<BlockPos> VENT_ENTRANCE = BlackboardKey.of("vent_entrance", BlockPos.class);
 
     /**
-     * Vent exit position paired with {@link #VENT_ENTRANCE} for the current
-     * {@link mod.azure.ovomorphosis.ai.goap.AiGoalType#VENT_TRAVERSAL}. Type: {@link BlockPos}.
+     * Type: {@link BlockPos}. Vent exit position paired with {@link #VENT_ENTRANCE} for the current
+     * {@link AiGoalType#VENT_TRAVERSAL}.
      */
-    public static final String VENT_EXIT = "vent_exit";
+    public static final BlackboardKey<BlockPos> VENT_EXIT = BlackboardKey.of("vent_exit", BlockPos.class);
 
-    /**
-     * Cooldown between VENT_TRAVERSAL selections (Xenomorph). Prevents a mob from ducking in and out of vents on every
-     * single replan even when a shortcut remains technically available.
-     */
+    /** Cooldown between {@code VENT_TRAVERSAL} selections. */
     public static final String VENT_TRAVERSAL_COOLDOWN = "vent_traversal_cooldown";
 
     /** Cooldown between {@code HiveMemory#syncVentBlocksNear} scans — see that method's docs for why it's gated. */
     public static final String VENT_SYNC_COOLDOWN = "vent_sync_cooldown";
 
-    /**
-     * Position of a known hive breach the mob is currently en route to repair, set only while
-     * {@link mod.azure.ovomorphosis.ai.goap.AiGoalType#EXPAND_HIVE} actually wins with one pending (see
-     * {@code XenomorphGoalPlanner}) and read by {@code XenomorphTree}'s travel-to-breach branch. Deliberately a
-     * dedicated key rather than reusing {@link #GOAL_DESTINATION} — that key is only ever updated when a goal supplies
-     * one, so it would go stale (keep pointing at an already-repaired breach) the moment EXPAND_HIVE won without a
-     * pending breach; this key is explicitly set-or-cleared every time EXPAND_HIVE wins instead.
-     */
-    public static final String HIVE_BREACH_DEST = "hive_breach_dest";
-
-    /**
-     * Set to {@code true} by {@code BreakToTargetAction} when it determines a block needs to be broken to reach the
-     * target. Cleared when the break completes or the target changes.
-     */
-    public static final String BREAK_TO_TARGET_TRIGGER = "break_to_target_trigger";
-
-    /** BlockPos of the specific block that {@code BreakToTargetAction} is currently targeting. */
-    public static final String BREAK_TO_TARGET_SCAN = "break_to_target_scan";
-
-    /**
-     * Set to {@code true} by {@code BreakToTargetAction} whenever it finishes resolving an attempt entered purely
-     * because {@code ACTIVE_GOAL_TYPE == BREAK_OBSTACLE} (as opposed to a fresh, concrete
-     * {@link #BREAK_TO_TARGET_TRIGGER}). {@code ACTIVE_GOAL_TYPE} stays {@code BREAK_OBSTACLE} for the planner's whole
-     * commit window regardless of whether the obstruction was already cleared, so without this flag the tree would
-     * re-enter {@code BreakToTargetAction} on that stale goal type every tick — forever restarting an action with
-     * nothing left to do, and never falling through to movement/combat branches. Cleared by
-     * {@code GoalApplicator.apply} whenever a fresh goal is committed. A genuinely new {@link #BREAK_TO_TARGET_TRIGGER}
-     * (set by {@code MoveToTargetAction} detecting a real, current obstruction) always bypasses this flag entirely — it
-     * only gates the stale-goal-type fallback path.
-     */
-    public static final String BREAK_TO_TARGET_EXHAUSTED = "break_to_target_exhausted";
-
-    /** Type: {@link HiveMemory}. Shared hive state read by WanderAction (dark preference) and hive-building actions. */
-    public static final String HIVE_MEMORY = "hive_memory";
-
-    /**
-     * Running count of how many times the active goal has been abandoned with {@code FAILURE}. Reset when a new goal
-     * type is committed. Used for planner fallback heuristics.
-     */
-    public static final String FAILED_GOAL_COUNT = "failed_goal_count";
-
-    /**
-     * Written by actions when they fail or are interrupted. Type: {@link PlanFeedback}.
-     * <p>
-     * The planner reads this on the next planning cycle, uses it to bias goal scores, then clears it so stale feedback
-     * does not persist. Cleared automatically by {@code GoalApplicator.apply}.
-     */
-    public static final String LAST_PLAN_FEEDBACK = "last_plan_feedback";
-
-    /**
-     * Convenience shorthand — actions that only need to record a Reason code (not a full {@link PlanFeedback}) can
-     * write here. The planner wraps this into a {@link PlanFeedback} if {@link #LAST_PLAN_FEEDBACK} is not already set.
-     * Type: {@link PlanFailureReason}. Cleared automatically by {@code GoalApplicator.apply}.
-     */
-    public static final String LAST_FAILURE_REASON = "last_failure_reason";
-
-    /**
-     * Cooldown between dodge attempts. Prevents spamming DodgeProjectileAction. Type: cooldown ticks (int).
-     */
-    public static final String DODGE_COOLDOWN = "dodge_cooldown";
-
-    /**
-     * Lunge action cooldown. Prevents LungeAction from firing every tick. Type: cooldown ticks (int).
-     */
-    public static final String LUNGE_COOLDOWN = "lunge_cooldown";
-
-    /**
-     * Persistent fire tolerance counter for FleeFireAction. Accumulates while fire is nearby; decays while fleeing.
-     * Survives action restarts. Type: {@link Float}.
-     */
-    public static final String FIRE_TOLERANCE = "fire_tolerance";
-
-    /**
-     * Game tick timestamp after which flee-fire can trigger again. Set by {@link FleeFireAction} on success. Type:
-     * {@link Integer} (game tick expiry).
-     */
-    public static final String FIRE_FLEE_COOLDOWN = "fire_flee_cooldown";
-
-    /** Last known position of an environmental fire source. Type: {@link BlockPos}. */
-    public static final String LAST_FIRE_POS = "last_fire_pos";
-
-    /**
-     * The entity that most recently caused fire damage to or near this mob (flint-and-steel user, fire arrow shooter,
-     * lava-bucket placer detected via fire proximity). Type: {@link LivingEntity}.
-     * <p>
-     * Written by {@link FleeFireAction} when it detects fire near a known attacker. Cleared when
-     * {@link #FIRE_DANGER_UNTIL_TICK} expires. The planner uses this to switch from direct combat to flanking or
-     * cautious hive-defense posture against the attacker.
-     */
-    public static final String LAST_FIRE_ATTACKER = "last_fire_attacker";
-
-    /**
-     * {@code true} when the current {@link #TARGET} is the same entity recorded in {@link #LAST_FIRE_ATTACKER}.
-     * Recomputed by the planner each cycle; cached here so the behavior tree can gate lunge/charge without re-querying
-     * the attacker every tick. Type: {@link Boolean}.
-     */
-    public static final String TARGET_IS_FIRE_USER = "target_is_fire_user";
-
-    /**
-     * Game tick timestamp until which the xenomorph considers fire a serious danger from a specific attacker. Set to
-     * {@code currentTick + 200} (10 s) when a fire attacker is recorded; extended on repeated fire events. The planner
-     * degrades fire-user penalties once this expires. Type: {@link Integer}.
-     */
-    public static final String FIRE_DANGER_UNTIL_TICK = "fire_danger_until_tick";
-
     public static final String HIVE_SYNC_COOLDOWN = "hive_sync_cooldown";
 
-    public static final String GOAL_FAILURE_COOLDOWNS = "goal_failure_cooldowns";
-
-    /** {@code true} when target is holding a ranged weapon or has fired a projectile recently. Type: Boolean. */
-    public static final String TARGET_IS_RANGED = "target_is_ranged";
-
     /**
-     * {@code true} when no other non-alien living entity is within 12 blocks of the target. Influences carry/capture
-     * scoring. Type: Boolean.
+     * Type: {@link BlockPos}. Position of a known hive breach the mob is currently en route to repair, set only while
+     * {@link AiGoalType#EXPAND_HIVE} actually wins with one pending (see {@link XenomorphGoalPlanner}) and read by the
+     * behavior tree's travel-to-breach branch. Deliberately a dedicated key rather than reusing
+     * {@link CommonBlackboardKeys#GOAL_DESTINATION} — that key is only ever updated when a goal supplies one, so it
+     * would go stale (keep pointing at an already-repaired breach) the moment {@code EXPAND_HIVE} won without a pending
+     * breach; this key is explicitly set-or-cleared every time {@code EXPAND_HIVE} wins instead.
      */
-    public static final String TARGET_IS_ISOLATED = "target_is_isolated";
+    public static final BlackboardKey<BlockPos> HIVE_BREACH_DEST = BlackboardKey.of(
+        "hive_breach_dest",
+        BlockPos.class
+    );
 
-    /** {@code true} when target is within 20 blocks of the nearest resin web cross. Type: Boolean. */
-    public static final String TARGET_IS_NEAR_HIVE = "target_is_near_hive";
+    /** Type: {@link HiveMemory}. Shared hive state read by wander (dark preference) and hive-building actions. */
+    public static final BlackboardKey<HiveMemory> HIVE_MEMORY = BlackboardKey.of("hive_memory", HiveMemory.class);
 
-    /** {@code true} when target has at least two filled armor slots. Type: Boolean. */
-    public static final String TARGET_IS_ARMORED = "target_is_armored";
-
-    /** {@code true} when target passes the facehugger host validity test (can be infected). Type: Boolean. */
-    public static final String TARGET_IS_VALID_HOST = "target_is_valid_host";
-
-    /**
-     * {@code true} when the target is a danger entity, ranged and at distance, heavily armored, or on the grab
-     * blacklist. Suppresses grab and carry scoring. Type: Boolean.
-     */
-    public static final String TARGET_IS_TOO_DANGEROUS_TO_GRAB = "target_is_too_dangerous_to_grab";
+    /** Type: {@link Boolean}. {@code true} when target is within 20 blocks of the nearest resin web cross. */
+    public static final BlackboardKey<Boolean> TARGET_IS_NEAR_HIVE = BlackboardKey.of(
+        "target_is_near_hive",
+        Boolean.class
+    );
 
     /**
      * The current soft intent role for this xenomorph. Type: {@link XenoRole}. Updated every planning cycle by
-     * {@link XenomorphGoalPlanner}.
+     * {@link XenomorphGoalPlanner}. AzureCortex's {@code RoleSelector} owns the actual assignment bookkeeping (hold
+     * duration, reassignment eligibility) — this key just publishes the current result to the blackboard so tree nodes
+     * and actions can read it without re-querying the selector every tick, exactly the pattern AzureCortex's own
+     * Memory-and-Roles wiki page recommends: AzureCortex reserves no {@code CommonBlackboardKeys} entry for role
+     * concepts, since they're inherently mod-specific.
      */
-    public static final String XENO_ROLE = "xeno_role";
+    public static final BlackboardKey<XenoRole> XENO_ROLE = BlackboardKey.of("xeno_role", XenoRole.class);
+
+    // --- Xenomorph: obstacle breaking ---
 
     /**
-     * Type: {@link mod.azure.ovomorphosis.ai.goap.WorldStateSnapshot}. The coarse world-state facts on record for
-     * whatever plan is currently in {@link #ACTIVE_GOAL}, captured by
-     * {@link mod.azure.ovomorphosis.ai.goap.GoalApplicator#apply} and compared against live state every tick by
-     * {@link mod.azure.ovomorphosis.ai.goap.PlanInvalidation} to force a replan the moment they diverge, independent of
-     * {@link #LAST_PLAN_FEEDBACK}.
+     * Type: {@link Boolean}. Set by {@code BreakToTargetAction} when it determines a block needs to be broken to reach
+     * the target. Cleared when the break completes or the target changes.
      */
-    public static final String PLAN_WORLD_STATE = "plan_world_state";
+    public static final BlackboardKey<Boolean> BREAK_TO_TARGET_TRIGGER = BlackboardKey.of(
+        "break_to_target_trigger",
+        Boolean.class
+    );
 
-    public static final String IGNORED_FOOD = "burster_ignored_food";
+    /**
+     * Type: {@link BlockPos}. The specific block {@code BreakToTargetAction} is currently targeting.
+     */
+    public static final BlackboardKey<BlockPos> BREAK_TO_TARGET_SCAN = BlackboardKey.of(
+        "break_to_target_scan",
+        BlockPos.class
+    );
+
+    /**
+     * Cooldown between obstruction re-scans in {@code BreakToTargetAction}. Split out from
+     * {@link #BREAK_TO_TARGET_SCAN} — that key now holds a typed {@link BlockPos} value on the blackboard, and
+     * {@link com.azure.azurecortex.runtime.CooldownTracker} is strictly {@link String}-keyed, so the same name can no
+     * longer serve both roles the way it did back when both were plain strings.
+     */
+    public static final String BREAK_TO_TARGET_SCAN_COOLDOWN = "break_to_target_scan_cooldown";
+
+    /**
+     * Type: {@link Boolean}. Set by {@code BreakToTargetAction} whenever it finishes resolving an attempt entered
+     * purely because {@code ACTIVE_GOAL_TYPE == BREAK_OBSTACLE} (as opposed to a fresh, concrete
+     * {@link #BREAK_TO_TARGET_TRIGGER}). {@code ACTIVE_GOAL_TYPE} stays {@code BREAK_OBSTACLE} for the planner's whole
+     * commit window regardless of whether the obstruction was already cleared, so without this flag the tree would
+     * re-enter {@code BreakToTargetAction} on that stale goal type every tick — forever restarting an action with
+     * nothing left to do, and never falling through to movement/combat branches. Cleared by the goal-applying code
+     * whenever a fresh goal is committed. A genuinely new {@link #BREAK_TO_TARGET_TRIGGER} (set by a movement action
+     * detecting a real, current obstruction) always bypasses this flag entirely — it only gates the stale-goal-type
+     * fallback path.
+     */
+    public static final BlackboardKey<Boolean> BREAK_TO_TARGET_EXHAUSTED = BlackboardKey.of(
+        "break_to_target_exhausted",
+        Boolean.class
+    );
 }

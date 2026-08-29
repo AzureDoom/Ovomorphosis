@@ -1,20 +1,21 @@
 package mod.azure.ovomorphosis.ai.actions;
 
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.LivingEntity;
+import com.azure.azurecortex.api.action.Action;
+import com.azure.azurecortex.api.action.ActionOutcome;
+import com.azure.azurecortex.api.action.ActionStatus;
+import com.azure.azurecortex.api.blackboard.Blackboard;
+import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import com.azure.azurecortex.navigation.traversal.TraversalQueries;
+import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
 
-import mod.azure.ovomorphosis.ai.core.*;
-import mod.azure.ovomorphosis.ai.util.TargetingUtils;
-import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
-
-public record SwimAction<E extends Mob>(
+public record SwimAction<E extends Mob, G>(
     int priority,
     boolean pursueTarget
-) implements Action<E> {
+) implements Action<E, G> {
 
     /**
      * Convenience constructor for predator mobs (Xenomorph, Runner, Facehugger) whose {@code AiKeys.TARGET} is
@@ -31,36 +32,36 @@ public record SwimAction<E extends Mob>(
     private static final long STRANDED_GRACE_TICKS = 60L;
 
     @Override
-    public void start(E mob, Blackboard blackboard, Cooldowns cooldowns) {}
+    public void start(E mob, Blackboard blackboard, CooldownTracker cooldowns) {}
 
     @Override
-    public ActionOutcome tick(E mob, Blackboard blackboard, Cooldowns cooldowns) {
+    public ActionOutcome<G> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (mob.isDeadOrDying())
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
         if (!mob.isInWater() && !mob.isInLava())
-            return ActionOutcome.SUCCESS;
+            return ActionOutcome.success();
 
-        var target = pursueTarget ? blackboard.get(AiKeys.TARGET, LivingEntity.class) : null;
+        var target = pursueTarget ? blackboard.get(CommonBlackboardKeys.TARGET) : null;
         var destPos = target != null && target.isAlive()
             ? target.position().add(0, target.getBbHeight() * 0.5, 0)
-            : blackboard.get(AiKeys.DESTINATION, BlockPos.class) != null
-                ? Vec3.atBottomCenterOf(Objects.requireNonNull(blackboard.get(AiKeys.DESTINATION, BlockPos.class)))
+            : blackboard.get(CommonBlackboardKeys.DESTINATION) != null
+                ? Vec3.atBottomCenterOf(Objects.requireNonNull(blackboard.get(CommonBlackboardKeys.DESTINATION)))
                 : null;
 
-        if (destPos == null && mob instanceof AbstractAlienEntity alienEntity) {
-            var now = mob.level().getGameTime();
-            var strandedSince = blackboard.get(AiKeys.SWIM_STRANDED_SINCE_TICK, Long.class);
+        if (destPos == null) {
+            var now = (int) mob.level().getGameTime();
+            var strandedSince = blackboard.get(CommonBlackboardKeys.SWIM_STRANDED_SINCE_TICK);
 
             if (strandedSince == null) {
-                blackboard.set(AiKeys.SWIM_STRANDED_SINCE_TICK, now);
+                blackboard.set(CommonBlackboardKeys.SWIM_STRANDED_SINCE_TICK, now);
             } else if (now - strandedSince >= STRANDED_GRACE_TICKS) {
-                var shore = TargetingUtils.findNearbyGroundPos(alienEntity);
+                var shore = TraversalQueries.findNearbyGroundPos(mob);
                 if (shore != null) {
                     destPos = Vec3.atBottomCenterOf(shore);
                 }
             }
-        } else if (mob instanceof AbstractAlienEntity) {
-            blackboard.remove(AiKeys.SWIM_STRANDED_SINCE_TICK);
+        } else {
+            blackboard.remove(CommonBlackboardKeys.SWIM_STRANDED_SINCE_TICK);
         }
 
         if (destPos != null) {
@@ -85,7 +86,7 @@ public record SwimAction<E extends Mob>(
 
                 if (climbingLedge) {
                     mob.setDeltaMovement(mob.getDeltaMovement().x * 0.8, movement.y, mob.getDeltaMovement().z * 0.8);
-                    return ActionOutcome.RUNNING;
+                    return ActionOutcome.running();
                 }
             } else {
                 mob.setDeltaMovement(Vec3.ZERO);
@@ -96,11 +97,11 @@ public record SwimAction<E extends Mob>(
         }
 
         mob.setDeltaMovement(mob.getDeltaMovement().multiply(0.8, 0.8, 0.8));
-        return ActionOutcome.RUNNING;
+        return ActionOutcome.running();
     }
 
     @Override
-    public void stop(E mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {}
+    public void stop(E mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {}
 
     @Override
     public boolean isInterruptible() {

@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis.ai.util;
 
+import com.azure.azurecortex.api.blackboard.Blackboard;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,7 +19,6 @@ import net.minecraft.world.phys.HitResult;
 import java.util.function.Predicate;
 
 import mod.azure.ovomorphosis.ai.core.AiKeys;
-import mod.azure.ovomorphosis.ai.core.Blackboard;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.infection.InfectionManager;
@@ -200,7 +200,7 @@ public final class TargetingUtils {
     }
 
     public static boolean hasNearbyWebCross(Blackboard blackboard, AbstractAlienEntity xenomorph) {
-        var memory = blackboard.get(AiKeys.HIVE_MEMORY, HiveMemory.class);
+        var memory = blackboard.get(AiKeys.HIVE_MEMORY);
         if (memory == null)
             return false;
         return memory.findNearestOwnedWebCross(xenomorph.level(), xenomorph.blockPosition(), 80.0D)

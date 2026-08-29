@@ -1,5 +1,7 @@
 package mod.azure.ovomorphosis.ai.roles;
 
+import com.azure.azurecortex.api.role.AgentRole;
+
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
@@ -18,13 +20,13 @@ import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
  * or action gating:
  *
  * <pre>{@code
- * var role = blackboard.get(AiKeys.XENO_ROLE, XenoRole.class);
+ * var role = blackboard.get(AiKeys.XENO_ROLE);
  * if (role == XenoRole.STALKER) {
  *     return BehaviorResult.run(moveToTargetAmbush, 19);
  * }
  * }</pre>
  */
-public enum XenoRole {
+public enum XenoRole implements AgentRole {
 
     /**
      * Default — no strong intent. Wander, expand hive, destroy lights. Assigned when no other role condition is met.
