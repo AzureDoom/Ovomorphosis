@@ -77,8 +77,6 @@ public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
         ticksHiding++;
 
         if (ticksHiding > MAX_HIDE_TICKS) {
-            // Deliberately attributed to RETREAT_AND_HIDE regardless of whatever ACTIVE_GOAL_TYPE happens to be by
-            // the time this fires, since that's unambiguously what timed out.
             return ActionOutcome.failed(
                 PlanFailureReason.FAILED_STUCK,
                 mob.blockPosition(),
@@ -98,8 +96,6 @@ public final class RetreatAndHideAction implements Action<FacehuggerEntity> {
     public void stop(FacehuggerEntity mob, Blackboard blackboard, Cooldowns cooldowns, ActionStatus reason) {
         blackboard.remove(AiKeys.GOAL_DESTINATION);
 
-        // FAILED_GOAL_COUNT is a separate, coarser counter from PlanFeedback (which the runtime now writes
-        // automatically from the ActionOutcome returned by tick()); keep tracking it here.
         if (reason == ActionStatus.FAILURE) {
             var failCount = blackboard.get(AiKeys.FAILED_GOAL_COUNT, Integer.class);
             blackboard.set(AiKeys.FAILED_GOAL_COUNT, failCount == null ? 1 : failCount + 1);

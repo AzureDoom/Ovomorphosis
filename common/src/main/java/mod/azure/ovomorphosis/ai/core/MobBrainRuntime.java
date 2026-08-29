@@ -89,11 +89,8 @@ public final class MobBrainRuntime<E extends Mob> {
 
             if (stillActive) {
                 if (currentAction.interruptCategory() == InterruptCategory.NORMAL) {
-                    // Ordinary running/blocked action: fall through to the shared tree evaluation below so the
-                    // usual priority-based preemption logic applies.
+                    /* NOOP */
                 } else {
-                    // Resistant (LOCKED or EMERGENCY) action: still consult the tree so a genuine emergency can
-                    // break through, but nothing else is allowed to touch it.
                     var candidate = root.tick(mob, blackboard, cooldowns);
                     if (canPreempt(currentAction, candidate)) {
                         currentAction.stop(mob, blackboard, cooldowns, ActionStatus.INTERRUPTED);
@@ -103,9 +100,6 @@ public final class MobBrainRuntime<E extends Mob> {
                     return;
                 }
             }
-            // If the action terminated (Success/Failed), applyOutcome already called stop() and cleared
-            // currentAction, so we fall straight through to the shared tree evaluation below — same as the
-            // historical "status != RUNNING" path.
         }
 
         if (mob instanceof XenomorphEntity xenomorph && cooldowns.ready(AiKeys.HIVE_SYNC_COOLDOWN)) {
@@ -160,8 +154,6 @@ public final class MobBrainRuntime<E extends Mob> {
         if (outcome instanceof ActionOutcome.Running) {
             return true;
         } else if (outcome instanceof ActionOutcome.Blocked blocked) {
-            // Still running — this is the "hit an obstacle but haven't given up" signal. The action keeps
-            // executing; GOAP just gets an early, non-terminal heads-up.
             writePlanFeedback(blocked.reason(), blocked.at(), blocked.goalType(), blocked.blockingPositions());
             return true;
         } else if (outcome instanceof ActionOutcome.Success) {

@@ -262,9 +262,6 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             }
         }
 
-        // If a break-to-target cycle just finished (successfully or exhausted), the geometry along our route may
-        // have changed — refresh sessionCache around where we are and the upcoming waypoints rather than trusting
-        // classifications an in-progress phased session cached before the break happened.
         var breakToTargetTriggerActive = blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER);
         if (lastBreakToTargetTriggerActive && !breakToTargetTriggerActive) {
             sessionCache.invalidate(pathStart);
@@ -359,15 +356,10 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
             }
             var fluidGoalRadius = feetOrBelowInFluid ? 2 : 0;
 
-            // pathStart/crawlGoal/nearbyTunnelEntry are all reassigned earlier in this method, so none of them are
-            // effectively final — take fresh copies here so buildPhases's lambdas can capture them.
             final var searchStart = pathStart;
             final var searchCrawlGoal = crawlGoal;
             final var searchTunnelEntry = nearbyTunnelEntry;
 
-            // `newPath` is the sentinel for "a result is ready this tick" — null means "the fallback chain is still
-            // RUNNING, leave `path`/`pathIndex`/`repathCooldown` untouched and keep driving the mob along whatever
-            // path it already has" (see PhasedPathSession/IncrementalPathSession's usage docs).
             List<BlockPos> newPath;
 
             if (CommonMod.getConfig().enableIncrementalPathfinding) {
@@ -399,8 +391,6 @@ public final class MoveToTargetAction<E extends Mob> implements Action<E> {
                     phasedSession = null;
                 }
             } else {
-                // Feature disabled: run the whole fallback chain synchronously in one shot, exactly as before
-                // incremental pathfinding existed.
                 newPath = findPathSynchronously(
                     mob,
                     searchStart,

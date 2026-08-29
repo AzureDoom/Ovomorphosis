@@ -65,11 +65,6 @@ public class FacehuggerTree {
                 return BehaviorResult.run(fleeFire, fleeFire.priority());
             }
 
-            // Critical health emergency: reuse RetreatAndHideAction (also selected via the ordinary, non-emergency
-            // RETREAT_AND_HIDE goal branch below), but tag this particular selection as InterruptCategory.EMERGENCY
-            // so it can preempt a LOCKED action immediately instead of waiting for goal replanning or the current
-            // action to finish on its own. Facehugger has no hive/web system to retreat to, so this reuses the
-            // planner's own "find somewhere dark and enclosed" scan as the safe haven.
             if (
                 facehugger.getMaxHealth() > 0f
                     && facehugger.getHealth() <= facehugger.getMaxHealth() * CRITICAL_HEALTH_FRACTION

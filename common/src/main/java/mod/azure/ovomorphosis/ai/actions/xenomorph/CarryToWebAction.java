@@ -183,11 +183,6 @@ public final class CarryToWebAction<E extends Mob> implements Action<E> {
                 path = Collections.emptyList();
                 pathSession = null;
 
-                // Revalidation just discovered our web cross is gone (destroyed, replaced, etc.) — resolve a
-                // replacement immediately rather than falling through with a null webTarget. Every subsequent use of
-                // webTarget in this method (the progress check below, faceToward's target vector, the arrival check)
-                // assumes it is non-null once we're past this point, exactly as the initial-resolution branch above
-                // already guarantees.
                 webTarget = resolveWebTarget(mob, blackboard);
                 if (webTarget == null) {
                     dropPassengerSafely(mob, victim);

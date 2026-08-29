@@ -142,12 +142,6 @@ public class RunnerTree {
                 return BehaviorResult.run(fleeExplosive, 120);
             }
 
-            // Critical health emergency: reuse the ordinary destination-move action (also used for the softer,
-            // non-emergency RETREAT_TO_RESIN goal below and for other non-emergency goals), but tag this particular
-            // selection as InterruptCategory.EMERGENCY so it can preempt a LOCKED action (e.g. mid-swipeCombo/
-            // tailPunish) instead of waiting for the goal's max-commit expiry or the attack action to finish on its
-            // own. Runner has no CarryToWebAction, but it still belongs to the hive (HiveMemory is populated the same
-            // way Xenomorph's is), so a nearby web cross is a legitimate safe haven to flee toward.
             if (
                 runner.getMaxHealth() > 0f
                     && runner.getHealth() <= runner.getMaxHealth() * CRITICAL_HEALTH_FRACTION
