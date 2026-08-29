@@ -218,6 +218,26 @@
     {
       "id": "sgjourney:jaffa",
       "required": false
+    },
+    {
+      "id": "ad_astra:lunarian",
+      "required": false
+    },
+    {
+      "id": "ad_astra:lunarian_wandering_trader",
+      "required": false
+    },
+    {
+      "id": "ad_astra:corrupted_lunarian",
+      "required": false
+    },
+    {
+      "id": "ad_astra:pygro",
+      "required": false
+    },
+    {
+      "id": "ad_astra:pygro_brute",
+      "required": false
     }
   ]
 }
