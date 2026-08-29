@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "ovomorphosis:ovomorph",
+    "ovomorphosis:facehugger",
+    "ovomorphosis:chestburster",
+    "ovomorphosis:xenomorph",
+    "ovomorphosis:runner"
+  ]
+}

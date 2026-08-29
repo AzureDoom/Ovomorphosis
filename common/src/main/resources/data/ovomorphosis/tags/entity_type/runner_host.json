@@ -99,6 +99,18 @@
     {
       "id": "naturalist:zebra",
       "required": false
+    },
+    {
+      "id": "ad_astra:martian_raptor",
+      "required": false
+    },
+    {
+      "id": "ad_astra:mogler",
+      "required": false
+    },
+    {
+      "id": "ad_astra:glacian_ram",
+      "required": false
     }
   ]
 }

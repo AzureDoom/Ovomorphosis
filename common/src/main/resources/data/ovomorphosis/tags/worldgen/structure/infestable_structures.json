@@ -7,6 +7,22 @@
     "minecraft:pillager_outpost",
     "minecraft:stronghold",
     "minecraft:trial_chambers",
-    "minecraft:mansion"
+    "minecraft:mansion",
+    {
+      "id": "ad_astra:martian_wastelands",
+      "required": false
+    },
+    {
+      "id": "ad_astra:martian_canyon_creek",
+      "required": false
+    },
+    {
+      "id": "ad_astra:venus_wastelands",
+      "required": false
+   },
+    {
+      "id": "ad_astra,:mercury_deltas",
+      "required": false
+    }
   ]
 }
