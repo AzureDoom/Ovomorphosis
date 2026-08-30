@@ -86,8 +86,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
     /**
      * Per-eligible-planning-cycle chance of a healthy, actively-pursued mob choosing to feign retreat toward a dark
      * ambush spot instead of continuing to press the fight (see {@link AiGoalType#LURE_TARGET}). Deliberately low —
-     * combined with {@link mod.azure.ovomorphosis.ai.core.AiKeys#LURE_COOLDOWN} below, this is meant to surface only
-     * occasionally across a long fight, not on a predictable schedule.
+     * combined with {@link AiKeys#LURE_COOLDOWN} below, this is meant to surface only occasionally across a long fight,
+     * not on a predictable schedule.
      */
     private static final float LURE_CHANCE = 0.08f;
 
@@ -224,7 +224,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
         var investigateScore = 0f;
         var seekDarknessScore = 0f;
         var ambushFromDarknessScore = 0f;
-        var wanderScore = 5f;
+        var wanderScore = 25f;
         var targetFacingMob = false;
 
         if (hasTarget) {
@@ -491,7 +491,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
 
         var nearestBreach = memory != null
             ? memory.findNearestPendingBreach(mob.level(), mob.blockPosition(), BREACH_AWARENESS_RANGE)
-            : java.util.Optional.<BlockPos>empty();
+            : Optional.<BlockPos>empty();
         if (nearestBreach.isPresent()) {
             hiveScore += BREACH_REPAIR_BONUS;
         }
@@ -511,21 +511,32 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
 
         var activeGoalType = blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
         if (activeGoalType != null) {
-            switch (activeGoalType) {
-                case AiGoalType.HUNT_TARGET -> huntScore += HYSTERESIS_BONUS;
-                case AiGoalType.AMBUSH_TARGET -> ambushScore += HYSTERESIS_BONUS;
-                case AiGoalType.BREAK_OBSTACLE -> breakScore += HYSTERESIS_BONUS;
-                case AiGoalType.KILL_LIGHTS -> lightsScore += HYSTERESIS_BONUS;
-                case AiGoalType.EXPAND_HIVE -> hiveScore += HYSTERESIS_BONUS;
-                case AiGoalType.DEFEND_HIVE -> defendScore += HYSTERESIS_BONUS;
-                case AiGoalType.RETREAT_TO_RESIN -> retreatScore += HYSTERESIS_BONUS;
-                case AiGoalType.INVESTIGATE -> investigateScore += HYSTERESIS_BONUS;
-                case AiGoalType.WANDER -> wanderScore += HYSTERESIS_BONUS;
-                case AiGoalType.SEEK_DARKNESS -> seekDarknessScore += HYSTERESIS_BONUS;
-                case AiGoalType.AMBUSH_FROM_DARKNESS -> ambushFromDarknessScore += HYSTERESIS_BONUS;
-                case AiGoalType.LURE_TARGET -> lureScore += HYSTERESIS_BONUS;
-                case AiGoalType.VENT_TRAVERSAL -> ventScore += HYSTERESIS_BONUS;
-                default -> {}
+            if (activeGoalType.equals(AiGoalType.HUNT_TARGET)) {
+                huntScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.AMBUSH_TARGET)) {
+                ambushScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.BREAK_OBSTACLE)) {
+                breakScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.KILL_LIGHTS)) {
+                lightsScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.EXPAND_HIVE)) {
+                hiveScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.DEFEND_HIVE)) {
+                defendScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.RETREAT_TO_RESIN)) {
+                retreatScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.INVESTIGATE)) {
+                investigateScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.WANDER)) {
+                wanderScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.SEEK_DARKNESS)) {
+                seekDarknessScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.AMBUSH_FROM_DARKNESS)) {
+                ambushFromDarknessScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.LURE_TARGET)) {
+                lureScore += HYSTERESIS_BONUS;
+            } else if (activeGoalType.equals(AiGoalType.VENT_TRAVERSAL)) {
+                ventScore += HYSTERESIS_BONUS;
             }
         }
 
