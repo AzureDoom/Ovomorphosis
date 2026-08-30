@@ -81,6 +81,25 @@ public final class AiKeys {
     /** Cooldown between light-source destruction scans. */
     public static final String LIGHT_SCAN_COOLDOWN = "light_scan_cooldown";
 
+    // --- Xenomorph: fire reaction ---
+
+    /**
+     * Type: {@link BlockPos}. Cached result of the last {@code FleeFireAction.findNearestFire} scan, reused between
+     * {@link #FIRE_SCAN_COOLDOWN} windows so the tree's per-tick fire-flee precheck doesn't re-run the full 9x8x9 block
+     * scan every single tick for every mob. {@code null} means the last scan found nothing nearby.
+     */
+    public static final BlackboardKey<BlockPos> FIRE_SCAN_RESULT = BlackboardKey.of(
+        "fire_scan_result",
+        BlockPos.class
+    );
+
+    /**
+     * Cooldown between {@code FleeFireAction.findNearestFire} re-scans. Split out from {@link #FIRE_SCAN_RESULT} for
+     * the same reason as {@code BREAK_TO_TARGET_SCAN_COOLDOWN}: cooldowns are strictly {@link String}-keyed and can't
+     * share a name with a typed blackboard value.
+     */
+    public static final String FIRE_SCAN_COOLDOWN = "fire_scan_cooldown";
+
     /**
      * Cooldown between {@code LURE_TARGET} selections. Deliberately long relative to how rarely the goal scores highly
      * in the first place — see {@link XenomorphGoalPlanner}'s lure scoring — so a false-retreat-into-ambush doesn't

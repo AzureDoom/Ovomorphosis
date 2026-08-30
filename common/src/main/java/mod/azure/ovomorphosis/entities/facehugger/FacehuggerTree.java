@@ -62,7 +62,7 @@ public class FacehuggerTree {
                 return BehaviorResult.run(leapAndAttach, 30);
             }
 
-            if (FleeFireAction.shouldFleefire(facehugger) || facehugger.isOnFire()) {
+            if (FleeFireAction.shouldFleefire(facehugger, blackboard, cooldowns) || facehugger.isOnFire()) {
                 return BehaviorResult.run(fleeFire, fleeFire.priority());
             }
 

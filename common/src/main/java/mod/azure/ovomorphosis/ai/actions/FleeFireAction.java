@@ -19,6 +19,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 
 public final class FleeFireAction<E extends Mob, G> implements Action<E, G> {
@@ -48,6 +49,15 @@ public final class FleeFireAction<E extends Mob, G> implements Action<E, G> {
     private static final double FLEE_SPEED = 0.52D;
 
     private static final int STUCK_TICKS_MAX = 40;
+
+    /**
+     * How often (ticks) {@link #shouldFleefire} actually re-runs {@link #findNearestFire}'s block scan, reusing
+     * {@link mod.azure.ovomorphosis.ai.core.AiKeys#FIRE_SCAN_RESULT} on ticks in between. 5 ticks (a quarter second) is
+     * imperceptible for a slow-changing environmental hazard like fire, and cuts the scan's per-mob, per-tick cost by
+     * 5x — this precheck runs unconditionally for every xenomorph every tick, unlike the rest of this class which only
+     * runs while actually fleeing.
+     */
+    private static final int SCAN_INTERVAL_TICKS = 5;
 
     private final int priority;
 
@@ -289,15 +299,28 @@ public final class FleeFireAction<E extends Mob, G> implements Action<E, G> {
      * Returns {@code true} if fire is nearby AND the mob is not yet fire-hardened. Use this in the behavior tree
      * fire-flee pre-check so hardened xenomorphs never enter the flee branch and instead rely on pathfinding
      * danger-block avoidance.
+     * <p>
+     * This runs unconditionally every tick for every xenomorph (unlike the rest of this class, which only runs while
+     * actually fleeing), so the underlying {@link #findNearestFire} scan is throttled to once every
+     * {@link #SCAN_INTERVAL_TICKS} ticks via {@link AiKeys#FIRE_SCAN_COOLDOWN}, with the cached result in
+     * {@link AiKeys#FIRE_SCAN_RESULT} reused in between.
      */
-    public static <E extends Mob> boolean shouldFleefire(E mob) {
+    public static <E extends Mob> boolean shouldFleefire(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
         if (
             mob instanceof XenomorphEntity xeno
                 && xeno.isFireHardened()
         ) {
             return false;
         }
-        return findNearestFire(mob) != null;
+
+        if (cooldowns.ready(AiKeys.FIRE_SCAN_COOLDOWN)) {
+            var found = findNearestFire(mob);
+            blackboard.set(AiKeys.FIRE_SCAN_RESULT, found);
+            cooldowns.set(AiKeys.FIRE_SCAN_COOLDOWN, SCAN_INTERVAL_TICKS);
+            return found != null;
+        }
+
+        return blackboard.get(AiKeys.FIRE_SCAN_RESULT) != null;
     }
 
     public static boolean isFireDangerActive(Blackboard blackboard, int currentTick) {
