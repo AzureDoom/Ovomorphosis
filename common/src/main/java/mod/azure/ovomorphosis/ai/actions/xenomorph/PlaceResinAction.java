@@ -17,8 +17,10 @@ import net.minecraft.world.level.block.Blocks;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
@@ -128,6 +130,16 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
      */
     private static final float VENT_BLOCK_CHANCE_TUNNEL = 0.01F;
 
+    /**
+     * Number of permanent doorway columns cut radially through the dome shell, one per evenly spaced compass heading.
+     * These positions are excluded from {@link #findDomeShellCandidates} so ordinary shell-filling never seals them,
+     * and are actively re-cleared by {@link #findBlockedDoor} if anything ends up occupying them.
+     */
+    private static final int DOOR_COUNT = 4;
+
+    /** How many blocks tall each doorway column is, from dome floor level upward — enough headroom to walk through. */
+    private static final int DOOR_HEIGHT = 3;
+
     private final int priority;
 
     private final int placementCooldownTicks;
@@ -167,23 +179,32 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
             var hiveMemory = getOrCreateHiveMemory(mob, blackboard);
             var domeCenter = resolveDomeCenter(mob, hiveMemory);
 
-            var needsRepair = hiveMemory.isDomeComplete()
-                && hiveMemory.findNearestPendingBreach(mob.level(), mobPos, LOCAL_SCAN_RADIUS).isPresent();
+            var blockedDoor = findBlockedDoor(mob, domeCenter);
 
-            var count = (hiveMemory.isDomeComplete() && !needsRepair)
-                ? tickTunnelPhase(mob, hiveMemory, domeCenter)
-                : tickDomePhase(mob, hiveMemory, domeCenter);
+            if (blockedDoor != null) {
+                mob.level().setBlockAndUpdate(blockedDoor, Blocks.CAVE_AIR.defaultBlockState());
+                markHiveDirty(mob);
+                cooldowns.set(AiKeys.RESIN_PLACE_COOLDOWN, placementCooldownTicks);
+                placed = true;
+            } else {
+                var needsRepair = hiveMemory.isDomeComplete()
+                    && hiveMemory.findNearestPendingBreach(mob.level(), mobPos, LOCAL_SCAN_RADIUS).isPresent();
 
-            if (count <= 0) {
-                return (ActionOutcome<G>) ActionOutcome.failed(
-                    PlanFailureReason.FAILED_NO_VALID_PLACEMENT,
-                    mobPos,
-                    AiGoalType.EXPAND_HIVE
-                );
+                var count = (hiveMemory.isDomeComplete() && !needsRepair)
+                    ? tickTunnelPhase(mob, hiveMemory, domeCenter)
+                    : tickDomePhase(mob, hiveMemory, domeCenter);
+
+                if (count <= 0) {
+                    return (ActionOutcome<G>) ActionOutcome.failed(
+                        PlanFailureReason.FAILED_NO_VALID_PLACEMENT,
+                        mobPos,
+                        AiGoalType.EXPAND_HIVE
+                    );
+                }
+
+                cooldowns.set(AiKeys.RESIN_PLACE_COOLDOWN, placementCooldownTicks);
+                placed = true;
             }
-
-            cooldowns.set(AiKeys.RESIN_PLACE_COOLDOWN, placementCooldownTicks);
-            placed = true;
         }
 
         if (settleTicks++ >= 20)
@@ -241,6 +262,7 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
     private List<BlockPos> findDomeShellCandidates(E mob, BlockPos domeCenter) {
         var level = mob.level();
         var origin = mob.blockPosition();
+        var doorPositions = getDoorColumnPositions(domeCenter);
 
         List<BlockPos> candidates = new ArrayList<>();
 
@@ -256,6 +278,9 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
                     if (distFromCenter > DOME_RADIUS || distFromCenter < DOME_RADIUS - DOME_SHELL_THICKNESS)
                         continue;
 
+                    if (doorPositions.contains(pos.immutable()))
+                        continue;
+
                     if (isValidReplacementTarget(level, pos))
                         candidates.add(pos.immutable());
                 }
@@ -263,6 +288,66 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
         }
 
         return candidates;
+    }
+
+    /**
+     * Every block position belonging to one of the dome's permanent doorway columns: a full-thickness radial slice
+     * through the shell (from {@code DOME_RADIUS - DOME_SHELL_THICKNESS} out to {@code DOME_RADIUS}) at
+     * {@link #DOOR_COUNT} evenly spaced compass headings, {@link #DOOR_HEIGHT} blocks tall starting at the dome's floor
+     * level. Deterministic from {@code domeCenter} alone — nothing needs to be persisted.
+     */
+    private Set<BlockPos> getDoorColumnPositions(BlockPos domeCenter) {
+        Set<BlockPos> positions = new HashSet<>();
+        var shellMinRadius = (int) Math.floor(DOME_RADIUS - DOME_SHELL_THICKNESS);
+        var shellMaxRadius = (int) Math.ceil(DOME_RADIUS);
+
+        for (var i = 0; i < DOOR_COUNT; i++) {
+            var angle = (2.0D * Math.PI * i) / DOOR_COUNT;
+            var dirX = Math.cos(angle);
+            var dirZ = Math.sin(angle);
+
+            for (var r = shellMinRadius; r <= shellMaxRadius; r++) {
+                var baseX = domeCenter.getX() + (int) Math.round(dirX * r);
+                var baseZ = domeCenter.getZ() + (int) Math.round(dirZ * r);
+
+                for (var y = 0; y < DOOR_HEIGHT; y++) {
+                    positions.add(new BlockPos(baseX, domeCenter.getY() + y, baseZ));
+                }
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * Returns the nearest doorway position, if any, that's currently occupied by a solid {@link ModTags#WEAK_BLOCKS}
+     * -tagged block within {@link #LOCAL_SCAN_RADIUS} of the mob. Restricted to weak-tagged blocks on purpose — a
+     * doorway that's silted over with dirt, gravel, or caved-in stone should get dug back out, but anything sturdier
+     * (or player-placed and not weak-tagged) is left alone rather than casually demolished.
+     */
+    private BlockPos findBlockedDoor(E mob, BlockPos domeCenter) {
+        var level = mob.level();
+        var origin = mob.blockPosition();
+
+        BlockPos best = null;
+        var bestDistSq = Double.MAX_VALUE;
+
+        for (var pos : getDoorColumnPositions(domeCenter)) {
+            var distSq = origin.distSqr(pos);
+            if (distSq > LOCAL_SCAN_RADIUS * (double) LOCAL_SCAN_RADIUS)
+                continue;
+
+            var state = level.getBlockState(pos);
+            if (state.isAir() || !state.is(ModTags.WEAK_BLOCKS))
+                continue;
+
+            if (distSq < bestDistSq) {
+                bestDistSq = distSq;
+                best = pos;
+            }
+        }
+
+        return best;
     }
 
     /**
@@ -435,7 +520,7 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
             var tipState = level.getBlockState(tip);
             var headState = level.getBlockState(head);
 
-            if (!isValidReplacementTarget(level, tip) && !tipState.isAir()) {
+            if (!isValidReplacementTarget(level, tip, true) && !tipState.isAir()) {
                 blocked = true;
                 break;
             }
@@ -443,7 +528,7 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
             if (!tipState.isAir())
                 level.setBlockAndUpdate(tip, Blocks.CAVE_AIR.defaultBlockState());
 
-            if (!headState.isAir() && isValidReplacementTarget(level, head))
+            if (!headState.isAir() && isValidReplacementTarget(level, head, true))
                 level.setBlockAndUpdate(head, Blocks.CAVE_AIR.defaultBlockState());
 
             var floorState = level.getBlockState(floor);
@@ -513,10 +598,13 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
             newDirY /= len;
             newDirZ /= len;
 
+            var maxComponent = Math.max(Math.abs(newDirX), Math.max(Math.abs(newDirY), Math.abs(newDirZ)));
+            var stepScale = maxComponent > 1.0E-4D ? 1.0D / maxComponent : 1.0D;
+
             var nextTip = BlockPos.containing(
-                tip.getX() + newDirX,
-                tip.getY() + newDirY,
-                tip.getZ() + newDirZ
+                tip.getX() + newDirX * stepScale,
+                tip.getY() + newDirY * stepScale,
+                tip.getZ() + newDirZ * stepScale
             );
 
             if (nextTip.equals(tip)) {
@@ -549,11 +637,22 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
      * weak-tagged solid blocks are inherently backed by whatever's around them, so that check is skipped for them.
      */
     private boolean isValidReplacementTarget(Level level, BlockPos pos) {
+        return isValidReplacementTarget(level, pos, false);
+    }
+
+    /**
+     * @param allowCarveThroughResin when {@code true}, the hive's own {@link ModTags#RESIN}-tagged blocks (the dome
+     *                               shell, tunnel floor resin, web crosses) also count as valid — needed so tunnels can
+     *                               breach the shell and cut through previously placed resin. Left {@code false} for
+     *                               dome-shell scanning ({@link #findDomeShellCandidates}) so that phase only ever
+     *                               targets untouched terrain instead of endlessly re-rolling blocks it already placed.
+     */
+    private boolean isValidReplacementTarget(Level level, BlockPos pos, boolean allowCarveThroughResin) {
         if (level.getMaxLocalRawBrightness(pos) > MAX_LIGHT_LEVEL)
             return false;
 
         var state = level.getBlockState(pos);
-        var isWeak = state.is(ModTags.WEAK_BLOCKS);
+        var isWeak = state.is(ModTags.WEAK_BLOCKS) || (allowCarveThroughResin && state.is(ModTags.RESIN));
         var isReplaceable = state.canBeReplaced();
 
         if (!isReplaceable && !isWeak)
