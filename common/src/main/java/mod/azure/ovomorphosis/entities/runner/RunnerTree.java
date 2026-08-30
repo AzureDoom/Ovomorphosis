@@ -110,7 +110,7 @@ public class RunnerTree {
                 if (!fleeOnCooldown) {
                     var fireTolerance = blackboard.get(CommonBlackboardKeys.FIRE_TOLERANCE);
                     var fireToleranceVal = fireTolerance != null ? fireTolerance : 0f;
-                    var hasNearbyFire = FleeFireAction.shouldFleefire(runner);
+                    var hasNearbyFire = FleeFireAction.shouldFleefire(runner, blackboard, cooldowns);
 
                     if (runner.isOnFire()) {
                         fireToleranceVal = FleeFireAction.MAX_TOLERANCE;

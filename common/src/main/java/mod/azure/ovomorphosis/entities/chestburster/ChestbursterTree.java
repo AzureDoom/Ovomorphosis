@@ -11,7 +11,7 @@ import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 
 public class ChestbursterTree {
 
-    public static BehaviorNode<ChestbursterEntity, AiGoalType> create(EatFoodAction eatAction) {
+    public static BehaviorNode<ChestbursterEntity, AiGoalType> create(EatFoodAction<AiGoalType> eatAction) {
         var idle = new IdleAction<ChestbursterEntity, AiGoalType>(40, 100, 1);
 
         var wander = new WanderAction<ChestbursterEntity, AiGoalType>(
@@ -46,7 +46,7 @@ public class ChestbursterTree {
                 return BehaviorResult.run(fleeExplosive, 120);
             }
 
-            if (FleeFireAction.shouldFleefire(chestburster) || chestburster.isOnFire()) {
+            if (FleeFireAction.shouldFleefire(chestburster, blackboard, cooldowns) || chestburster.isOnFire()) {
                 return BehaviorResult.run(fleeFire, fleeFire.priority());
             }
 
