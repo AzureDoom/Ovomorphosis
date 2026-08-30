@@ -400,8 +400,7 @@ public class XenomorphTree {
 
     private static CombatVerdict evaluateCarryOrKill(XenomorphEntity xenomorph, Blackboard blackboard) {
         var memory = blackboard.get(AiKeys.HIVE_MEMORY);
-        var configCarryChance = CommonMod
-            .getConfig().entityConfigs.xenomorphConfigs.xenoCarryToResinChance;
+        var configCarryChance = CommonMod.getConfig().entityConfigs.xenomorphConfigs.xenoCarryToResinChance;
 
         var webDistSq = Double.MAX_VALUE;
         if (memory != null) {
@@ -410,18 +409,22 @@ public class XenomorphTree {
                 webDistSq = xenomorph.blockPosition().distSqr(nearest.get());
         }
 
-        float carryScore;
+        var carryChance = getCarryChance(webDistSq, configCarryChance);
+
+        return xenomorph.getRandom().nextFloat() < carryChance ? CombatVerdict.CARRY : CombatVerdict.KILL;
+    }
+
+    private static float getCarryChance(double webDistSq, float configCarryChance) {
+        float proximityBoost;
         if (webDistSq <= WEB_NEAR_SQ) {
-            carryScore = 100f - (float) (webDistSq / WEB_NEAR_SQ) * 20f;
+            proximityBoost = 0.90f - (float) (webDistSq / WEB_NEAR_SQ) * 0.05f;
         } else if (webDistSq <= WEB_FAR_SQ) {
             var t = (webDistSq - WEB_NEAR_SQ) / (WEB_FAR_SQ - WEB_NEAR_SQ);
-            carryScore = 80f - (float) t * 40f;
+            proximityBoost = (0.90f - 0.05f) * (1f - (float) t);
         } else {
-            carryScore = Math.max(0f, 20f * configCarryChance);
+            proximityBoost = 0f;
         }
-        carryScore *= configCarryChance;
 
-        var killScore = 50f + xenomorph.getRandom().nextFloat() * 10f;
-        return carryScore >= killScore ? CombatVerdict.CARRY : CombatVerdict.KILL;
+        return configCarryChance + (1f - configCarryChance) * proximityBoost;
     }
 }
