@@ -224,7 +224,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
         var investigateScore = 0f;
         var seekDarknessScore = 0f;
         var ambushFromDarknessScore = 0f;
-        var wanderScore = 5f;
+        var wanderScore = 25f;
         var targetFacingMob = false;
 
         if (hasTarget) {
