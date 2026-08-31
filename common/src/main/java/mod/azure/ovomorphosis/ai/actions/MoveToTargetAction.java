@@ -58,6 +58,25 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
     private static final int ABSOLUTE_MAX_CHASE_TICKS = 100;
 
+    /**
+     * Max distance (blocks, squared) at which {@link #findEncasingWallBreakTarget} bothers checking at all. Kept small
+     * and villager-house-sized so this never fires on a target that's merely far away with unrelated terrain in
+     * between.
+     */
+    private static final double ENCASED_CHECK_MAX_DIST_SQ = 16.0D * 16.0D;
+
+    /**
+     * Below this straight-line distance (blocks, squared), the detour-ratio check in
+     * {@link #findEncasingWallBreakTarget} is skipped — short paths naturally wind a bit and shouldn't trip it.
+     */
+    private static final double MIN_STRAIGHT_DIST_FOR_DETOUR_SQR = 2.0D * 2.0D;
+
+    /**
+     * How many times longer than straight-line distance a path must be before {@link #findEncasingWallBreakTarget}
+     * treats it as routing around a structure rather than merely winding.
+     */
+    private static final double DETOUR_RATIO_THRESHOLD = 1.8D;
+
     private int ticksSinceStart = 0;
 
     private int dangerLeapCooldown = 0;
@@ -426,6 +445,26 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
                 if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER) && !path.isEmpty()) {
                     checkPathForBreakableWall(mob, blackboard, path, pathIndex);
+                }
+            }
+        }
+
+        if (!blackboard.has(AiKeys.BREAK_TO_TARGET_TRIGGER)) {
+            var encasingWallBlock = findEncasingWallBreakTarget(mob, target, path, pathIndex);
+
+            if (encasingWallBlock != null) {
+                blackboard.set(AiKeys.BREAK_TO_TARGET_SCAN, encasingWallBlock);
+                blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
+
+                var directDirection = target.position().subtract(mob.position());
+                if (directDirection.lengthSqr() > 0.0001D) {
+                    applyFlatFallback(mob, blackboard, target, directDirection);
+                    if (pendingOutcome != null) {
+                        var outcome = pendingOutcome;
+                        pendingOutcome = null;
+                        return outcome;
+                    }
+                    return ActionOutcome.running();
                 }
             }
         }
@@ -1263,6 +1302,20 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 : ActionOutcome.blocked(PlanFailureReason.FAILED_BLOCKED, mob.blockPosition(), blockingPositions);
         }
 
+        if (mob.horizontalCollision && blockBreakCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
+            var toTarget = target.position().subtract(mob.position());
+            var toTargetH = new Vec3(toTarget.x, 0.0D, toTarget.z);
+            if (toTargetH.lengthSqr() > 0.01D && forward.dot(toTargetH.normalize()) > 0.5D) {
+                if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
+                    blockBreakCooldown = 10;
+                    stuckTicks = 0;
+                    noProgressTicks = 0;
+                    faceTarget(mob, target);
+                    return;
+                }
+            }
+        }
+
         if ((stuckTicks > 10 || noProgressTicks > 20) && blockBreakCooldown <= 0 && !forward.equals(Vec3.ZERO)) {
             if (tryBreakBlockingPathBlock(mob, blackboard, target, forward)) {
                 blockBreakCooldown = 10;
@@ -1515,6 +1568,109 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
     private static boolean isSolidObstruction(Level level, BlockPos pos) {
         var state = level.getBlockState(pos);
         return !state.isAir() && !state.getCollisionShape(level, pos).isEmpty();
+    }
+
+    /**
+     * Detects the "target sealed inside a structure" case — a villager house being the common example — and, when so,
+     * returns the exact wall block to break through, or {@code null} if this isn't that case.
+     * <p>
+     * Two things keep this from mis-firing the way a naive check would:
+     * <ul>
+     * <li><b>Only engages on a genuine detour.</b> {@code path} (the current A* / crawl route, if any) is measured
+     * against the straight-line distance to the target. A* / crawl are left alone — and free to route through a door or
+     * gap — as long as what they find is a reasonably direct route; this only overrides them when the route is empty
+     * (no route at all) or a large multiple of straight-line distance (routing around the entire structure, which is
+     * what produced the reported "looping").</li>
+     * <li><b>Only engages when there's no nearby opening.</b> {@link #findClearRaycastObstruction} samples several rays
+     * from around the mob's eye position, not just straight ahead. If any of them is clear, there's a gap (a window, a
+     * doorway) close by that pathfinding should be using instead, so this returns {@code null} and defers to normal
+     * pathfinding rather than forcing a break next to a walkable opening.</li>
+     * </ul>
+     * When it does engage, the returned block is the one the raycast actually hit — the true wall between the mob and
+     * the target's eyes — rather than a block re-derived from the mob's current facing/movement direction, which is
+     * what let this pick an irrelevant corner block when the target sat in a corner nook.
+     */
+    private BlockPos findEncasingWallBreakTarget(E mob, LivingEntity target, List<BlockPos> path, int fromIndex) {
+        var straightDistSqr = mob.distanceToSqr(target);
+        if (straightDistSqr > ENCASED_CHECK_MAX_DIST_SQ) {
+            return null;
+        }
+
+        var isLikelyEncased = path.isEmpty();
+        if (!isLikelyEncased && straightDistSqr > MIN_STRAIGHT_DIST_FOR_DETOUR_SQR) {
+            var pathLength = computePathLength(path, fromIndex);
+            isLikelyEncased = pathLength > Math.sqrt(straightDistSqr) * DETOUR_RATIO_THRESHOLD;
+        }
+
+        if (!isLikelyEncased) {
+            return null;
+        }
+
+        return findClearRaycastObstruction(mob, target);
+    }
+
+    /**
+     * Sample-based line-of-sight check between the mob and the target's eyes. Rays are cast from the mob's own eye
+     * position plus four small lateral offsets, rather than just one straight-ahead ray, so a nearby opening (a window
+     * a block to the side, a doorway just off-axis) reads as "there's a gap" and returns {@code null} instead of this
+     * method confidently reporting whatever wall block happens to sit on the single central ray.
+     *
+     * @return the first solid, breakable block hit by every sampled ray, or {@code null} if any sampled ray is clear (a
+     *         gap exists nearby) or none of the hits are breakable
+     */
+    private BlockPos findClearRaycastObstruction(E mob, LivingEntity target) {
+        var eyePos = mob.getEyePosition();
+        var to = target.getEyePosition();
+
+        var origins = new Vec3[] {
+            eyePos,
+            eyePos.add(0.3D, 0.0D, 0.0D),
+            eyePos.add(-0.3D, 0.0D, 0.0D),
+            eyePos.add(0.0D, 0.0D, 0.3D),
+            eyePos.add(0.0D, 0.0D, -0.3D)
+        };
+
+        BlockPos obstruction = null;
+
+        for (var from : origins) {
+            var hit = mob.level()
+                .clip(
+                    new ClipContext(
+                        from,
+                        to,
+                        ClipContext.Block.COLLIDER,
+                        ClipContext.Fluid.NONE,
+                        mob
+                    )
+                );
+
+            if (hit.getType() == HitResult.Type.MISS) {
+                return null;
+            }
+
+            if (obstruction == null && hit.getType() == HitResult.Type.BLOCK) {
+                var pos = hit.getBlockPos();
+                if (canBreakPathBlock(mob, pos)) {
+                    obstruction = pos;
+                } else if (canBreakPathBlock(mob, pos.above())) {
+                    obstruction = pos.above();
+                }
+            }
+        }
+
+        return obstruction;
+    }
+
+    private static double computePathLength(List<BlockPos> path, int fromIndex) {
+        if (path.size() <= fromIndex + 1) {
+            return 0.0D;
+        }
+
+        var total = 0.0D;
+        for (var i = fromIndex; i < path.size() - 1; i++) {
+            total += Math.sqrt(path.get(i).distSqr(path.get(i + 1)));
+        }
+        return total;
     }
 
     private boolean tryBreakBlockingPathBlock(E mob, Blackboard blackboard, LivingEntity target, Vec3 forward) {
