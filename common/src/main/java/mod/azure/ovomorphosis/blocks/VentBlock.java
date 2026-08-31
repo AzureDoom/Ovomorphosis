@@ -57,7 +57,9 @@ public class VentBlock extends AbstractResinBlock {
             OvomorphosisSavedData.findNearestHive(serverLevel, pos)
                 .ifPresent(hive -> {
                     hive.unregisterVentBlock(pos);
-                    OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    if (!OvomorphosisSavedData.removeHiveIfDestroyed(serverLevel, hive)) {
+                        OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    }
                 });
         }
         super.onRemove(state, level, pos, newState, movedByPiston);

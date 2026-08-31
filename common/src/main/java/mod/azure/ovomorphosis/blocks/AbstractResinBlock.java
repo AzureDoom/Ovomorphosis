@@ -98,6 +98,36 @@ public abstract class AbstractResinBlock extends Block {
     }
 
     /**
+     * Counts a resin structure block (per {@link ModTags#RESIN} — deliberately excludes vent blocks, which have their
+     * own separate lifecycle in {@code VentBlock}) toward the nearest hive whenever one genuinely newly appears, so
+     * {@code HiveMemory#isFullyDestroyed} has an accurate live count to check against. Mirrors {@link #onRemove}'s own
+     * guard: only an actual change of block (not an in-place state change, e.g. {@link ResinBlock} incrementing its own
+     * layer count) is counted, so growth/decay of an existing block is never double-counted as a new one.
+     */
+    @Override
+    public void onPlace(
+        @NotNull BlockState state,
+        @NotNull Level level,
+        @NotNull BlockPos pos,
+        @NotNull BlockState oldState,
+        boolean movedByPiston
+    ) {
+        super.onPlace(state, level, pos, oldState, movedByPiston);
+        if (
+            !level.isClientSide()
+                && !oldState.is(state.getBlock())
+                && state.is(ModTags.RESIN)
+                && level instanceof ServerLevel serverLevel
+        ) {
+            OvomorphosisSavedData.findNearestHive(serverLevel, pos)
+                .ifPresent(hive -> {
+                    hive.incrementStructureBlockCount();
+                    OvomorphosisSavedData.markHiveDirty(serverLevel);
+                });
+        }
+    }
+
+    /**
      * Records a hive breach whenever an actual resin structure block (per {@link ModTags#RESIN} — deliberately excludes
      * vent blocks, which have their own separate lifecycle in {@code VentBlock}) is removed, so a mob can later be
      * dispatched to repair it (see {@code HiveMemory#recordBreach}). Shared here (rather than duplicated across
@@ -124,7 +154,10 @@ public abstract class AbstractResinBlock extends Block {
             OvomorphosisSavedData.findNearestHive(serverLevel, pos)
                 .ifPresent(hive -> {
                     hive.recordBreach(serverLevel, pos);
-                    OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    hive.decrementStructureBlockCount();
+                    if (!OvomorphosisSavedData.removeHiveIfDestroyed(serverLevel, hive)) {
+                        OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    }
                 });
         }
         super.onRemove(state, level, pos, newState, movedByPiston);

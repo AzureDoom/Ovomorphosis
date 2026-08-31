@@ -24,6 +24,8 @@ import mod.azure.ovomorphosis.infection.InfectionState;
 
 public final class OvomorphosisSavedData extends SavedData {
 
+    private UUID hiveId = UUID.randomUUID();
+
     private final Map<ResourceKey<Level>, List<HiveMemory>> hives = new HashMap<>();
 
     private static final double HIVE_JOIN_RADIUS = 256.0D;
@@ -106,6 +108,7 @@ public final class OvomorphosisSavedData extends SavedData {
 
     @Override
     public @NotNull CompoundTag save(@NotNull CompoundTag tag) {
+        tag.putUUID("hiveId", hiveId);
         tag.put("eggmorph", saveEggmorph());
         tag.put("infections", saveInfections());
         tag.put("hives", saveHives());
@@ -141,20 +144,41 @@ public final class OvomorphosisSavedData extends SavedData {
         get(level).setDirty();
     }
 
+    /**
+     * Drops {@code hive} from {@code level}'s dimension once every block it ever had has been destroyed (see
+     * {@link HiveMemory#isFullyDestroyed()}), so it no longer shows up for {@link #findNearestHive} or
+     * {@link #getOrCreateHive} — meaning a newly spawned or freshly hatched xenomorph can no longer bind to a hive that
+     * no longer physically exists in the world (see {@code XenomorphEntity#ensureHiveAssignment}), and one that later
+     * rebuilds there simply creates a fresh hive entry instead.
+     * <p>
+     * A no-op (returning {@code false}) if the hive still has structure left, or is somehow no longer present in the
+     * dimension's list.
+     *
+     * @return {@code true} if the hive was actually removed
+     */
+    public static boolean removeHiveIfDestroyed(ServerLevel level, HiveMemory hive) {
+        if (!hive.isFullyDestroyed())
+            return false;
+
+        var data = get(level);
+        var dimensionHives = data.hives.get(level.dimension());
+
+        if (dimensionHives != null && dimensionHives.remove(hive)) {
+            data.setDirty();
+            return true;
+        }
+
+        return false;
+    }
+
     private static OvomorphosisSavedData load(CompoundTag tag, ServerLevel level) {
         var data = new OvomorphosisSavedData();
-
         EggmorphTracker.clearAll();
         InfectionManager.clearAll();
-
-        if (tag.contains("eggmorph", Tag.TAG_LIST)) {
+        if (tag.contains("eggmorph", Tag.TAG_LIST))
             loadEggmorph(tag.getList("eggmorph", Tag.TAG_COMPOUND), level);
-        }
-
-        if (tag.contains("infections", Tag.TAG_LIST)) {
+        if (tag.contains("infections", Tag.TAG_LIST))
             loadInfections(tag.getList("infections", Tag.TAG_COMPOUND));
-        }
-
         if (tag.contains("hives", Tag.TAG_COMPOUND)) {
             data.loadHives(tag.getCompound("hives"));
         } else if (tag.contains("hiveMemory", Tag.TAG_COMPOUND)) {
@@ -166,10 +190,8 @@ public final class OvomorphosisSavedData extends SavedData {
                     key -> new ArrayList<>()
                 )
                 .add(legacyHive);
-
             data.setDirty();
         }
-
         return data;
     }
 
@@ -189,7 +211,10 @@ public final class OvomorphosisSavedData extends SavedData {
             }
 
             var dimensionLocation =
-                new ResourceLocation(entry.getString("dimension"));
+                ResourceLocation.tryParse(entry.getString("dimension"));
+
+            if (dimensionLocation == null)
+                continue;
 
             var dimension = ResourceKey.create(
                 Registries.DIMENSION,
@@ -209,29 +234,21 @@ public final class OvomorphosisSavedData extends SavedData {
 
     private static ListTag saveEggmorph() {
         var list = new ListTag();
-
         for (var entry : EggmorphTracker.snapshotForSave().entrySet()) {
             var compound = new CompoundTag();
-
-            var posTag = NbtUtils.writeBlockPos(entry.getKey());
-            compound.put("pos", posTag);
+            compound.put("pos", NbtUtils.writeBlockPos(entry.getKey()));
 
             var entriesTag = new ListTag();
-
             for (var e : entry.getValue().entrySet()) {
                 var entryTag = new CompoundTag();
-
                 entryTag.putInt("entityId", e.getKey());
                 entryTag.putString("phase", e.getValue().phase().toLowerCase(Locale.ROOT));
                 entryTag.putInt("ticks", e.getValue().ticks());
-
                 entriesTag.add(entryTag);
             }
-
             compound.put("entries", entriesTag);
             list.add(compound);
         }
-
         return list;
     }
 
@@ -246,16 +263,13 @@ public final class OvomorphosisSavedData extends SavedData {
             var pos = NbtUtils.readBlockPos(compound.getCompound("pos"));
 
             var entriesTag = compound.getList("entries", Tag.TAG_COMPOUND);
-
             for (var j = 0; j < entriesTag.size(); j++) {
                 var entryTag = entriesTag.getCompound(j);
-
                 var entityId = entryTag.getInt("entityId");
                 var phase = entryTag.getString("phase");
                 var ticks = entryTag.getInt("ticks");
 
                 var entity = level.getEntity(entityId);
-
                 if (entity instanceof LivingEntity living) {
                     EggmorphTracker.restoreEntry(pos, living, phase, ticks);
                 }
@@ -265,41 +279,31 @@ public final class OvomorphosisSavedData extends SavedData {
 
     private static ListTag saveInfections() {
         var list = new ListTag();
-
         for (var entry : InfectionManager.snapshotForSave().entrySet()) {
             var compound = new CompoundTag();
-
             compound.putUUID("uuid", entry.getKey());
             compound.putInt("duration", entry.getValue().duration);
             compound.putInt("ticks", entry.getValue().ticks);
             compound.putInt("ticksSinceLastDamage", entry.getValue().ticksSinceLastDamage);
             compound.putBoolean("hasBurst", entry.getValue().hasBurst);
-
-            if (entry.getValue().lastKnownPos != null) {
+            if (entry.getValue().lastKnownPos != null)
                 compound.put("lastKnownPos", NbtUtils.writeBlockPos(entry.getValue().lastKnownPos));
-            }
-
             list.add(compound);
         }
-
         return list;
     }
 
     private static void loadInfections(ListTag list) {
         for (var i = 0; i < list.size(); i++) {
             var compound = list.getCompound(i);
-
             var uuid = compound.getUUID("uuid");
             var state = new InfectionState(compound.getInt("duration"));
-
             state.ticks = compound.getInt("ticks");
             state.ticksSinceLastDamage = compound.getInt("ticksSinceLastDamage");
             state.hasBurst = compound.getBoolean("hasBurst");
-
             if (compound.contains("lastKnownPos", Tag.TAG_COMPOUND)) {
                 state.lastKnownPos = NbtUtils.readBlockPos(compound.getCompound("lastKnownPos"));
             }
-
             InfectionManager.restore(uuid, state);
         }
     }
