@@ -7,6 +7,7 @@ import com.azure.azurecortex.api.blackboard.Blackboard;
 import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
 import com.azure.azurecortex.goap.PlanFailureReason;
 import com.azure.azurecortex.goap.PlanFeedback;
+import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -65,6 +66,31 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
 
     private int tunnelStepZ = 0;
 
+    /**
+     * Vertical tunnel-continuation step, separate from {@link #tunnelStepX}/{@link #tunnelStepZ}. Needed because this
+     * action serves two genuinely different obstruction shapes: a horizontal wall segment (continue tunneling in the
+     * same horizontal direction) and a directly-overhead ceiling/overhang block from
+     * {@code MoveToTargetAction#tryBreakOverheadObstacle} (continue straight up). The original tunnel-direction logic
+     * only ever computed X/Z from the horizontal offset between the mob and the block, which is ~0 for a block directly
+     * above the mob's own column — so continuation picked an essentially arbitrary horizontally-adjacent block at the
+     * same height instead of the next block up, and the mob never actually finished clearing a vertical obstruction; it
+     * just chipped one hole in the roof and then started in on an unrelated neighboring plank.
+     */
+    private int tunnelStepY = 0;
+
+    /**
+     * Whether the mob was actively clinging to a wall right before this action took over. By the time {@link #start}
+     * runs, whatever movement action was previously in control has already had its own {@code stop()} called — and
+     * every movement action in this mod unconditionally clears {@link CrawlController#setWallCrawling} there, since it
+     * expects to freshly re-derive the correct wall-crawl state itself on its own next tick. This action has no such
+     * per-tick re-derivation, so left alone the mob's wall-crawling flag would simply stay cleared for this action's
+     * entire duration: gravity resumes immediately, and the mob falls off the wall — usually before it's chipped away
+     * more than a sliver of {@link #breakProgress} — long before {@code isWithinReach} even has a chance to fail on its
+     * own. {@link CrawlController#wasRecentlyWallCrawling} (grace-tick-aware, unlike the raw flag) still reports
+     * {@code true} for a few ticks after that clear, which is what lets this be detected here at all.
+     */
+    private boolean maintainWallCrawl = false;
+
     public BreakToTargetAction() {}
 
     @Override
@@ -75,6 +101,8 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         layersTunneled = 0;
         tunnelStepX = 0;
         tunnelStepZ = 0;
+        tunnelStepY = 0;
+        maintainWallCrawl = CrawlController.canWallCrawl(mob) && CrawlController.wasRecentlyWallCrawling(mob);
 
         var activeGoal = (AiGoalType) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL_TYPE);
         if (
@@ -88,6 +116,10 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
 
     @Override
     public ActionOutcome<AiGoalType> tick(E mob, Blackboard blackboard, CooldownTracker cooldowns) {
+        if (maintainWallCrawl) {
+            CrawlController.setWallCrawling(mob, true);
+        }
+
         var target = blackboard.get(CommonBlackboardKeys.TARGET);
         if (target == null || !target.isAlive()) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_TARGET_LOST);
@@ -114,7 +146,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             cooldowns.set(AiKeys.BREAK_TO_TARGET_SCAN_COOLDOWN, 10);
 
             var hint = blackboard.get(AiKeys.BREAK_TO_TARGET_SCAN);
-            if (hint != null && isBreakable(level, hint, level.getBlockState(hint))) {
+            if (hint != null && isWithinReach(mob, hint) && isBreakable(level, hint, level.getBlockState(hint))) {
                 targetBlock = hint;
             } else {
                 targetBlock = pickFromFeedback(mob, blackboard);
@@ -138,16 +170,24 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
                 return ActionOutcome.failed(PlanFailureReason.FAILED_OBSTACLE_UNBREAKABLE, AiGoalType.BREAK_OBSTACLE);
             }
 
-            var centerX = targetBlock.getX() + 0.5D;
-            var centerZ = targetBlock.getZ() + 0.5D;
-            var dx = centerX - mob.getX();
-            var dz = centerZ - mob.getZ();
-            if (Math.abs(dx) >= Math.abs(dz)) {
-                tunnelStepX = dx >= 0 ? 1 : -1;
-                tunnelStepZ = 0;
-            } else {
+            var mobFeet = mob.blockPosition();
+            if (targetBlock.getX() == mobFeet.getX() && targetBlock.getZ() == mobFeet.getZ()) {
                 tunnelStepX = 0;
-                tunnelStepZ = dz >= 0 ? 1 : -1;
+                tunnelStepZ = 0;
+                tunnelStepY = targetBlock.getY() >= mobFeet.getY() ? 1 : -1;
+            } else {
+                var centerX = targetBlock.getX() + 0.5D;
+                var centerZ = targetBlock.getZ() + 0.5D;
+                var dx = centerX - mob.getX();
+                var dz = centerZ - mob.getZ();
+                if (Math.abs(dx) >= Math.abs(dz)) {
+                    tunnelStepX = dx >= 0 ? 1 : -1;
+                    tunnelStepZ = 0;
+                } else {
+                    tunnelStepX = 0;
+                    tunnelStepZ = dz >= 0 ? 1 : -1;
+                }
+                tunnelStepY = 0;
             }
 
             breakProgress = 0f;
@@ -189,7 +229,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
             blackboard.remove(AiKeys.BREAK_TO_TARGET_TRIGGER);
 
             if (layersTunneled < MAX_TUNNEL_LAYERS) {
-                var nextLayer = targetBlock.offset(tunnelStepX, 0, tunnelStepZ);
+                var nextLayer = targetBlock.offset(tunnelStepX, tunnelStepY, tunnelStepZ);
                 var nextState = level.getBlockState(nextLayer);
                 if (isBreakable(level, nextLayer, nextState) && isWithinReach(mob, nextLayer)) {
                     targetBlock = nextLayer;
@@ -310,7 +350,7 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         var level = mob.level();
         for (var pos : feedback.blockingPositions()) {
             var state = level.getBlockState(pos);
-            if (isBreakable(level, pos, state))
+            if (isWithinReach(mob, pos) && isBreakable(level, pos, state))
                 return pos;
         }
         return null;

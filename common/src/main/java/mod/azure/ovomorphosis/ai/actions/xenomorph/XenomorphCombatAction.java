@@ -156,7 +156,7 @@ public final class XenomorphCombatAction<E extends Mob, G> implements Action<E, 
 
         var toTarget = target.position().subtract(mob.position()).normalize();
         var lateral = new Vec3(-toTarget.z, 0, toTarget.x).scale(0.22D * stalkLateralBias);
-        var desired = toTarget.scale(0.38D).add(lateral);
+        var desired = toTarget.scale(0.58D).add(lateral);
         applyDangerSteering(mob, desired);
 
         return ActionOutcome.running();

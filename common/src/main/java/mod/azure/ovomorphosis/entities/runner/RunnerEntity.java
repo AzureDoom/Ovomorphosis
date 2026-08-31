@@ -169,7 +169,7 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
         float height;
         double halfX, halfZ;
 
-        if (CrawlController.isWallCrawling(this)) {
+        if (CrawlController.wasRecentlyWallCrawling(this)) {
             float scale = this.getGrowthScale();
             halfX = halfZ = (0.6F * scale) / 2.0;
             height = 0.6F * scale;

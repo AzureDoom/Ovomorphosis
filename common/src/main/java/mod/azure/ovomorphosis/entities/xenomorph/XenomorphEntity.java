@@ -392,7 +392,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     public @NotNull EntityDimensions getDimensions(@NotNull Pose pose) {
         var growthScale = this.getGrowthScale();
 
-        if (CrawlController.isWallCrawling(this)) {
+        if (CrawlController.wasRecentlyWallCrawling(this)) {
             return EntityDimensions.scalable(0.6F * growthScale, 0.6F * growthScale);
         }
 
