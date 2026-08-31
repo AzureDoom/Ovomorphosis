@@ -114,12 +114,19 @@ public final class TargetingUtils {
     /**
      * Returns a predicate that accepts entities within 64 blocks (squared distance ≤ 4096) or within line of sight of
      * the mob, regardless of distance.
+     * <p>
+     * Crouching entities are exempt from the range fallback: a crouching candidate is only accepted while the mob has
+     * direct, unobstructed line of sight to it, no matter how close it is. This lets a player (or other crouching
+     * entity) break targeting/aggro by sneaking out of sight, instead of remaining trackable purely by proximity.
      *
      * @param mob the mob checking visibility
      * @return the range-or-visibility filter predicate
      */
     public static Predicate<LivingEntity> inRangeOrVisible(LivingEntity mob) {
         return e -> {
+            if (e.isCrouching()) {
+                return mob.hasLineOfSight(e);
+            }
             double dist = mob.distanceToSqr(e);
             return dist <= 4096 || mob.hasLineOfSight(e);
         };
