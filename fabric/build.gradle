@@ -15,7 +15,7 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
     modImplementation "mod.azure.azurelib:azurelib-fabric-${minecraft_version}:${azurelib_version}"
     modImplementation "com.azure.azurecortex:azurecortex-fabric-${minecraft_version}:${azurecortex_version}"
-    include "com.azure.azurecortex:azurecortex-fabric-1.21.1:${azurecortex_version}"
+    include "com.azure.azurecortex:azurecortex-fabric-${minecraft_version}:${azurecortex_version}"
     modApi "com.terraformersmc:modmenu:${modmenu_version}"
     modImplementation "curse.maven:spark-361579:4738953"
 }
