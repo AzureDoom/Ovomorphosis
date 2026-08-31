@@ -11,7 +11,6 @@ import com.azure.azurecortex.navigation.astar.AStarPathfinder;
 import com.azure.azurecortex.navigation.astar.IncrementalPathSession;
 import com.azure.azurecortex.navigation.astar.PathNodeCache;
 import com.azure.azurecortex.navigation.astar.PhasedPathSession;
-import com.azure.azurecortex.navigation.crawl.CrawlCapability;
 import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.navigation.crawl.CrawlTraversalEvaluator;
 import com.azure.azurecortex.navigation.movement.MovementController;
@@ -256,9 +255,6 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 && !CollisionQueries.isSafeClimbNode(mob.level(), mobFeetPos, mob)
         ) {
             CrawlController.setWallCrawling(mob, false);
-            if (mob instanceof CrawlCapability wc) {
-                wc.setWallCrawlGraceTicks(0);
-            }
             isCrawlingNow = false;
         }
 
@@ -420,8 +416,6 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                             if (closeEnoughToClimb) {
                                 CrawlController.setWallCrawling(mob, true);
                                 CrawlController.updateCrawlOrientation(mob, move);
-                            } else if (mob instanceof CrawlCapability wc) {
-                                wc.setWallCrawlGraceTicks(0);
                             }
                         }
                         mob.setDeltaMovement(move);
@@ -616,8 +610,6 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 var yPull = mob.isNoGravity() ? -speed * 0.3D : mob.getDeltaMovement().y * 0.25D;
                 shaftVelocity = new Vec3(centerMove.x, yPull, centerMove.z);
             } else {
-                if (mob instanceof CrawlCapability wc)
-                    wc.setWallCrawlGraceTicks(0);
                 CrawlController.setWallCrawling(mob, false);
                 shaftVelocity = new Vec3(centerError.x * 0.35D, -speed * 0.85D, centerError.z * 0.35D);
             }
@@ -678,8 +670,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 var tunnelVelocity = new Vec3(0.0D, vertical, 0.0D);
                 var descending = yError < -0.20D;
                 CrawlController.setWallCrawling(mob, !descending);
-                if (descending && mob instanceof CrawlCapability wc) {
-                    wc.setWallCrawlGraceTicks(0);
+                if (descending) {
                     vertical = Math.min(vertical, -speed * 0.6D);
                     tunnelVelocity = new Vec3(0.0D, vertical, 0.0D);
                 }
@@ -755,8 +746,6 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             var toWaypoint = new Vec3(direction.x, 0.0D, direction.z);
             if (toWaypoint.lengthSqr() > 0.01D) {
                 CrawlController.setWallCrawling(mob, false);
-                if (mob instanceof CrawlCapability wc)
-                    wc.setWallCrawlGraceTicks(0);
                 var move = toWaypoint.normalize().scale(speed);
                 var yVel = Math.min(mob.getDeltaMovement().y, -0.15D);
                 mob.setDeltaMovement(move.x, yVel, move.z);
@@ -789,8 +778,6 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
         if (!shouldUseCrawlingNow && waypointBlock.getY() < mob.blockPosition().getY()) {
             var toGoal = new Vec3(direction.x, 0.0D, direction.z);
             if (toGoal.lengthSqr() > 0.01D) {
-                if (canCrawl && mob instanceof CrawlCapability wc)
-                    wc.setWallCrawlGraceTicks(0);
                 var stepDown = toGoal.normalize().scale(speed);
                 mob.setDeltaMovement(stepDown.x, Math.min(mob.getDeltaMovement().y, -0.15D), stepDown.z);
                 mob.hasImpulse = true;
@@ -830,8 +817,6 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 mob.hasImpulse = true;
                 stuckTicks = 0;
                 repathCooldown = 0;
-                if (mob instanceof CrawlCapability wc)
-                    wc.setWallCrawlGraceTicks(0);
                 faceDestination(mob, destination);
                 return;
             }
@@ -849,8 +834,6 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             if (destBelow && stuckTicks > 15) {
                 var nudge = new Vec3(direction.x, 0.0D, direction.z);
                 if (nudge.lengthSqr() > 0.0001D) {
-                    if (mob instanceof CrawlCapability wc)
-                        wc.setWallCrawlGraceTicks(0);
                     mob.setDeltaMovement(
                         nudge.normalize().scale(speed).x,
                         mob.getDeltaMovement().y,

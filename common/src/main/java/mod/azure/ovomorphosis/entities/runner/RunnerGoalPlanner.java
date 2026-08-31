@@ -7,6 +7,7 @@ import com.azure.azurecortex.goap.*;
 import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.LightLayer;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
@@ -78,6 +79,8 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity, AiGoal
         var ambientLight = mob.level().getMaxLocalRawBrightness(mob.blockPosition());
         var tooBright = ambientLight > 4;
 
+        var nearbyLightBlock = mob.level().getBrightness(LightLayer.BLOCK, mob.blockPosition()) > 4;
+
         TargetClassifier.classify(mob, blackboard);
         var targetIsRanged = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_RANGED));
         var targetIsNearHive = Boolean.TRUE.equals(blackboard.get(AiKeys.TARGET_IS_NEAR_HIVE));
@@ -85,7 +88,7 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity, AiGoal
         var huntScore = 0f;
         var ambushScore = 0f;
         var breakScore = 0f;
-        var lightsScore = tooBright ? 35f : 0f;
+        var lightsScore = tooBright && nearbyLightBlock ? 35f : 0f;
         var defendScore = 0f;
         var retreatScore = 0f;
         var investigateScore = 0f;
@@ -125,7 +128,7 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity, AiGoal
             ambushFromDarknessScore = 45f + ambientLight * 2f;
             huntScore -= 20f;
         }
-        if (tooBright) {
+        if (tooBright && nearbyLightBlock) {
             lightsScore = 20f + ambientLight * 3f;
         }
 
@@ -178,6 +181,16 @@ public final class RunnerGoalPlanner implements GoalPlanner<RunnerEntity, AiGoal
                     if (failedGoal == AiGoalType.HUNT_TARGET) {
                         huntScore -= PENALTY_FAILED * 0.5f;
                         gfc.recordFailure(AiGoalType.HUNT_TARGET, tick, 40);
+                    }
+                }
+                case FAILED_PRECONDITION -> {
+                    if (failedGoal == AiGoalType.KILL_LIGHTS) {
+                        lightsScore -= PENALTY_FAILED;
+                        gfc.recordFailure(AiGoalType.KILL_LIGHTS, tick, 200);
+                    }
+                    if (failedGoal == AiGoalType.BREAK_OBSTACLE) {
+                        breakScore -= PENALTY_FAILED;
+                        gfc.recordFailure(AiGoalType.BREAK_OBSTACLE, tick, 200);
                     }
                 }
                 case FAILED_OBSTACLE_UNBREAKABLE -> {

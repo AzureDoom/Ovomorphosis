@@ -11,7 +11,6 @@ import com.azure.azurecortex.navigation.astar.AStarPathfinder;
 import com.azure.azurecortex.navigation.astar.IncrementalPathSession;
 import com.azure.azurecortex.navigation.astar.PathNodeCache;
 import com.azure.azurecortex.navigation.astar.PhasedPathSession;
-import com.azure.azurecortex.navigation.crawl.CrawlCapability;
 import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.navigation.crawl.CrawlTraversalEvaluator;
 import com.azure.azurecortex.navigation.movement.MovementController;
@@ -56,7 +55,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
      */
     private static final int SOFT_NO_PROGRESS_TICKS = HARD_NO_PROGRESS_TICKS / 2;
 
-    private static final int ABSOLUTE_MAX_CHASE_TICKS = 100;
+    private static final int ABSOLUTE_MAX_CHASE_TICKS = 600;
 
     /**
      * Max distance (blocks, squared) at which {@link #findEncasingWallBreakTarget} bothers checking at all. Kept small
@@ -347,9 +346,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 && !nodeCache.isSafeClimbNode(mob.level(), mobFeetPos, mob)
         ) {
             CrawlController.setWallCrawling(mob, false);
-            if (mob instanceof CrawlCapability wc) {
-                wc.setWallCrawlGraceTicks(0);
-            }
             isCrawlingNow = false;
         }
         var nearbyTunnelEntry = canCrawl ? findNearbyTunnelEntry(mob) : null;
@@ -539,8 +535,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                             if (closeEnoughToClimb) {
                                 CrawlController.setWallCrawling(mob, true);
                                 CrawlController.updateCrawlOrientation(mob, move);
-                            } else if (mob instanceof CrawlCapability wc) {
-                                wc.setWallCrawlGraceTicks(0);
                             }
                         }
                         mob.setDeltaMovement(move);
@@ -686,7 +680,12 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 : ActionOutcome.blocked(PlanFailureReason.FAILED_BLOCKED, mob.blockPosition(), blockingPositions);
         }
 
-        if (mob.horizontalCollision && blockBreakCooldown <= 0) {
+        var canAttach = canAttachToClimbSurface(mob, waypoint);
+        var crawlIsBetterOption = canCrawl
+            && !CrawlController.isWallCrawling(mob)
+            && canAttach;
+
+        if (mob.horizontalCollision && blockBreakCooldown <= 0 && !crawlIsBetterOption) {
             var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
             if (forwardDir.lengthSqr() > 0.01D) {
                 forwardDir = forwardDir.normalize();
@@ -705,7 +704,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             }
         }
 
-        if (noProgressTicks > 5 && blockBreakCooldown <= 0) {
+        if (noProgressTicks > 5 && blockBreakCooldown <= 0 && !crawlIsBetterOption) {
             var forwardDir = new Vec3(direction.x, 0.0D, direction.z);
             if (forwardDir.lengthSqr() > 0.01D) {
                 forwardDir = forwardDir.normalize();
@@ -717,6 +716,19 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                     faceTarget(mob, target);
                     return;
                 }
+            }
+        }
+
+        if (
+            noProgressTicks > 5 && blockBreakCooldown <= 0 && shouldUseCrawlingNow && target.getY() > mob.getY() + 0.5D
+        ) {
+            if (tryBreakOverheadObstacle(mob, blackboard)) {
+                blockBreakCooldown = 10;
+                noProgressTicks = 0;
+                stuckTicks = 0;
+                repathCooldown = 0;
+                faceTarget(mob, target);
+                return;
             }
         }
 
@@ -855,9 +867,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                     centerMove.z
                 );
             } else {
-                if (mob instanceof CrawlCapability wc) {
-                    wc.setWallCrawlGraceTicks(0);
-                }
                 CrawlController.setWallCrawling(mob, false);
                 shaftVelocity = new Vec3(
                     centerError.x * 0.35D,
@@ -930,8 +939,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
                 var descending = yError < -0.20D;
                 CrawlController.setWallCrawling(mob, !descending);
-                if (descending && mob instanceof CrawlCapability wc) {
-                    wc.setWallCrawlGraceTicks(0);
+                if (descending) {
                     vertical = Math.min(vertical, -speed * 0.6D);
                     tunnelVelocity = new Vec3(0.0D, vertical, 0.0D);
                 }
@@ -1013,9 +1021,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             var toWaypoint = new Vec3(direction.x, 0.0D, direction.z);
             if (toWaypoint.lengthSqr() > 0.01D) {
                 CrawlController.setWallCrawling(mob, false);
-                if (mob instanceof CrawlCapability wc) {
-                    wc.setWallCrawlGraceTicks(0);
-                }
                 var move = toWaypoint.normalize().scale(speed);
                 var yVel = Math.min(mob.getDeltaMovement().y, -0.15D);
                 mob.setDeltaMovement(move.x, yVel, move.z);
@@ -1058,9 +1063,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             var lookAheadCenter = Vec3.atBottomCenterOf(lookAheadBlock);
             var toGoal = new Vec3(lookAheadCenter.x - mob.getX(), 0.0D, lookAheadCenter.z - mob.getZ());
             if (toGoal.lengthSqr() > 0.01D) {
-                if (canCrawl && mob instanceof CrawlCapability wc) {
-                    wc.setWallCrawlGraceTicks(0);
-                }
                 var stepDown = toGoal.normalize().scale(speed);
                 var yVel = Math.min(mob.getDeltaMovement().y, -0.15D);
 
@@ -1111,9 +1113,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 stuckTicks = 0;
                 repathCooldown = 0;
                 faceTarget(mob, target);
-                if (mob instanceof CrawlCapability wc) {
-                    wc.setWallCrawlGraceTicks(0);
-                }
                 return;
             }
 
@@ -1142,9 +1141,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 var nudge = new Vec3(toTarget.x, 0.0D, toTarget.z);
                 if (nudge.lengthSqr() > 0.0001D) {
                     var walkOff = nudge.normalize().scale(speed);
-                    if (mob instanceof CrawlCapability wc) {
-                        wc.setWallCrawlGraceTicks(0);
-                    }
                     mob.setDeltaMovement(walkOff.x, mob.getDeltaMovement().y, walkOff.z);
                     mob.hasImpulse = true;
                     stuckTicks = 0;
@@ -1240,9 +1236,6 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 var nudge = new Vec3(toTarget.x, 0.0D, toTarget.z);
                 if (nudge.lengthSqr() > 0.0001D) {
                     var walkOff = nudge.normalize().scale(speed);
-                    if (mob instanceof CrawlCapability wc) {
-                        wc.setWallCrawlGraceTicks(0);
-                    }
                     mob.setDeltaMovement(walkOff.x, mob.getDeltaMovement().y, walkOff.z);
                     mob.hasImpulse = true;
                     faceTarget(mob, target);
@@ -1704,6 +1697,28 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             blackboard.set(AiKeys.BREAK_TO_TARGET_SCAN, toBreak);
             blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
             return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks straight up from the mob's head for a breakable obstruction — the counterpart to
+     * {@link #tryBreakBlockingPathBlock}'s horizontal-only probe, for a mob wall-crawling nearly straight up toward a
+     * target directly overhead. A roof eave overhanging the wall the mob is climbing sits directly above its head, not
+     * ahead of it on the horizontal plane, so it's otherwise never found no matter how long the climb stalls there.
+     * Reuses {@link #canBreakPathBlock}'s breakability rules and the same {@link AiKeys#BREAK_TO_TARGET_SCAN}/
+     * {@link AiKeys#BREAK_TO_TARGET_TRIGGER} hand-off to {@code BreakToTargetAction} that the horizontal path uses.
+     */
+    private boolean tryBreakOverheadObstacle(E mob, Blackboard blackboard) {
+        var head = BlockPos.containing(mob.getX(), mob.getBoundingBox().maxY, mob.getZ());
+
+        for (var dy = 0; dy <= 2; dy++) {
+            var check = head.above(dy);
+            if (canBreakPathBlock(mob, check)) {
+                blackboard.set(AiKeys.BREAK_TO_TARGET_SCAN, check);
+                blackboard.set(AiKeys.BREAK_TO_TARGET_TRIGGER, Boolean.TRUE);
+                return true;
+            }
         }
         return false;
     }

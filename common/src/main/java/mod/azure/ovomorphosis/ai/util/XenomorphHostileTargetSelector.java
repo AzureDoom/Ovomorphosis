@@ -19,14 +19,21 @@ import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
  * "anything within range, sight or no sight" the way a plain distance scan would — a candidate hiding behind a wall or
  * around a corner is invisible to this selector no matter how close it is, exactly like it would be to the mob itself.
  * <p>
- * Once a target is acquired, it's retained a little more generously via {@link #canSense} (line of sight OR close
- * enough to notice by proximity alone) so a target that ducks out of view for a moment isn't dropped instantly. When a
- * target is lost outright, {@code TargetSensor}'s own visibility-gated {@code LAST_SEEN_POS}/{@code LAST_SEEN_TICK}
- * tracking (see the {@code TargetSensor.lineOfSight()} predicate both entities are constructed with) is what backs the
- * goal planner's INVESTIGATE behavior — this selector doesn't need to reimplement any of that itself.
+ * Once a target is acquired, losing direct perception of it doesn't drop it immediately: {@link #canSense} (line of
+ * sight OR close proximity) is the fast path, but a target that fails both still survives for
+ * {@link #LOST_SENSE_GRACE_TICKS} ticks (tracked via {@link #lastSensedGameTick}) as long as it's still within
+ * {@link #range}. This matters most for stalking behavior (AMBUSH_TARGET/AMBUSH_FROM_DARKNESS) — a mob deliberately
+ * keeping its distance and using cover to stay concealed will naturally lose direct LOS to its target for stretches at
+ * a time as part of doing that correctly, not because it actually lost track of it. Without this grace window, a
+ * momentary LOS break during ordinary stalking read as "target gone," instantly aborting the ambush and falling back to
+ * INVESTIGATE/SEEK_DARKNESS — a much worse outcome than briefly tracking a target it can't currently see. Once the
+ * grace window actually expires, {@code TargetSensor}'s own visibility-gated {@code LAST_SEEN_POS}/
+ * {@code LAST_SEEN_TICK} tracking (see the {@code TargetSensor.lineOfSight()} predicate both entities are constructed
+ * with) is what backs the goal planner's INVESTIGATE behavior — this selector doesn't need to reimplement any of that
+ * itself.
  * <p>
- * When nothing is currently visible, this selector falls back to clues instead of knowing where a hidden target is:
- * {@link #hearSound} queues the position of recent significant noises (see the {@code onGameEvent} hooks on
+ * When nothing is currently perceived at all, this selector falls back to clues instead of knowing where a hidden
+ * target is: {@link #hearSound} queues the position of recent significant noises (see the {@code onGameEvent} hooks on
  * {@code XenomorphEntity}/{@code RunnerEntity}), and {@link #findTarget} pops the nearest one onto
  * {@link CommonBlackboardKeys#DESTINATION} so the mob walks over to investigate — giving it a genuine chance to spot
  * whatever made the noise once it's close enough, rather than teleporting its attention straight to the source.
@@ -40,9 +47,30 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
      */
     private static final double CLOSE_SENSE_RANGE = 4.0D;
 
+    /**
+     * How many ticks a target may go without being actually sensed (per {@link #canSense}) before this selector finally
+     * gives up on it. 100 ticks (5 seconds) is long enough to ride out normal stalking gaps — moving behind cover,
+     * waiting in shadow, circling around an obstruction — without turning into indefinite omniscient tracking of a
+     * target the mob hasn't perceived in any way for a long stretch.
+     */
+    private static final int LOST_SENSE_GRACE_TICKS = 300;
+
     private final double range;
 
     private final ArrayDeque<BlockPos> heardQueue = new ArrayDeque<>();
+
+    /**
+     * The target this selector was last tracking, used to detect a freshly assigned target and reset
+     * {@link #lastSensedGameTick} accordingly rather than inheriting a stale grace window from whatever was tracked
+     * before it.
+     */
+    private LivingEntity lastTrackedTarget = null;
+
+    /**
+     * Game tick {@link #lastTrackedTarget} was last actually perceived via {@link #canSense}, or
+     * {@code Integer.MIN_VALUE} if it never has been (e.g. freshly assigned by something other than this selector).
+     */
+    private int lastSensedGameTick = Integer.MIN_VALUE;
 
     public XenomorphHostileTargetSelector(double range) {
         this.range = range;
@@ -70,19 +98,33 @@ public final class XenomorphHostileTargetSelector<E extends AbstractAlienEntity>
     @Override
     public LivingEntity findTarget(E mob, Blackboard blackboard) {
         var current = blackboard.get(CommonBlackboardKeys.TARGET);
+        var currentTick = (int) mob.level().getGameTime();
 
-        if (
-            current != null && current.isAlive()
-                && TargetingUtils.validTarget(mob).test(current)
-                && canSense(mob, current)
-        ) {
-            return current;
+        if (current != lastTrackedTarget) {
+            lastTrackedTarget = current;
+            lastSensedGameTick = current != null ? currentTick : Integer.MIN_VALUE;
+        }
+
+        if (current != null && current.isAlive() && TargetingUtils.validTarget(mob).test(current)) {
+            if (canSense(mob, current)) {
+                lastSensedGameTick = currentTick;
+                return current;
+            }
+
+            var withinGraceWindow = lastSensedGameTick != Integer.MIN_VALUE
+                && currentTick - lastSensedGameTick <= LOST_SENSE_GRACE_TICKS;
+
+            if (withinGraceWindow && mob.distanceToSqr(current) <= range * range) {
+                return current;
+            }
         }
 
         var spotted = findVisibleCandidate(mob);
 
         if (spotted != null) {
             heardQueue.clear();
+            lastTrackedTarget = spotted;
+            lastSensedGameTick = currentTick;
             return spotted;
         }
 

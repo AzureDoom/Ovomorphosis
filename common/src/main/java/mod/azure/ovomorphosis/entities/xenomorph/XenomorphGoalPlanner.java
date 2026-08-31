@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
 
 import java.util.Optional;
 
@@ -205,6 +206,8 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
         var ambientLight = mob.level().getMaxLocalRawBrightness(mob.blockPosition());
         var tooBright = ambientLight > 4;
 
+        var nearbyLightBlock = mob.level().getBrightness(LightLayer.BLOCK, mob.blockPosition()) > 4;
+
         TargetClassifier.classify(mob, blackboard);
         var targetIsRanged = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_RANGED));
         var targetIsIsolated = Boolean.TRUE.equals(blackboard.get(CommonBlackboardKeys.TARGET_IS_ISOLATED));
@@ -217,7 +220,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
         var huntScore = 0f;
         var ambushScore = 0f;
         var breakScore = 0f;
-        var lightsScore = tooBright ? 35f : 0f;
+        var lightsScore = tooBright && nearbyLightBlock ? 35f : 0f;
         var hiveScore = 10f;
         var defendScore = 0f;
         var retreatScore = 0f;
@@ -337,7 +340,7 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
             hiveScore = 20f;
         }
 
-        if (tooBright) {
+        if (tooBright && nearbyLightBlock) {
             lightsScore = 20f + ambientLight * 3f;
         }
 
@@ -401,6 +404,16 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
                     if (failedGoal == AiGoalType.EXPAND_HIVE) {
                         hiveScore -= PENALTY_FAILED * 0.5f;
                         gfc.recordFailure(AiGoalType.EXPAND_HIVE, tick, 40);
+                    }
+                }
+                case FAILED_PRECONDITION -> {
+                    if (failedGoal == AiGoalType.KILL_LIGHTS) {
+                        lightsScore -= PENALTY_FAILED;
+                        gfc.recordFailure(AiGoalType.KILL_LIGHTS, tick, 200);
+                    }
+                    if (failedGoal == AiGoalType.BREAK_OBSTACLE) {
+                        breakScore -= PENALTY_FAILED;
+                        gfc.recordFailure(AiGoalType.BREAK_OBSTACLE, tick, 200);
                     }
                 }
                 case FAILED_OBSTACLE_UNBREAKABLE -> {
