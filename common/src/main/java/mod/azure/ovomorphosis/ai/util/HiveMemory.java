@@ -8,6 +8,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
@@ -55,6 +56,21 @@ public final class HiveMemory {
 
     /** Once {@code true}, {@link PlaceResinAction} switches from building the dome shell to extending tunnels. */
     private boolean domeComplete = false;
+
+    /**
+     * Live count of resin structure blocks (per {@link ModTags#RESIN} — dome shell, tunnels, web crosses; vents are
+     * tracked separately via {@link #ventNodes}) currently standing anywhere near this hive. Incremented by
+     * {@code AbstractResinBlock#onPlace} and decremented by {@code AbstractResinBlock#onRemove} for every such block
+     * attributed to this hive, regardless of who placed or broke it. Never allowed below zero.
+     */
+    private int structureBlockCount = 0;
+
+    /**
+     * Once {@code true}, this hive has had at least one resin structure block or vent block registered to it at some
+     * point. Guards {@link #isFullyDestroyed()} so a brand-new hive that simply hasn't built anything yet isn't
+     * mistaken for one that was built up and then torn back down to nothing.
+     */
+    private boolean everHadStructure = false;
 
     /** Tunnels currently being carved outward from the dome. Persisted so tunnel state survives a chunk/mob reload. */
     private final List<TunnelState> activeTunnels = new ArrayList<>();
@@ -170,6 +186,7 @@ public final class HiveMemory {
             return;
 
         ventNodes.put(immutable, new HiveVentNode(immutable, List.of(), 0L, false));
+        everHadStructure = true;
         relinkVentCluster(immutable);
     }
 
@@ -234,6 +251,23 @@ public final class HiveMemory {
     private void relinkVentCluster(BlockPos seed) {
         var radiusSq = VENT_LINK_RADIUS * VENT_LINK_RADIUS;
 
+        var component = createComponent(seed, radiusSq);
+
+        for (var pos : component) {
+            var others = new ArrayList<BlockPos>(component.size() - 1);
+            for (var other : component) {
+                if (!other.equals(pos))
+                    others.add(other);
+            }
+
+            var existing = ventNodes.get(pos);
+            if (existing != null) {
+                ventNodes.put(pos, existing.withLinkedExits(others));
+            }
+        }
+    }
+
+    private @NotNull ArrayList<BlockPos> createComponent(BlockPos seed, double radiusSq) {
         var component = new ArrayList<BlockPos>();
         var visited = new HashSet<BlockPos>();
         var queue = new ArrayDeque<BlockPos>();
@@ -253,19 +287,7 @@ public final class HiveMemory {
                 }
             }
         }
-
-        for (var pos : component) {
-            var others = new ArrayList<BlockPos>(component.size() - 1);
-            for (var other : component) {
-                if (!other.equals(pos))
-                    others.add(other);
-            }
-
-            var existing = ventNodes.get(pos);
-            if (existing != null) {
-                ventNodes.put(pos, existing.withLinkedExits(others));
-            }
-        }
+        return component;
     }
 
     /** Re-links every currently-known vent network from scratch. Used after a bulk change such as eviction/load. */
@@ -278,7 +300,7 @@ public final class HiveMemory {
 
             var node = ventNodes.get(seed);
             if (node != null) {
-                pending.removeAll(node.linkedExits());
+                node.linkedExits().forEach(pending::remove);
             }
             pending.remove(seed);
         }
@@ -435,6 +457,37 @@ public final class HiveMemory {
         if (domeFillCount >= completionThreshold) {
             domeComplete = true;
         }
+    }
+
+    /**
+     * Records that a resin structure block was just placed and now belongs to this hive. Called from
+     * {@code AbstractResinBlock#onPlace} for every non-vent {@link ModTags#RESIN} block attributed to this hive.
+     */
+    public void incrementStructureBlockCount() {
+        structureBlockCount++;
+        everHadStructure = true;
+    }
+
+    /**
+     * Records that a resin structure block belonging to this hive was destroyed. Called from
+     * {@code AbstractResinBlock#onRemove}. Floored at zero so an out-of-order or duplicate removal can never make the
+     * count go negative.
+     */
+    public void decrementStructureBlockCount() {
+        if (structureBlockCount > 0) {
+            structureBlockCount--;
+        }
+    }
+
+    /**
+     * @return {@code true} once this hive has, at some point, actually had structure ({@link #everHadStructure}), and
+     *         every resin structure block and vent it had has since been destroyed — meaning nothing of it remains
+     *         standing in the world for a newly created xenomorph to find. Used by
+     *         {@code OvomorphosisSavedData#removeHiveIfDestroyed} to drop the hive from save data once this becomes
+     *         true, so future xenomorphs can't bind to a hive that no longer physically exists.
+     */
+    public boolean isFullyDestroyed() {
+        return everHadStructure && structureBlockCount <= 0 && ventNodes.isEmpty();
     }
 
     /** @return the mutable list of tunnels currently being carved; callers may add/remove entries directly */
@@ -861,6 +914,8 @@ public final class HiveMemory {
         }
         tag.putInt("domeFillCount", domeFillCount);
         tag.putBoolean("domeComplete", domeComplete);
+        tag.putInt("structureBlockCount", structureBlockCount);
+        tag.putBoolean("everHadStructure", everHadStructure);
 
         var tunnelList = new ListTag();
         for (var tunnel : activeTunnels) {
@@ -941,6 +996,12 @@ public final class HiveMemory {
         memory.domeComplete =
             tag.getBoolean("domeComplete");
 
+        memory.structureBlockCount =
+            tag.getInt("structureBlockCount");
+
+        memory.everHadStructure =
+            tag.getBoolean("everHadStructure");
+
         if (tag.contains("tunnels", Tag.TAG_LIST)) {
             var tunnelList =
                 tag.getList("tunnels", Tag.TAG_COMPOUND);
@@ -1005,6 +1066,10 @@ public final class HiveMemory {
                 memory.ventNodes.put(pos, new HiveVentNode(pos, List.of(), entry.getLong("lastUsed"), false));
             }
             memory.relinkAllVentClusters();
+        }
+
+        if (memory.structureBlockCount > 0 || !memory.ventNodes.isEmpty()) {
+            memory.everHadStructure = true;
         }
 
         return memory;

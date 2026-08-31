@@ -147,6 +147,33 @@ public final class OvomorphosisSavedData extends SavedData {
         get(level).setDirty();
     }
 
+    /**
+     * Drops {@code hive} from {@code level}'s dimension once every block it ever had has been destroyed (see
+     * {@link HiveMemory#isFullyDestroyed()}), so it no longer shows up for {@link #findNearestHive} or
+     * {@link #getOrCreateHive} — meaning a newly spawned or freshly hatched xenomorph can no longer bind to a hive that
+     * no longer physically exists in the world (see {@code XenomorphEntity#ensureHiveAssignment}), and one that later
+     * rebuilds there simply creates a fresh hive entry instead.
+     * <p>
+     * A no-op (returning {@code false}) if the hive still has structure left, or is somehow no longer present in the
+     * dimension's list.
+     *
+     * @return {@code true} if the hive was actually removed
+     */
+    public static boolean removeHiveIfDestroyed(ServerLevel level, HiveMemory hive) {
+        if (!hive.isFullyDestroyed())
+            return false;
+
+        var data = get(level);
+        var dimensionHives = data.hives.get(level.dimension());
+
+        if (dimensionHives != null && dimensionHives.remove(hive)) {
+            data.setDirty();
+            return true;
+        }
+
+        return false;
+    }
+
     private static OvomorphosisSavedData load(CompoundTag tag, ServerLevel level) {
         var data = new OvomorphosisSavedData();
         EggmorphTracker.clearAll();

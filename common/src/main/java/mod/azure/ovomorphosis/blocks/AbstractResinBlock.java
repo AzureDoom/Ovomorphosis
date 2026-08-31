@@ -97,11 +97,44 @@ public abstract class AbstractResinBlock extends Block {
     }
 
     /**
+     * Counts a resin structure block (per {@link ModTags#RESIN} — deliberately excludes vent blocks, which have their
+     * own separate lifecycle in {@code VentBlock}) toward the nearest hive whenever one genuinely newly appears, so
+     * {@code HiveMemory#isFullyDestroyed} has an accurate live count to check against. Mirrors {@link #onRemove}'s own
+     * guard: only an actual change of block (not an in-place state change, e.g. {@link ResinBlock} incrementing its own
+     * layer count) is counted, so growth/decay of an existing block is never double-counted as a new one.
+     */
+    @Override
+    protected void onPlace(
+        @NotNull BlockState state,
+        @NotNull Level level,
+        @NotNull BlockPos pos,
+        @NotNull BlockState oldState,
+        boolean movedByPiston
+    ) {
+        super.onPlace(state, level, pos, oldState, movedByPiston);
+        if (
+            !level.isClientSide()
+                && !oldState.is(state.getBlock())
+                && state.is(ModTags.RESIN)
+                && level instanceof ServerLevel serverLevel
+        ) {
+            OvomorphosisSavedData.findNearestHive(serverLevel, pos)
+                .ifPresent(hive -> {
+                    hive.incrementStructureBlockCount();
+                    OvomorphosisSavedData.markHiveDirty(serverLevel);
+                });
+        }
+    }
+
+    /**
      * Records a hive breach whenever an actual resin structure block (per {@link ModTags#RESIN} — deliberately excludes
      * vent blocks, which have their own separate lifecycle in {@code VentBlock}) is removed, so a mob can later be
-     * dispatched to repair it (see {@code HiveMemory#recordBreach}). Shared here (rather than duplicated across
-     * {@link ResinBlock}, {@code ResinWebFullBlock}, and the plain full-cube resin block) since all of them extend this
-     * class and none currently override {@code onRemove} without still calling {@code super}.
+     * dispatched to repair it (see {@code HiveMemory#recordBreach}), and decrements that hive's live structure-block
+     * count — removing the hive from save data entirely once nothing of it is left standing (see
+     * {@code OvomorphosisSavedData#removeHiveIfDestroyed}) so a newly created xenomorph can't join a dead hive. Shared
+     * here (rather than duplicated across {@link ResinBlock}, {@code ResinWebFullBlock}, and the plain full-cube resin
+     * block) since all of them extend this class and none currently override {@code onRemove} without still calling
+     * {@code super}.
      * <p>
      * Guarded by {@code !state.is(newState.getBlock())} so an in-place state change (e.g. {@link ResinBlock}
      * incrementing its own layer count) is never mistaken for a breach — only an actual change of block counts.
@@ -123,7 +156,10 @@ public abstract class AbstractResinBlock extends Block {
             OvomorphosisSavedData.findNearestHive(serverLevel, pos)
                 .ifPresent(hive -> {
                     hive.recordBreach(serverLevel, pos);
-                    OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    hive.decrementStructureBlockCount();
+                    if (!OvomorphosisSavedData.removeHiveIfDestroyed(serverLevel, hive)) {
+                        OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    }
                 });
         }
         super.onRemove(state, level, pos, newState, movedByPiston);

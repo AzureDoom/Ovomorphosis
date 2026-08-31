@@ -44,6 +44,12 @@ public class VentBlock extends AbstractResinBlock {
         }
     }
 
+    /**
+     * Unregisters this vent from its hive's vent network, then — since a vent counts toward
+     * {@code HiveMemory#isFullyDestroyed} just as much as a structure block does — removes the hive from save data
+     * entirely if that was the last piece of it left standing (see
+     * {@code OvomorphosisSavedData#removeHiveIfDestroyed}), so a newly created xenomorph can't join a dead hive.
+     */
     @Override
     protected void onRemove(
         @NotNull BlockState state,
@@ -56,7 +62,9 @@ public class VentBlock extends AbstractResinBlock {
             OvomorphosisSavedData.findNearestHive(serverLevel, pos)
                 .ifPresent(hive -> {
                     hive.unregisterVentBlock(pos);
-                    OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    if (!OvomorphosisSavedData.removeHiveIfDestroyed(serverLevel, hive)) {
+                        OvomorphosisSavedData.markHiveDirty(serverLevel);
+                    }
                 });
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
