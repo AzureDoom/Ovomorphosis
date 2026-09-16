@@ -34,6 +34,11 @@ public class OvomorphosisConfig {
 
     @Configurable
     @Configurable.Synchronized
+    @Configurable.Range(min = 0)
+    public int maxHiveStructureBlocks = 4000;
+
+    @Configurable
+    @Configurable.Synchronized
     public boolean enableAcidBlockBreaking = true;
 
     @Configurable
