@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.util.ModTags;
@@ -53,7 +54,7 @@ public abstract class AbstractResinBlock extends Block {
                 AreaEffectCloud.class,
                 new AABB(pos).inflate(4.0)
             ).isEmpty();
-            if (!cloudExists) {
+            if (!cloudExists && CommonMod.getConfig().blockConfigs.enableSmokeResinBurning) {
                 spawnToxicCloud(serverLevel, pos);
             }
         }
