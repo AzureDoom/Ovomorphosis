@@ -70,6 +70,10 @@ public class OvomorphosisConfig {
         @Configurable
         @Configurable.Synchronized
         public boolean enableResinBlockTicking = true;
+
+        @Configurable
+        @Configurable.Synchronized
+        public boolean enableSmokeResinBurning = true;
     }
 
     @Configurable

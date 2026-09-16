@@ -54,6 +54,7 @@
   "config.ovomorphosis.option.runnerKnockbackRes": "Runner Knockback Resistance",
   "config.ovomorphosis.option.runnerAttackDamage": "Runner Attack Damage",
   "config.ovomorphosis.option.runnerHostileRange": "Runner Hostile Range",
+  "config.ovomorphosis.option.enableSmokeResinBurning": "Enable Smoke on Resin burning",
   "entity.ovomorphosis.ovomorph": "Ovomorph",
   "entity.ovomorphosis.facehugger": "Facehugger",
   "entity.ovomorphosis.chestburster": "Chestburster",
