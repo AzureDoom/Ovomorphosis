@@ -63,7 +63,7 @@ public class OvomorphosisConfig {
         @Configurable
         @Configurable.Synchronized
         @Configurable.DecimalRange(min = 0.0D)
-        public float infectionScannerSoundVolume = 0.6F;
+        public float infectionScannerSoundVolume = 0.4F;
     }
 
     @Configurable
