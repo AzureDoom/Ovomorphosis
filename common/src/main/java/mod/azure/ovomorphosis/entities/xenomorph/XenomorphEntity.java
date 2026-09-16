@@ -392,16 +392,20 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     public @NotNull EntityDimensions getDimensions(@NotNull Pose pose) {
         var growthScale = this.getGrowthScale();
 
-        if (CrawlController.wasRecentlyWallCrawling(this)) {
-            return EntityDimensions.scalable(0.6F * growthScale, 0.6F * growthScale);
-        }
-
         var base = super.getDimensions(pose);
 
         return EntityDimensions.scalable(
             base.width * growthScale,
             base.height * growthScale
         );
+    }
+
+    @Override
+    public void travel(@NotNull Vec3 movement) {
+        if (CrawlController.shouldUseSlimMovement(this) && CrawlController.applySlimMovement(this)) {
+            return;
+        }
+        super.travel(movement);
     }
 
     @Override

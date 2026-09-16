@@ -13,6 +13,7 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.PathfinderMob;
@@ -267,6 +268,10 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
 
     @Override
     public boolean hurt(@NotNull DamageSource source, float amount) {
+        if (source.is(DamageTypes.IN_WALL)) {
+            return false;
+        }
+
         if (isAlive() && amount > 4F) {
             MobUtils.spawnAcid(damageSources(), source, this);
         }

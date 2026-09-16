@@ -812,7 +812,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 );
 
                 if (corrected.horizontalDistanceSqr() < 0.0001D) {
-                    var raisedBox = mob.getBoundingBox().move(horiz.x, 1.05D, horiz.z);
+                    var raisedBox = CrawlController.effectiveBoundingBox(mob).move(horiz.x, 1.05D, horiz.z);
                     if (mob.level().noCollision(mob, raisedBox)) {
                         corrected = new Vec3(0.0D, Math.max(mob.getDeltaMovement().y, speed * 0.95D), 0.0D);
                     } else {
@@ -1433,8 +1433,8 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
     private Vec3 findNearestWallDirection(E mob) {
         var level = mob.level();
-        var box = mob.getBoundingBox();
-        var probe = (mob.getBbWidth() / 2.0D) + 0.6D;
+        var box = CrawlController.effectiveBoundingBox(mob);
+        var probe = ((box.maxX - box.minX) / 2.0D) + 0.6D;
         var standingBox = box.move(0.0D, 1.0D, 0.0D);
 
         Vec3 best = null;
@@ -1494,8 +1494,8 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             return true;
 
         var level = mob.level();
-        var box = mob.getBoundingBox();
-        var checkDistance = (mob.getBbWidth() / 2.0D) + 0.5D;
+        var box = CrawlController.effectiveBoundingBox(mob);
+        var checkDistance = ((box.maxX - box.minX) / 2.0D) + 0.5D;
 
         if (!level.noCollision(mob, box.move(0.0D, 0.0D, -checkDistance)))
             return true;
@@ -1511,7 +1511,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
             if (toWaypoint.lengthSqr() < 0.25D) {
                 var standingBox = box.move(0.0D, 1.0D, 0.0D);
-                var sideProbe = (mob.getBbWidth() / 2.0D) + 0.6D;
+                var sideProbe = ((box.maxX - box.minX) / 2.0D) + 0.6D;
                 if (!level.noCollision(mob, standingBox.move(sideProbe, 0.0D, 0.0D)))
                     return true;
                 if (!level.noCollision(mob, standingBox.move(-sideProbe, 0.0D, 0.0D)))
@@ -1521,7 +1521,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 return !level.noCollision(mob, standingBox.move(0.0D, 0.0D, -sideProbe));
             } else if (toWaypoint.lengthSqr() > 0.0001D) {
                 var probeDir = toWaypoint.normalize();
-                var probeDistance = (mob.getBbWidth() / 2.0D) + 1.0D;
+                var probeDistance = ((box.maxX - box.minX) / 2.0D) + 1.0D;
                 if (!level.noCollision(mob, box.move(probeDir.scale(probeDistance))))
                     return true;
                 var standingBox = box.move(0.0D, 1.0D, 0.0D);
@@ -2213,12 +2213,12 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
     private Vec3 removeBlockedHorizontalComponents(E mob, Vec3 desired) {
         var level = mob.level();
-        var box = mob.getBoundingBox();
+        var box = CrawlController.effectiveBoundingBox(mob);
 
         var x = desired.x;
         var z = desired.z;
 
-        var probe = Math.max(0.08D, mob.getBbWidth() * 0.25D);
+        var probe = Math.max(0.08D, (box.maxX - box.minX) * 0.25D);
 
         if (Math.abs(x) > 0.0001D) {
             var xProbe = box.move(Math.copySign(probe, x), 0.0D, 0.0D);
@@ -2276,7 +2276,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
     private Vec3 findCornerEscapeStepUpVelocity(E mob, Vec3 desiredHorizontal) {
         var level = mob.level();
-        var box = mob.getBoundingBox();
+        var box = CrawlController.effectiveBoundingBox(mob);
 
         var desired = new Vec3(desiredHorizontal.x, 0.0D, desiredHorizontal.z);
         if (desired.lengthSqr() < 0.0001D) {
