@@ -190,6 +190,15 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
                 var needsRepair = hiveMemory.isDomeComplete()
                     && hiveMemory.findNearestPendingBreach(mob.level(), mobPos, LOCAL_SCAN_RADIUS).isPresent();
 
+                var maxHiveBlocks = CommonMod.getConfig().maxHiveStructureBlocks;
+                if (!needsRepair && maxHiveBlocks > 0 && hiveMemory.getStructureBlockCount() >= maxHiveBlocks) {
+                    return (ActionOutcome<G>) ActionOutcome.failed(
+                        PlanFailureReason.FAILED_UNSUITABLE_CONDITIONS,
+                        mobPos,
+                        AiGoalType.EXPAND_HIVE
+                    );
+                }
+
                 var count = (hiveMemory.isDomeComplete() && !needsRepair)
                     ? tickTunnelPhase(mob, hiveMemory, domeCenter)
                     : tickDomePhase(mob, hiveMemory, domeCenter);

@@ -571,6 +571,15 @@ public final class HiveMemory {
     }
 
     /**
+     * @return the live count of resin structure blocks (dome shell, tunnels, web crosses; vents excluded) currently
+     *         standing anywhere near this hive. Used to enforce {@code OvomorphosisConfig#maxHiveStructureBlocks} — a
+     *         hard cap on how large a single hive can grow.
+     */
+    public int getStructureBlockCount() {
+        return structureBlockCount;
+    }
+
+    /**
      * @return {@code true} once this hive has, at some point, actually had structure ({@link #everHadStructure}), and
      *         every resin structure block and vent it had has since been destroyed — meaning nothing of it remains
      *         standing in the world for a newly created xenomorph to find. Used by
