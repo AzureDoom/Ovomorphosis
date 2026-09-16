@@ -43,7 +43,7 @@ public final class FabricLibMod implements ModInitializer {
         });
         ResourceManagerHelper.get(PackType.SERVER_DATA)
             .registerReloadListener(StructureModifierManager.INSTANCE);
-        FlammableBlockRegistry.getDefaultInstance().add(ModTags.RESIN, 5, 5);
+        FlammableBlockRegistry.getDefaultInstance().add(ModTags.RESIN, 50, 50);
         FabricDefaultAttributeRegistry.register(
             EntityRegistry.OVOMORPH.get(),
             OvomorphEntity.createAttributes()

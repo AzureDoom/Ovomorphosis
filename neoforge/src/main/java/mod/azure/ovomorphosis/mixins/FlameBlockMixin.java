@@ -20,7 +20,7 @@ public class FlameBlockMixin implements IBlockExtension {
         @NotNull BlockPos pos,
         @NotNull Direction direction
     ) {
-        return 5;
+        return 50;
     }
 
     @Override
@@ -30,6 +30,6 @@ public class FlameBlockMixin implements IBlockExtension {
         @NotNull BlockPos pos,
         @NotNull Direction direction
     ) {
-        return 5;
+        return 50;
     }
 }
