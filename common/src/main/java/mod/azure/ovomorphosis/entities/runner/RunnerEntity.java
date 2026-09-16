@@ -28,7 +28,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.*;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -164,30 +163,11 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
-    public @NotNull AABB makeBoundingBox() {
-        var pos = this.position();
-        float height;
-        double halfX, halfZ;
-
-        if (CrawlController.isWallCrawling(this)) {
-            var scale = this.getGrowthScale();
-            halfX = halfZ = (0.6F * scale) / 2.0;
-            height = 0.6F * scale;
-        } else {
-            var scale = this.getGrowthScale();
-            halfX = (1.4 * scale) / 2.0;
-            halfZ = (2.6 * scale) / 2.0;
-            height = this.getDimensions(Pose.STANDING).height();
+    public void travel(@NotNull Vec3 movement) {
+        if (CrawlController.shouldUseSlimMovement(this) && CrawlController.applySlimMovement(this)) {
+            return;
         }
-
-        return new AABB(
-            pos.x - halfX,
-            pos.y,
-            pos.z - halfZ,
-            pos.x + halfX,
-            pos.y + height,
-            pos.z + halfZ
-        );
+        super.travel(movement);
     }
 
     @Override
@@ -290,14 +270,6 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     @Override
     public LivingEntity growInto() {
         return null;
-    }
-
-    @Override
-    @NotNull
-    public EntityDimensions getDefaultDimensions(@NotNull Pose pose) {
-        if (CrawlController.wasRecentlyWallCrawling(this))
-            return EntityDimensions.scalable(0.6F, 0.6F);
-        return super.getDefaultDimensions(pose);
     }
 
     @Override
