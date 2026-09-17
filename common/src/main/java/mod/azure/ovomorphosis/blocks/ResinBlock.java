@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.data.OvomorphosisSavedData;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
@@ -186,6 +187,13 @@ public class ResinBlock extends AbstractResinBlock {
         }
         if (level.getBlockState(pos.above()).is(Blocks.FIRE))
             return;
+
+        var maxHiveStructureBlocks = CommonMod.getConfig().maxHiveStructureBlocks;
+        if (maxHiveStructureBlocks > 0) {
+            var hive = OvomorphosisSavedData.findNearestHive(level, pos);
+            if (hive.isPresent() && hive.get().getStructureBlockCount() >= maxHiveStructureBlocks)
+                return;
+        }
 
         var directions = Direction.values();
         var start = random.nextInt(directions.length);
