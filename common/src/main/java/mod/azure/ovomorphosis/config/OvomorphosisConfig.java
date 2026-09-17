@@ -61,7 +61,6 @@ public class OvomorphosisConfig {
         public boolean disableInfectionScannerTimeOutput = true;
 
         @Configurable
-        @Configurable.Synchronized
         @Configurable.DecimalRange(min = 0.0D)
         public float infectionScannerSoundVolume = 0.4F;
     }
@@ -77,7 +76,6 @@ public class OvomorphosisConfig {
         public boolean enableResinBlockTicking = true;
 
         @Configurable
-        @Configurable.Synchronized
         public boolean enableSmokeResinBurning = true;
     }
 
