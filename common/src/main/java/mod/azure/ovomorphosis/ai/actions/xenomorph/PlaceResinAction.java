@@ -15,13 +15,16 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.ai.util.HiveMemory;
@@ -139,6 +142,15 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
 
     /** How many blocks tall each doorway column is, from dome floor level upward — enough headroom to walk through. */
     private static final int DOOR_HEIGHT = 3;
+
+    /**
+     * Cap on how many cells {@link #floodFillReachable} will visit. Bounds the cost of the containment check: a mob
+     * genuinely sealed into a small space (the case this exists to detect) terminates the flood-fill almost
+     * immediately, while a mob in open terrain is simply capped here rather than being allowed to explore arbitrarily
+     * far — candidates outside the capped region are treated the same as unreachable ones and just won't be offered
+     * this activation, which is harmless since the action retries every tick.
+     */
+    private static final int REACHABILITY_SCAN_CAP = 2048;
 
     private final int priority;
 
@@ -276,6 +288,7 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
         var level = mob.level();
         var origin = mob.blockPosition();
         var doorPositions = getDoorColumnPositions(domeCenter);
+        var reachable = floodFillReachable(level, origin);
 
         List<BlockPos> candidates = new ArrayList<>();
 
@@ -294,6 +307,9 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
                     if (doorPositions.contains(pos.immutable()))
                         continue;
 
+                    if (!isReachable(pos, reachable))
+                        continue;
+
                     if (isValidReplacementTarget(level, pos))
                         candidates.add(pos.immutable());
                 }
@@ -301,6 +317,82 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
         }
 
         return candidates;
+    }
+
+    /**
+     * Flood-fills outward from {@code origin} through blocks the mob could already occupy or dig through without any
+     * help (open air, naturally replaceable terrain, its own previously-placed resin, or {@link ModTags#WEAK_BLOCKS}),
+     * and returns every position visited, capped at {@link #REACHABILITY_SCAN_CAP}.
+     * <p>
+     * This is what actually enforces containment. Without it, {@link #findDomeShellCandidates} (and
+     * {@link #findBlockedDoor}) picked candidates purely by straight-line distance from {@code domeCenter} and
+     * solid-adjacency — a position on the far side of a sealed, non-weak wall was just as valid a target as one right
+     * next to the mob, since nothing checked whether the mob could actually get there. A candidate now has to be
+     * connected to the mob's own position through diggable/open space, so a genuine containment box (built from
+     * anything not {@link ModTags#WEAK_BLOCKS}) simply never produces any reachable candidates outside itself.
+     */
+    private Set<BlockPos> floodFillReachable(Level level, BlockPos origin) {
+        Set<BlockPos> visited = new HashSet<>();
+        var start = origin.immutable();
+        visited.add(start);
+
+        Deque<BlockPos> queue = new ArrayDeque<>();
+        queue.add(start);
+
+        while (!queue.isEmpty() && visited.size() < REACHABILITY_SCAN_CAP) {
+            var pos = queue.poll();
+
+            for (var dir : Direction.values()) {
+                var next = pos.relative(dir).immutable();
+
+                if (visited.contains(next))
+                    continue;
+
+                if (!isOpenForMobTraversal(level, next))
+                    continue;
+
+                visited.add(next);
+                queue.add(next);
+
+                if (visited.size() >= REACHABILITY_SCAN_CAP)
+                    break;
+            }
+        }
+
+        return visited;
+    }
+
+    /**
+     * {@code true} if {@code pos} is space the mob can already move through or dig through unassisted — open air,
+     * naturally replaceable terrain, hive resin/vents it already placed, or {@link ModTags#WEAK_BLOCKS}. Anything else
+     * (ordinary stone, a player's containment walls built from non-weak blocks, bedrock, etc.) stops the flood-fill
+     * from crossing it, which is exactly what keeps a sealed box sealed.
+     */
+    private boolean isOpenForMobTraversal(Level level, BlockPos pos) {
+        var state = level.getBlockState(pos);
+
+        if (state.is(ModTags.RESIN) || state.is(ModTags.VENT_BLOCKS))
+            return true;
+
+        if (state.is(ModTags.WEAK_BLOCKS)) {
+            var hardness = state.getDestroySpeed(level, pos);
+            return !(hardness < 0f);
+        }
+
+        return state.canBeReplaced();
+    }
+
+    /** {@code true} if {@code pos} itself, or any of its six face-adjacent neighbors, is in {@code reachable}. */
+    private boolean isReachable(BlockPos pos, Set<BlockPos> reachable) {
+        if (reachable.contains(pos))
+            return true;
+
+        for (var dir : Direction.values()) {
+            if (reachable.contains(pos.relative(dir)))
+                return true;
+        }
+
+        return false;
     }
 
     /**
@@ -341,6 +433,7 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
     private BlockPos findBlockedDoor(E mob, BlockPos domeCenter) {
         var level = mob.level();
         var origin = mob.blockPosition();
+        var reachable = floodFillReachable(level, origin);
 
         BlockPos best = null;
         var bestDistSq = Double.MAX_VALUE;
@@ -348,6 +441,9 @@ public final class PlaceResinAction<E extends Mob, G> implements Action<E, G> {
         for (var pos : getDoorColumnPositions(domeCenter)) {
             var distSq = origin.distSqr(pos);
             if (distSq > LOCAL_SCAN_RADIUS * (double) LOCAL_SCAN_RADIUS)
+                continue;
+
+            if (!isReachable(pos, reachable))
                 continue;
 
             var state = level.getBlockState(pos);
