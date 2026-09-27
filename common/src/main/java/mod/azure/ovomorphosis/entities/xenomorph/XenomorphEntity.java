@@ -246,7 +246,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         var blackboard = brainRuntime.getBlackboard();
         var cooldowns = brainRuntime.getCooldowns();
 
-        int currentTick = (int) this.level().getGameTime();
+        var currentTick = (int) this.level().getGameTime();
 
         @SuppressWarnings("unchecked")
         var activeGoal = (PlannedGoal<XenomorphEntity, AiGoalType>) blackboard.get(CommonBlackboardKeys.ACTIVE_GOAL);
