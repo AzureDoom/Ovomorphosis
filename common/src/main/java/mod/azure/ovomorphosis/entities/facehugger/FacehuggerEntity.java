@@ -217,7 +217,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
         this.setAggressive(false);
         entity.setSpeed(0.0f);
         entity.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 1200, 0));
-        if (entity instanceof ServerPlayer player && (!player.isCreative() || !player.isSpectator()))
+        if (entity instanceof ServerPlayer player && (!player.isCreative() && !player.isSpectator()))
             player.connection.send(new ClientboundSetPassengersPacket(entity));
     }
 
