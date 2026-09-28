@@ -232,7 +232,7 @@ public class FacehuggerEntity extends AbstractAlienEntity {
                 this.kill();
             }
             livingEntity.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 1000, 10, false, false));
-            if (livingEntity.getHealth() > livingEntity.getMaxHealth())
+            if (livingEntity.getHealth() < livingEntity.getMaxHealth())
                 livingEntity.heal(6);
             if (getVehicle() instanceof Player player && player.getFoodData().needsFood())
                 player.getFoodData().setFoodLevel(20);
