@@ -189,7 +189,7 @@ public class RunnerTree {
                 );
                 var yGap = currentTarget.getY() - runner.getY();
                 var canReachVert = Math.abs(yGap) <= 2.5D;
-                var dangerTarget = currentTarget.getType().is(ModTags.DANGER_ENTITIES);
+                var dangerTarget = currentTarget.getType().builtInRegistryHolder().is(ModTags.DANGER_ENTITIES);
                 var hasMeleeLOS = TargetingUtils.hasMeleeLineOfSight(runner, currentTarget);
                 var inMeleeRange = TargetingUtils.isInAttackRange(runner, currentTarget, 2.0D);
                 var combatCoolsFree = cooldowns.ready("swipe_combo") && cooldowns.ready("tail_attack");

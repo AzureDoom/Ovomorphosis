@@ -1,6 +1,6 @@
 package mod.azure.ovomorphosis.infection;
 
-import mod.azure.azurelib.common.platform.Services;
+import mod.azure.azurelib.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -237,14 +237,14 @@ public final class EggmorphTracker {
                 }
             }
 
-            serverPlayer.hasImpulse = true;
+            serverPlayer.needsSync = true;
             serverPlayer.connection.send(new ClientboundSetEntityMotionPacket(serverPlayer));
         } else {
             Vec3 movement = toCenter.lengthSqr() > 0.01D
                 ? toCenter.normalize().scale(MOB_PULL_STRENGTH)
                 : Vec3.ZERO;
             entity.setDeltaMovement(movement);
-            entity.hasImpulse = true;
+            entity.needsSync = true;
         }
     }
 
@@ -301,7 +301,12 @@ public final class EggmorphTracker {
             AdvancementUtils.triggerAdvancement(serverPlayer, "eggmorphed");
         }
 
-        entry.entity.hurt(DamageTypeRegistry.of(entry.entity.level(), DamageTypeRegistry.EGGMORPH), Float.MAX_VALUE);
+        if (entry.entity.level() instanceof ServerLevel serverLevel)
+            entry.entity.hurtServer(
+                serverLevel,
+                DamageTypeRegistry.of(entry.entity.level(), DamageTypeRegistry.EGGMORPH),
+                Float.MAX_VALUE
+            );
     }
 
     private boolean isInsideBlock(LivingEntity entity) {

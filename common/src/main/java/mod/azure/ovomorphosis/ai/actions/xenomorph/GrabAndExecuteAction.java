@@ -7,6 +7,7 @@ import com.azure.azurecortex.api.blackboard.Blackboard;
 import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
 import com.azure.azurecortex.goap.PlanFailureReason;
 import com.azure.azurecortex.runtime.CooldownTracker;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.Consumer;
@@ -66,7 +67,7 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity, G> implements
                 return ActionOutcome.failed(PlanFailureReason.FAILED_BLOCKED);
             }
 
-            target.startRiding(mob, true);
+            target.startRiding(mob, true, true);
             target.setSpeed(0.0f);
             grabbed = true;
         }
@@ -86,7 +87,8 @@ public final class GrabAndExecuteAction<E extends XenomorphEntity, G> implements
 
         if (holdTicks >= HOLD_DURATION_TICKS) {
             target.stopRiding();
-            target.kill();
+            if (mob.level() instanceof ServerLevel serverLevel)
+                target.kill(serverLevel);
             cooldowns.set(AiKeys.GRAB_COOLDOWN, 200);
             return ActionOutcome.success();
         }

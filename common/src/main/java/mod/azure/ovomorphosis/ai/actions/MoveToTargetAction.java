@@ -42,9 +42,9 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
     /**
      * Hard cap on {@link #noProgressTicks} before this action gives up and bubbles
      * {@link PlanFailureReason#FAILED_STUCK} up to GOAP via {@link CommonBlackboardKeys#LAST_PLAN_FEEDBACK}, instead of
-     * retrying local recovery (detours, block breaks, jumps) forever. Local recovery attempts do not reset this counter
-     * — only actual distance-to-target improvement does — so a mob that keeps detouring/jumping/breaking without ever
-     * closing the distance will still terminate and let the planner pick a different goal.
+     * retrying local recovery (detours, block breaks, jumps) forever. Local recovery attempts to do not reset this
+     * counter — only actual distance-to-target improvement does — so a mob that keeps detouring/jumping/breaking
+     * without ever closing the distance will still terminate and let the planner pick a different goal.
      */
     private static final int HARD_NO_PROGRESS_TICKS = 200;
 
@@ -251,7 +251,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
                 if (!safe.equals(Vec3.ZERO)) {
                     mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     faceTarget(mob, target);
                     return ActionOutcome.running();
                 }
@@ -538,7 +538,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                             }
                         }
                         mob.setDeltaMovement(move);
-                        mob.hasImpulse = true;
+                        mob.needsSync = true;
                         faceMovementDirection(mob, move);
                         return ActionOutcome.running();
                     } else if (waypointIsTightPassage) {
@@ -778,7 +778,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 CrawlController.setWallCrawling(mob, true);
                 CrawlController.updateCrawlOrientation(mob, crest);
                 mob.setDeltaMovement(crest);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, crest);
                 return;
             }
@@ -834,7 +834,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             CrawlController.setWallCrawling(mob, true);
             CrawlController.updateCrawlOrientation(mob, move);
             mob.setDeltaMovement(move);
-            mob.hasImpulse = true;
+            mob.needsSync = true;
             faceMovementDirection(mob, move);
 
             return;
@@ -878,7 +878,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             CrawlController.setWallCrawling(mob, true);
             CrawlController.updateCrawlOrientation(mob, shaftVelocity);
             mob.setDeltaMovement(shaftVelocity);
-            mob.hasImpulse = true;
+            mob.needsSync = true;
             faceMovementDirection(mob, shaftVelocity);
             return;
         }
@@ -928,7 +928,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                     CrawlController.updateCrawlOrientation(mob, tunnelVelocity);
                 }
                 mob.setDeltaMovement(tunnelVelocity);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, tunnelVelocity);
                 return;
             }
@@ -945,7 +945,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 }
                 CrawlController.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, tunnelVelocity);
                 return;
             }
@@ -1008,7 +1008,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             CrawlController.setWallCrawling(mob, true);
             CrawlController.updateCrawlOrientation(mob, crawlVelocity);
             mob.setDeltaMovement(crawlVelocity);
-            mob.hasImpulse = true;
+            mob.needsSync = true;
             faceMovementDirection(mob, crawlVelocity);
             return;
         }
@@ -1024,7 +1024,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 var move = toWaypoint.normalize().scale(speed);
                 var yVel = Math.min(mob.getDeltaMovement().y, -0.15D);
                 mob.setDeltaMovement(move.x, yVel, move.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, move);
                 return;
             }
@@ -1040,7 +1040,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                     var pushVelocity = new Vec3(wallDir.x * speed * 0.3D, speed * 0.6D, wallDir.z * speed * 0.3D);
                     CrawlController.updateCrawlOrientation(mob, pushVelocity);
                     mob.setDeltaMovement(pushVelocity);
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     faceMovementDirection(mob, pushVelocity);
                     return;
                 }
@@ -1067,7 +1067,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 var yVel = Math.min(mob.getDeltaMovement().y, -0.15D);
 
                 mob.setDeltaMovement(stepDown.x, yVel, stepDown.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, stepDown);
                 return;
             }
@@ -1082,7 +1082,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             var detourSafe = MovementController.findSafeMovement(mob, detourMove, steerBias);
             if (!detourSafe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(detourSafe.x, mob.getDeltaMovement().y, detourSafe.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceTarget(mob, target);
                 return;
             }
@@ -1109,7 +1109,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                     downForward.z
                 );
 
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 stuckTicks = 0;
                 repathCooldown = 0;
                 faceTarget(mob, target);
@@ -1120,7 +1120,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
             if (!targetBelow && mob.onGround() && isStairBlockAhead(mob, forward)) {
                 mob.setDeltaMovement(forward.x * speed * 0.9D, 0.32D, forward.z * speed * 0.9D);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 stuckTicks = 0;
                 faceTarget(mob, target);
                 return;
@@ -1142,7 +1142,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 if (nudge.lengthSqr() > 0.0001D) {
                     var walkOff = nudge.normalize().scale(speed);
                     mob.setDeltaMovement(walkOff.x, mob.getDeltaMovement().y, walkOff.z);
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     stuckTicks = 0;
                     repathCooldown = 0;
                     faceTarget(mob, target);
@@ -1176,7 +1176,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 if (TraversalQueries.hasSafeLandingAfterLeap(mob, leapDirection, 3.0D)) {
                     var leap = leapDirection.normalize().scale(0.75D);
                     mob.setDeltaMovement(leap.x, 0.75D, leap.z);
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     dangerLeapCooldown = 30;
                     stuckTicks = 0;
                     detourTicks = 0;
@@ -1196,7 +1196,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 stuckTicks = 0;
             } else if (mob.onGround() && target.getY() >= mob.getY() - 0.5D) {
                 mob.setDeltaMovement(movement.x * 0.8D, 0.42D, movement.z * 0.8D);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 stuckTicks = 0;
                 repathCooldown = 0;
                 faceTarget(mob, target);
@@ -1227,7 +1227,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
             } else {
                 mob.setDeltaMovement(safeFluidMove.x, yVel, safeFluidMove.z);
             }
-            mob.hasImpulse = true;
+            mob.needsSync = true;
             faceTarget(mob, target);
             return;
         }
@@ -1242,7 +1242,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
                 if (nudge.lengthSqr() > 0.0001D) {
                     var walkOff = nudge.normalize().scale(speed);
                     mob.setDeltaMovement(walkOff.x, mob.getDeltaMovement().y, walkOff.z);
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     faceTarget(mob, target);
                     return;
                 }
@@ -1253,7 +1253,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
         }
 
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
         faceTarget(mob, target);
     }
 
@@ -1339,7 +1339,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
             if (!safe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
             } else {
                 halt(mob);
             }
@@ -1766,7 +1766,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
         }
 
         mob.setDeltaMovement(forward.x * speed * 0.6D, mob.getDeltaMovement().y, forward.z * speed * 0.6D);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         return true;
     }
@@ -1814,7 +1814,7 @@ public final class MoveToTargetAction<E extends Mob, G> implements Action<E, G> 
 
     private void halt(E mob) {
         mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-        mob.hasImpulse = false;
+        mob.needsSync = false;
     }
 
     private void faceTarget(E mob, LivingEntity target) {

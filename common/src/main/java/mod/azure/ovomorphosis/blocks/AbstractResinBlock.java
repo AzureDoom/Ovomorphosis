@@ -13,6 +13,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.redstone.Orientation;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 
@@ -33,14 +34,14 @@ public abstract class AbstractResinBlock extends Block {
         @NotNull Level level,
         @NotNull BlockPos pos,
         @NotNull Block neighborBlock,
-        @NotNull BlockPos neighborPos,
+        Orientation orientation,
         boolean movedByPiston
     ) {
-        super.neighborChanged(state, level, pos, neighborBlock, neighborPos, movedByPiston);
+        super.neighborChanged(state, level, pos, neighborBlock, orientation, movedByPiston);
         if (level.isClientSide())
             return;
 
-        var neighborState = level.getBlockState(neighborPos);
+        var neighborState = level.getBlockState(pos);
         if (!neighborState.is(Blocks.FIRE) && !neighborState.is(Blocks.SOUL_FIRE))
             return;
 
@@ -93,16 +94,17 @@ public abstract class AbstractResinBlock extends Block {
         cloud.setRadiusPerTick(-cloud.getRadius() / cloud.getDuration());
         cloud.addEffect(new MobEffectInstance(MobEffects.POISON, 100, 1));
         cloud.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 100, 0));
-        cloud.setParticle(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE);
+        cloud.setCustomParticle(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE);
         level.addFreshEntity(cloud);
     }
 
     /**
      * Counts a resin structure block (per {@link ModTags#RESIN} — deliberately excludes vent blocks, which have their
      * own separate lifecycle in {@code VentBlock}) toward the nearest hive whenever one genuinely newly appears, so
-     * {@code HiveMemory#isFullyDestroyed} has an accurate live count to check against. Mirrors {@link #onRemove}'s own
-     * guard: only an actual change of block (not an in-place state change, e.g. {@link ResinBlock} incrementing its own
-     * layer count) is counted, so growth/decay of an existing block is never double-counted as a new one.
+     * {@code HiveMemory#isFullyDestroyed} has an accurate live count to check against. Mirrors
+     * {@link #affectNeighborsAfterRemoval}'s own guard: only an actual change of block (not an in-place state change,
+     * e.g. {@link ResinBlock} incrementing its own layer count) is counted, so growth/decay of an existing block is
+     * never double-counted as a new one.
      */
     @Override
     protected void onPlace(
@@ -127,30 +129,16 @@ public abstract class AbstractResinBlock extends Block {
         }
     }
 
-    /**
-     * Records a hive breach whenever an actual resin structure block (per {@link ModTags#RESIN} — deliberately excludes
-     * vent blocks, which have their own separate lifecycle in {@code VentBlock}) is removed, so a mob can later be
-     * dispatched to repair it (see {@code HiveMemory#recordBreach}), and decrements that hive's live structure-block
-     * count — removing the hive from save data entirely once nothing of it is left standing (see
-     * {@code OvomorphosisSavedData#removeHiveIfDestroyed}) so a newly created xenomorph can't join a dead hive. Shared
-     * here (rather than duplicated across {@link ResinBlock}, {@code ResinWebFullBlock}, and the plain full-cube resin
-     * block) since all of them extend this class and none currently override {@code onRemove} without still calling
-     * {@code super}.
-     * <p>
-     * Guarded by {@code !state.is(newState.getBlock())} so an in-place state change (e.g. {@link ResinBlock}
-     * incrementing its own layer count) is never mistaken for a breach — only an actual change of block counts.
-     */
     @Override
-    protected void onRemove(
+    protected void affectNeighborsAfterRemoval(
         @NotNull BlockState state,
-        @NotNull Level level,
+        @NotNull ServerLevel level,
         @NotNull BlockPos pos,
-        @NotNull BlockState newState,
         boolean movedByPiston
     ) {
         if (
             !level.isClientSide()
-                && !state.is(newState.getBlock())
+                && !state.is(state.getBlock())
                 && state.is(ModTags.RESIN)
                 && level instanceof ServerLevel serverLevel
         ) {
@@ -163,6 +151,6 @@ public abstract class AbstractResinBlock extends Block {
                     }
                 });
         }
-        super.onRemove(state, level, pos, newState, movedByPiston);
+        super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
     }
 }

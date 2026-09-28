@@ -54,7 +54,7 @@ public final class TimedAttackAction<E extends Mob, G> implements Action<E, G> {
         cooldowns.set(CommonBlackboardKeys.PASSIVE_DECISION, 1);
         this.age = 0;
         this.wasCrawlingOnStart = CrawlController.wasRecentlyWallCrawling(mob);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
         animationTrigger.accept(mob);
 
         if (wasCrawlingOnStart) {
@@ -98,7 +98,7 @@ public final class TimedAttackAction<E extends Mob, G> implements Action<E, G> {
         } else {
             mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
         }
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         if (age == damageTick) {
             if (MeleeHitResolver.tryStrike(mob, target, 2.5D)) {

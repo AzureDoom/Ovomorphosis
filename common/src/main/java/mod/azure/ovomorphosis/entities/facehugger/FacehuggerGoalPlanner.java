@@ -312,7 +312,7 @@ public final class FacehuggerGoalPlanner implements GoalPlanner<FacehuggerEntity
 
             if (!level.getBlockState(candidate).isAir())
                 continue;
-            if (!level.getBlockState(candidate.below()).isSolidRender(mob.level(), candidate))
+            if (!level.getBlockState(candidate.below()).isSolidRender())
                 continue;
 
             var light = level.getLightEmission(candidate);

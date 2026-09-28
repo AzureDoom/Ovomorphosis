@@ -6,9 +6,8 @@ import com.azure.azurecortex.goap.GoalExecutor;
 import com.azure.azurecortex.goap.PlannedGoal;
 import com.azure.azurecortex.runtime.CortexRuntime;
 import com.azure.azurecortex.sensing.TargetSensor;
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -22,6 +21,8 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -183,15 +184,15 @@ public class ChestbursterEntity extends AbstractAlienEntity implements Growable 
     }
 
     @Override
-    public void addAdditionalSaveData(@NotNull CompoundTag tag) {
+    public void addAdditionalSaveData(@NotNull ValueOutput tag) {
         super.addAdditionalSaveData(tag);
         tag.putFloat("growth", getGrowth());
     }
 
     @Override
-    public void readAdditionalSaveData(@NotNull CompoundTag tag) {
+    public void readAdditionalSaveData(@NotNull ValueInput tag) {
         super.readAdditionalSaveData(tag);
-        this.setGrowth(tag.getFloat("growth"));
+        this.setGrowth(tag.getFloatOr("growth", 0));
     }
 
     private void playAnimation(ClientAnimState next) {

@@ -10,7 +10,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import mod.azure.ovomorphosis.infection.EggmorphTracker;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockEntityRegistry;
 
@@ -37,21 +36,6 @@ public class ResinWebFullBlock extends AbstractResinBlock implements EntityBlock
             return ResinWebBlockEntity::serverTick;
         }
         return null;
-    }
-
-    @Override
-    protected void onRemove(
-        @NotNull BlockState state,
-        @NotNull Level level,
-        @NotNull BlockPos pos,
-        @NotNull BlockState newState,
-        boolean movedByPiston
-    ) {
-        if (!level.isClientSide()) {
-            EggmorphTracker.remove(pos);
-            ResinWebRegistry.unregister(level, pos);
-        }
-        super.onRemove(state, level, pos, newState, movedByPiston);
     }
 
     @Override

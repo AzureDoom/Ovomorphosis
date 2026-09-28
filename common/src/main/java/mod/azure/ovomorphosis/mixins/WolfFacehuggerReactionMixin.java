@@ -1,7 +1,7 @@
 package mod.azure.ovomorphosis.mixins;
 
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.world.entity.animal.Wolf;
+import net.minecraft.world.entity.animal.wolf.Wolf;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -43,7 +43,7 @@ public class WolfFacehuggerReactionMixin {
         );
 
         if (!nearby.isEmpty()) {
-            self.playSound(SoundEvents.WOLF_GROWL, 1.0F, self.getVoicePitch());
+            self.playSound(SoundEvents.WOLF_GROWL_BABY.value(), 1.0F, self.getVoicePitch());
             ovomorphosis$growlCooldown = COOLDOWN_TICKS;
         }
     }

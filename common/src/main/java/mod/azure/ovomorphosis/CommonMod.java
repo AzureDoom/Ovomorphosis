@@ -1,8 +1,8 @@
 package mod.azure.ovomorphosis;
 
 import mod.azure.azurelib.AzureLibMod;
-import mod.azure.azurelib.common.config.format.ConfigFormats;
-import net.minecraft.resources.ResourceLocation;
+import mod.azure.azurelib.config.format.ConfigFormats;
+import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -17,8 +17,8 @@ public class CommonMod {
 
     public static OvomorphosisConfig config;
 
-    public static ResourceLocation modResource(String name) {
-        return ResourceLocation.fromNamespaceAndPath(MOD_ID, name);
+    public static Identifier modResource(String name) {
+        return Identifier.fromNamespaceAndPath(MOD_ID, name);
     }
 
     public static void initRegistries() {

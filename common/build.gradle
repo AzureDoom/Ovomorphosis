@@ -1,6 +1,6 @@
 plugins {
     id 'multiloader-common'
-    id 'net.neoforged.moddev' version "${neo_moddev}"
+    id 'net.neoforged.moddev'
     id 'com.diffplug.spotless'
 }
 
@@ -8,32 +8,13 @@ neoForge {
     neoFormVersion = "${neoform_version}"
 
     accessTransformers = ["../common/src/main/resources/META-INF/accesstransformer.cfg"]
-
-    parchment {
-        minecraftVersion = "${parchment_minecraft}"
-        mappingsVersion = "${parchment_version}"
-    }
-
-    runs {
-        client {
-            client()
-        }
-        server {
-            server()
-        }
-    }
 }
 
 dependencies {
-    compileOnly "org.spongepowered:mixin:0.8.5"
+    compileOnly('net.fabricmc:sponge-mixin:0.17.3+mixin.0.8.7')
+    compileOnly(annotationProcessor('io.github.llamalad7:mixinextras-common:0.5.3'))
     compileOnly "mod.azure.azurelib:azurelib-common-${minecraft_version}:${azurelib_version}"
     compileOnly "com.azure.azurecortex:azurecortex-common-${minecraft_version}:${azurecortex_version}"
-    compileOnly "io.github.llamalad7:mixinextras-common:0.3.5"
-    annotationProcessor "io.github.llamalad7:mixinextras-common:0.3.5"
-    compileOnly "maven.modrinth:gigeresque:0.8.16"
-    compileOnly("com.avp.alien:avp_alien-neoforge-1.21.1:0.2.0-fork") {
-        exclude group: 'org.slf4j', module: 'slf4j-api'
-    }
 }
 
 configurations {

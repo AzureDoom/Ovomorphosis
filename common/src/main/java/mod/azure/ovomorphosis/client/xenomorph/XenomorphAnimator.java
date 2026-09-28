@@ -1,11 +1,11 @@
 package mod.azure.ovomorphosis.client.xenomorph;
 
-import mod.azure.azurelib.common.animation.AzAnimatorConfig;
-import mod.azure.azurelib.common.animation.controller.AzAnimationController;
-import mod.azure.azurelib.common.animation.controller.AzAnimationControllerContainer;
-import mod.azure.azurelib.common.animation.controller.keyframe.AzKeyframeCallbacks;
-import mod.azure.azurelib.common.animation.impl.AzEntityAnimator;
-import net.minecraft.resources.ResourceLocation;
+import mod.azure.azurelib.animation.AzAnimatorConfig;
+import mod.azure.azurelib.animation.controller.AzAnimationController;
+import mod.azure.azurelib.animation.controller.AzAnimationControllerContainer;
+import mod.azure.azurelib.animation.controller.keyframe.AzKeyframeCallbacks;
+import mod.azure.azurelib.animation.impl.AzEntityAnimator;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,7 +16,7 @@ import mod.azure.ovomorphosis.util.CommonStrings;
 
 public class XenomorphAnimator extends AzEntityAnimator<XenomorphEntity> {
 
-    private static final ResourceLocation ANIMATIONS = CommonMod.modResource(
+    private static final Identifier ANIMATIONS = CommonMod.modResource(
         "animations/entity/xenomorph.animation.json"
     );
 
@@ -59,7 +59,7 @@ public class XenomorphAnimator extends AzEntityAnimator<XenomorphEntity> {
     }
 
     @Override
-    public @NotNull ResourceLocation getAnimationLocation(XenomorphEntity xenomorph) {
+    public @NotNull Identifier getAnimationLocation(XenomorphEntity xenomorph) {
         return ANIMATIONS;
     }
 }

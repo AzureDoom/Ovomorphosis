@@ -4,7 +4,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.entity.animal.Fox;
+import net.minecraft.world.entity.animal.fox.Fox;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -24,7 +24,7 @@ public abstract class FoxMixin extends Animal {
     void ovomorphosis$noBuckling(CallbackInfo callbackInfo) {
         if (this.getPassengers().stream().anyMatch(AbstractAlienEntity.class::isInstance)) {
             this.removeFreeWill();
-            this.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 400, 10));
+            this.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 400, 10));
         }
     }
 }

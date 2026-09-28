@@ -51,22 +51,19 @@ public class VentBlock extends AbstractResinBlock {
      * {@code OvomorphosisSavedData#removeHiveIfDestroyed}), so a newly created xenomorph can't join a dead hive.
      */
     @Override
-    protected void onRemove(
+    protected void affectNeighborsAfterRemoval(
         @NotNull BlockState state,
-        @NotNull Level level,
+        @NotNull ServerLevel level,
         @NotNull BlockPos pos,
-        @NotNull BlockState newState,
         boolean movedByPiston
     ) {
-        if (!level.isClientSide() && level instanceof ServerLevel serverLevel) {
-            OvomorphosisSavedData.findNearestHive(serverLevel, pos)
-                .ifPresent(hive -> {
-                    hive.unregisterVentBlock(pos);
-                    if (!OvomorphosisSavedData.removeHiveIfDestroyed(serverLevel, hive)) {
-                        OvomorphosisSavedData.markHiveDirty(serverLevel);
-                    }
-                });
-        }
-        super.onRemove(state, level, pos, newState, movedByPiston);
+        OvomorphosisSavedData.findNearestHive(level, pos)
+            .ifPresent(hive -> {
+                hive.unregisterVentBlock(pos);
+                if (!OvomorphosisSavedData.removeHiveIfDestroyed(level, hive)) {
+                    OvomorphosisSavedData.markHiveDirty(level);
+                }
+            });
+        super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
     }
 }

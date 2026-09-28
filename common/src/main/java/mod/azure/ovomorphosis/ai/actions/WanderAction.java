@@ -110,7 +110,7 @@ public final class WanderAction<E extends Mob, G> implements Action<E, G> {
         }
 
         mob.setDeltaMovement(safeMovement.x, mob.getDeltaMovement().y, safeMovement.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
         faceMovementDirection(mob, safeMovement);
 
         if (CortexConfig.get().enablePathfindingDebug)

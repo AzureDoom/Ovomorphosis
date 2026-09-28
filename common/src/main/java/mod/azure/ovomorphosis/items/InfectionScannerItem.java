@@ -1,14 +1,16 @@
 package mod.azure.ovomorphosis.items;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -16,24 +18,22 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.CustomModelData;
+import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.CommonMod;
-import mod.azure.ovomorphosis.compat.AVPCompat;
-import mod.azure.ovomorphosis.compat.GigeresqueCompat;
 import mod.azure.ovomorphosis.infection.InfectionManager;
-import mod.azure.ovomorphosis.services.XenoServices;
 
 public class InfectionScannerItem extends Item {
-
-    private static final int MAX_DAMAGE = 32;
 
     public static final int MODEL_CLEAR = 0;
 
@@ -41,24 +41,30 @@ public class InfectionScannerItem extends Item {
 
     public static final int MODEL_CRITICAL = 2;
 
-    public InfectionScannerItem() {
-        super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
+    private static final String SCAN_TIME = "ScanTime";
+
+    private static final String SCAN_START = "ScanStart";
+
+    private static final String SCAN_TARGET = "ScanTarget";
+
+    public InfectionScannerItem(Item.Properties properties) {
+        super(properties);
     }
 
     @Override
-    public @NotNull InteractionResultHolder<ItemStack> use(
-        @NotNull Level level,
-        @NotNull Player player,
-        @NotNull InteractionHand hand
+    public @NonNull InteractionResult use(
+        @NonNull Level level,
+        @NonNull Player player,
+        @NonNull InteractionHand hand
     ) {
         var stack = player.getItemInHand(hand);
 
-        if (player.getCooldowns().isOnCooldown(this) || isScanning(stack)) {
-            return InteractionResultHolder.fail(stack);
+        if (player.getCooldowns().isOnCooldown(stack) || isScanning(stack)) {
+            return InteractionResult.FAIL;
         }
 
         if (level.isClientSide()) {
-            return InteractionResultHolder.success(stack);
+            return InteractionResult.SUCCESS;
         }
 
         var target = findLookTarget(player, level);
@@ -75,41 +81,31 @@ public class InfectionScannerItem extends Item {
             0.7F
         );
 
-        return InteractionResultHolder.success(stack);
+        return InteractionResult.SUCCESS;
     }
 
     @Override
     public void inventoryTick(
-        @NotNull ItemStack stack,
-        @NotNull Level level,
-        @NotNull Entity entity,
-        int slotId,
-        boolean isSelected
+        @NonNull ItemStack stack,
+        @NonNull ServerLevel level,
+        @NonNull Entity entity,
+        @Nullable EquipmentSlot slot
     ) {
-        super.inventoryTick(stack, level, entity, slotId, isSelected);
-
-        if (level.isClientSide()) {
-            return;
-        }
-
+        super.inventoryTick(stack, level, entity, slot);
         tickScanProgress(stack, level, entity);
         tickDecay(stack, level);
     }
 
     /**
-     * Advances an in-progress scan: plays periodic beeps while charging, and once SCAN_DELAY_TICKS has elapsed,
-     * resolves the locked-in target and reports the result.
+     * Advances an in-progress scan: plays periodic beeps while charging, and once the scan delay has elapsed, resolves
+     * the locked-in target and reports the result.
      */
-    private void tickScanProgress(ItemStack stack, Level level, Entity entity) {
-        if (!isScanning(stack)) {
+    private void tickScanProgress(ItemStack stack, ServerLevel level, Entity entity) {
+        if (!isScanning(stack) || !(entity instanceof Player player)) {
             return;
         }
 
-        if (!(entity instanceof Player player)) {
-            return;
-        }
-
-        var elapsed = level.getGameTime() - getScanStart(stack);
+        var elapsed = level.getGameTime() - getLong(stack, SCAN_START);
 
         if (elapsed >= 60) {
             finishScan(stack, player, level);
@@ -132,14 +128,14 @@ public class InfectionScannerItem extends Item {
      * Resolves the target that was locked in when the scan started, runs the actual infection check, and applies
      * durability/cooldown now that the reading is complete.
      */
-    private void finishScan(ItemStack stack, Player player, Level level) {
+    private void finishScan(ItemStack stack, Player player, ServerLevel level) {
         var targetId = getScanTarget(stack);
         clearScanState(stack);
 
         LivingEntity target = player;
 
-        if (targetId != null && !targetId.equals(player.getUUID()) && level instanceof ServerLevel serverLevel) {
-            var resolved = serverLevel.getEntity(targetId);
+        if (targetId != null && !targetId.equals(player.getUUID())) {
+            var resolved = level.getEntity(targetId);
             if (resolved instanceof LivingEntity living && living.isAlive()) {
                 target = living;
             }
@@ -148,16 +144,15 @@ public class InfectionScannerItem extends Item {
         scanEntity(target, player, stack);
 
         stack.hurtAndBreak(1, player, player.getEquipmentSlotForItem(stack));
-        player.getCooldowns().addCooldown(this, 30);
+        player.getCooldowns().addCooldown(stack, 30);
     }
 
     /**
-     * Ticks the decay timer for a completed reading. Once the reading has been displayed for DECAY_TICKS, the model
-     * resets to neutral (MODEL_CLEAR / no CustomModelData).
+     * Ticks the decay timer for a completed reading. Once the reading has been displayed long enough, the model resets
+     * to neutral (no CustomModelData).
      */
     private void tickDecay(ItemStack stack, Level level) {
-        var cmd = stack.get(DataComponents.CUSTOM_MODEL_DATA);
-        if (cmd == null || cmd.value() <= MODEL_CLEAR) {
+        if (getScannerModel(stack) <= MODEL_CLEAR) {
             return;
         }
 
@@ -175,20 +170,12 @@ public class InfectionScannerItem extends Item {
     private void scanEntity(LivingEntity target, Player scanner, ItemStack stack) {
         var level = scanner.level();
 
-        if (XenoServices.COMMON_REGISTRY.isModLoaded("gigeresque")) {
-            if (GigeresqueCompat.tryScanGigInfection(target, scanner, stack)) {
-                return;
-            }
-        }
-
-        if (XenoServices.COMMON_REGISTRY.isModLoaded("avp_alien")) {
-            if (AVPCompat.tryScanAVPInfection(target, scanner, stack)) {
-                return;
-            }
-        }
-
         var infected = InfectionManager.isInfected(target);
         var isSelf = target == scanner;
+
+        var who = isSelf
+            ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
+            : target.getDisplayName();
 
         if (infected) {
             var phase = InfectionManager.getPhase(target);
@@ -215,32 +202,26 @@ public class InfectionScannerItem extends Item {
                 clearScanTime(stack);
             }
 
-            var who = isSelf
-                ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
-                : target.getDisplayName();
-
             var phaseKey = Component.translatable(
                 "item.ovomorphosis.infection_scanner.tooltip.stage." + phaseStr.toLowerCase(Locale.ROOT)
             );
 
             if (CommonMod.getConfig().itemConfigs.disableInfectionScannerTimeOutput) {
-                scanner.displayClientMessage(
+                scanner.sendOverlayMessage(
                     Component.translatable(
                         "item.ovomorphosis.infection_scanner.tooltip.infected",
                         who,
                         phaseKey,
                         remainingTicks / 20
-                    ).withStyle(ChatFormatting.RED),
-                    true
+                    ).withStyle(ChatFormatting.RED)
                 );
             } else {
-                scanner.displayClientMessage(
+                scanner.sendOverlayMessage(
                     Component.translatable(
                         "item.ovomorphosis.infection_scanner.tooltip.infected_no_time",
                         who,
                         phaseKey
-                    ).withStyle(ChatFormatting.RED),
-                    true
+                    ).withStyle(ChatFormatting.RED)
                 );
             }
 
@@ -256,16 +237,11 @@ public class InfectionScannerItem extends Item {
             setScannerModel(stack, MODEL_CLEAR);
             clearScanTime(stack);
 
-            var who = isSelf
-                ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
-                : target.getDisplayName();
-
-            scanner.displayClientMessage(
+            scanner.sendOverlayMessage(
                 Component.translatable(
                     "item.ovomorphosis.infection_scanner.tooltip.clear",
                     who
-                ).withStyle(ChatFormatting.GREEN),
-                true
+                ).withStyle(ChatFormatting.GREEN)
             );
 
             level.playSound(
@@ -280,10 +256,10 @@ public class InfectionScannerItem extends Item {
     }
 
     /**
-     * Finds the nearest living entity the player is roughly looking at within SCAN_RANGE. Returns null if none found
-     * (triggers self-scan).
+     * Finds the nearest living entity the player is roughly looking at. Returns null if none found (triggers
+     * self-scan).
      */
-    public static LivingEntity findLookTarget(Player player, Level level) {
+    public static @Nullable LivingEntity findLookTarget(Player player, Level level) {
         var eyePos = player.getEyePosition();
         var lookVec = player.getLookAngle();
 
@@ -306,21 +282,19 @@ public class InfectionScannerItem extends Item {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public void appendHoverText(
-        @NotNull ItemStack stack,
-        @NotNull TooltipContext context,
-        @NotNull List<Component> components,
-        @NotNull TooltipFlag flag
+        @NonNull ItemStack itemStack,
+        @NonNull TooltipContext context,
+        @NonNull TooltipDisplay display,
+        @NonNull Consumer<Component> builder,
+        @NonNull TooltipFlag tooltipFlag
     ) {
-        components.add(
+        builder.accept(
             Component.translatable("item.ovomorphosis.infection_scanner.tooltip")
                 .withStyle(ChatFormatting.GRAY)
         );
-    }
-
-    @Override
-    public boolean isEnchantable(@NotNull ItemStack stack) {
-        return false;
+        super.appendHoverText(itemStack, context, display, builder, tooltipFlag);
     }
 
     public static void setScannerModel(ItemStack stack, int customModelData) {
@@ -329,80 +303,88 @@ public class InfectionScannerItem extends Item {
             return;
         }
 
-        stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(customModelData));
+        stack.set(
+            DataComponents.CUSTOM_MODEL_DATA,
+            new CustomModelData(List.of((float) customModelData), List.of(), List.of(), List.of())
+        );
+    }
+
+    public static int getScannerModel(ItemStack stack) {
+        var cmd = stack.get(DataComponents.CUSTOM_MODEL_DATA);
+        if (cmd == null) {
+            return MODEL_CLEAR;
+        }
+        var value = cmd.getFloat(0);
+        return value == null ? MODEL_CLEAR : value.intValue();
     }
 
     public static void setScanTime(ItemStack stack, long time) {
         stack.update(DataComponents.CUSTOM_DATA, CustomData.EMPTY, data -> {
             var tag = data.copyTag();
-            tag.putLong("ScanTime", time);
+            tag.putLong(SCAN_TIME, time);
             return CustomData.of(tag);
         });
     }
 
     public static long getScanTime(ItemStack stack) {
-        var data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data == null) {
-            return 0L;
-        }
-        return data.copyTag().getLong("ScanTime");
+        return getLong(stack, SCAN_TIME);
     }
 
     public static void clearScanTime(ItemStack stack) {
-        var data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data == null) {
-            return;
-        }
-        var tag = data.copyTag();
-        if (tag.contains("ScanTime")) {
-            tag.remove("ScanTime");
-            stack.set(DataComponents.CUSTOM_DATA, tag.isEmpty() ? null : CustomData.of(tag));
-        }
+        removeKeys(stack, SCAN_TIME);
     }
 
     private static boolean isScanning(ItemStack stack) {
         var data = stack.get(DataComponents.CUSTOM_DATA);
-        return data != null && data.copyTag().contains("ScanStart");
+        return data != null && data.copyTag().contains(SCAN_START);
     }
 
     private static void beginScan(ItemStack stack, UUID targetId, long gameTime) {
         stack.update(DataComponents.CUSTOM_DATA, CustomData.EMPTY, data -> {
             var tag = data.copyTag();
-            tag.putLong("ScanStart", gameTime);
-            tag.putUUID("ScanTarget", targetId);
+            tag.putLong(SCAN_START, gameTime);
+            tag.store(SCAN_TARGET, UUIDUtil.CODEC, targetId);
             return CustomData.of(tag);
         });
     }
 
-    private static long getScanStart(ItemStack stack) {
-        var data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data == null) {
-            return 0L;
-        }
-        return data.copyTag().getLong("ScanStart");
-    }
-
-    private static UUID getScanTarget(ItemStack stack) {
+    private static @Nullable UUID getScanTarget(ItemStack stack) {
         var data = stack.get(DataComponents.CUSTOM_DATA);
         if (data == null) {
             return null;
         }
-        var tag = data.copyTag();
-        return tag.hasUUID("ScanTarget") ? tag.getUUID("ScanTarget") : null;
+        return data.copyTag().read(SCAN_TARGET, UUIDUtil.CODEC).orElse(null);
     }
 
     private static void clearScanState(ItemStack stack) {
+        removeKeys(stack, SCAN_START, SCAN_TARGET);
+    }
+
+    private static long getLong(ItemStack stack, String key) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        return data == null ? 0L : data.copyTag().getLongOr(key, 0L);
+    }
+
+    private static void removeKeys(ItemStack stack, String... keys) {
         var data = stack.get(DataComponents.CUSTOM_DATA);
         if (data == null) {
             return;
         }
         var tag = data.copyTag();
-        if (tag.contains("ScanStart")) {
-            tag.remove("ScanStart");
+        var changed = false;
+        for (var key : keys) {
+            if (tag.contains(key)) {
+                tag.remove(key);
+                changed = true;
+            }
         }
-        if (tag.contains("ScanTarget")) {
-            tag.remove("ScanTarget");
+        if (!changed) {
+            return;
         }
-        stack.set(DataComponents.CUSTOM_DATA, tag.isEmpty() ? null : CustomData.of(tag));
+        if (tag.isEmpty()) {
+            stack.remove(DataComponents.CUSTOM_DATA);
+        } else {
+            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        }
     }
 }

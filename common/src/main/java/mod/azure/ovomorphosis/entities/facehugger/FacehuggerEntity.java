@@ -8,9 +8,8 @@ import com.azure.azurecortex.goap.PlannedGoal;
 import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.runtime.CortexRuntime;
 import com.azure.azurecortex.sensing.TargetSensor;
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.game.ClientboundSetPassengersPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -29,7 +28,10 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
@@ -85,8 +87,8 @@ public class FacehuggerEntity extends AbstractAlienEntity {
 
         this.handleAttachmentToHost();
 
-        if (isInfertile()) {
-            this.kill();
+        if (isInfertile() && level() instanceof ServerLevel serverLevel) {
+            this.kill(serverLevel);
         }
         if (this.isAttachedToHost() && !this.isInfertile() && !this.isDeadOrDying()) {
             animationDispatcher.sendFaceHug();
@@ -167,9 +169,13 @@ public class FacehuggerEntity extends AbstractAlienEntity {
     }
 
     @Override
-    public boolean killedEntity(@NotNull ServerLevel level, @NotNull LivingEntity entity) {
+    public boolean killedEntity(
+        @NotNull ServerLevel level,
+        @NotNull LivingEntity entity,
+        @NonNull DamageSource damageSource
+    ) {
         targetSelector.onTargetKilled();
-        return super.killedEntity(level, entity);
+        return super.killedEntity(level, entity, damageSource);
     }
 
     @Override
@@ -179,16 +185,16 @@ public class FacehuggerEntity extends AbstractAlienEntity {
     }
 
     @Override
-    public void addAdditionalSaveData(@NotNull CompoundTag nbt) {
+    public void addAdditionalSaveData(@NotNull ValueOutput nbt) {
         super.addAdditionalSaveData(nbt);
         nbt.putBoolean("isInfertile", isInfertile());
     }
 
     @Override
-    public void readAdditionalSaveData(@NotNull CompoundTag nbt) {
+    public void readAdditionalSaveData(@NotNull ValueInput nbt) {
         super.readAdditionalSaveData(nbt);
-        if (nbt.contains("isInfertile"))
-            setIsInfertile(nbt.getBoolean("isInfertile"));
+        if (nbt.getString("isInfertile").isPresent())
+            setIsInfertile(nbt.getBooleanOr("isInfertile", false));
     }
 
     @Override
@@ -212,11 +218,11 @@ public class FacehuggerEntity extends AbstractAlienEntity {
     }
 
     public void grabTarget(LivingEntity entity) {
-        this.startRiding(entity, true);
+        this.startRiding(entity, true, true);
         this.setAggressive(false);
         entity.setSpeed(0.0f);
         entity.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 1200, 0));
-        if (entity instanceof ServerPlayer player && (!player.isCreative() || !player.isSpectator()))
+        if (entity instanceof ServerPlayer player && (!player.isCreative() && !player.isSpectator()))
             player.connection.send(new ClientboundSetPassengersPacket(entity));
     }
 
@@ -225,13 +231,16 @@ public class FacehuggerEntity extends AbstractAlienEntity {
             var host = this.getVehicle();
             if (!(host instanceof LivingEntity livingEntity))
                 return;
-            if (host instanceof Player player && (player.isCreative() || player.isSpectator())) {
+            if (
+                host instanceof Player player && (player.isCreative() || player.isSpectator()) && player
+                    .level() instanceof ServerLevel serverLevel
+            ) {
                 this.unRide();
                 setIsInfertile(true);
-                this.kill();
+                this.kill(serverLevel);
             }
             livingEntity.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 1000, 10, false, false));
-            if (livingEntity.getHealth() > livingEntity.getMaxHealth())
+            if (livingEntity.getHealth() < livingEntity.getMaxHealth())
                 livingEntity.heal(6);
             if (getVehicle() instanceof Player player && player.getFoodData().needsFood())
                 player.getFoodData().setFoodLevel(20);

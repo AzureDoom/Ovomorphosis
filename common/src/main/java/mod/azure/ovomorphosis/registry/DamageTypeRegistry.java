@@ -24,7 +24,7 @@ public final class DamageTypeRegistry {
 
     public static DamageSource of(Level level, ResourceKey<DamageType> source) {
         return new DamageSource(
-            level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(source)
+            level.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(source)
         );
     }
 }

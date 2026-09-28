@@ -1,11 +1,11 @@
 package mod.azure.ovomorphosis.client.layer;
 
-import mod.azure.azurelib.common.model.AzBone;
-import mod.azure.azurelib.common.render.AzRendererPipeline;
-import mod.azure.azurelib.common.render.AzRendererPipelineContext;
-import mod.azure.azurelib.common.render.layer.AzRenderLayer;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.resources.ResourceLocation;
+import mod.azure.azurelib.model.AzBone;
+import mod.azure.azurelib.render.AzRendererPipeline;
+import mod.azure.azurelib.render.AzRendererPipelineContext;
+import mod.azure.azurelib.render.layer.AzRenderLayer;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.resources.Identifier;
 
 import java.util.UUID;
 
@@ -14,8 +14,8 @@ import mod.azure.ovomorphosis.util.Growable;
 
 public class BloodLayer<T extends AbstractAlienEntity & Growable> implements AzRenderLayer<UUID, T> {
 
-    private static final ResourceLocation textureLocation =
-        ResourceLocation.withDefaultNamespace("textures/block/crimson_nylium.png");
+    private static final Identifier textureLocation =
+        Identifier.withDefaultNamespace("textures/block/crimson_nylium.png");
 
     @Override
     public void preRender(AzRendererPipelineContext<UUID, T> context) {}
@@ -25,7 +25,7 @@ public class BloodLayer<T extends AbstractAlienEntity & Growable> implements AzR
         T animatable = context.animatable();
 
         AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
-        var rendertype = RenderType.entityTranslucentCull(textureLocation);
+        var rendertype = RenderTypes.entityTranslucentCull(textureLocation);
         var maxGrowth = animatable.getMaxGrowth() / 2;
         if (animatable.getGrowth() < maxGrowth && animatable.isAlive()) {
             context.setRenderType(rendertype);

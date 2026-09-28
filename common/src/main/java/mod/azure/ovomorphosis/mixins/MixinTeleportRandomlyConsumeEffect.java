@@ -3,10 +3,11 @@ package mod.azure.ovomorphosis.mixins;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ChorusFruitItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.gameevent.GameEvent;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,64 +23,63 @@ import mod.azure.ovomorphosis.infection.InfectionManager;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.util.ModTags;
 
-@Mixin(ChorusFruitItem.class)
-public class MixinItem_ChorusFruit {
+@Mixin(TeleportRandomlyConsumeEffect.class)
+@SuppressWarnings("deprecation")
+public class MixinTeleportRandomlyConsumeEffect {
 
-    @Inject(method = "finishUsingItem", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "apply", at = @At("HEAD"), cancellable = true)
     private void ovomorphosis$removeEmbryo(
-        ItemStack stack,
         Level level,
-        LivingEntity livingEntity,
-        CallbackInfoReturnable<ItemStack> cir
+        ItemStack stack,
+        LivingEntity user,
+        CallbackInfoReturnable<Boolean> cir
     ) {
-        if (!InfectionManager.isInfected(livingEntity))
+        if (!(level instanceof ServerLevel serverLevel))
             return;
-        if (level.isClientSide)
+        if (!InfectionManager.isInfected(user))
             return;
 
-        if (livingEntity.getType().is(ModTags.XENOMORPH_HOST)) {
+        var type = user.getType();
+
+        if (type.builtInRegistryHolder().is(ModTags.XENOMORPH_HOST)) {
             ovomorphosis$tryTeleportingEntity(
-                livingEntity,
-                new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), livingEntity.level()),
-                stack,
-                cir
+                user,
+                serverLevel,
+                new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), serverLevel)
             );
-        } else if (livingEntity.getType().is(ModTags.RUNNER_HOST)) {
+            cir.setReturnValue(true);
+        } else if (type.builtInRegistryHolder().is(ModTags.RUNNER_HOST)) {
             ovomorphosis$tryTeleportingEntity(
-                livingEntity,
-                new RunnerEntity(EntityRegistry.RUNNER.get(), livingEntity.level()),
-                stack,
-                cir
+                user,
+                serverLevel,
+                new RunnerEntity(EntityRegistry.RUNNER.get(), serverLevel)
             );
+            cir.setReturnValue(true);
         }
     }
 
     @Unique
     private static void ovomorphosis$tryTeleportingEntity(
         LivingEntity host,
-        AbstractAlienEntity alienEntity,
-        ItemStack stack,
-        CallbackInfoReturnable<ItemStack> cir
+        ServerLevel level,
+        AbstractAlienEntity alienEntity
     ) {
-        var level = host.level();
-        if (level.isClientSide)
-            return;
         if (host.isPassenger())
             host.stopRiding();
 
-        InfectionManager.spawnMob(host, (ServerLevel) level, alienEntity);
+        InfectionManager.spawnMob(host, level, alienEntity);
         var entityPos = host.position();
 
         for (var i = 0; i < 16; i++) {
             var xOffset = alienEntity.getX() + (alienEntity.getRandom().nextDouble() - 0.5) * 16.0;
             var yOffset = Mth.clamp(
                 alienEntity.getY() + (double) (alienEntity.getRandom().nextInt(16) - 8),
-                level.getMinBuildHeight(),
-                level.getMinBuildHeight() + ((ServerLevel) level).getLogicalHeight() - 1
+                level.getMinY(),
+                level.getMinY() + level.getLogicalHeight() - 1
             );
             var zOffset = alienEntity.getZ() + (alienEntity.getRandom().nextDouble() - 0.5) * 16.0;
 
-            if (!alienEntity.randomTeleport(xOffset, yOffset, zOffset, true))
+            if (!alienEntity.randomTeleport(xOffset, yOffset, zOffset, true, BlockTags.DANGEROUS_FOR_TELEPORTATION))
                 continue;
 
             level.gameEvent(GameEvent.TELEPORT, entityPos, GameEvent.Context.of(alienEntity));
@@ -87,7 +87,7 @@ public class MixinItem_ChorusFruit {
             alienEntity.resetFallDistance();
             break;
         }
+
         InfectionManager.removeInfection(host.getUUID());
-        cir.setReturnValue(stack);
     }
 }

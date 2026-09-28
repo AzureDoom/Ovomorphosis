@@ -6,21 +6,22 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.GameRules;
-import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +37,7 @@ public class ResinBlock extends AbstractResinBlock {
 
     public static final IntegerProperty LAYERS = BlockStateProperties.LAYERS;
 
-    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+    public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
 
     protected static final List<VoxelShape> LAYERS_TO_SHAPE = buildLayerShapes();
 
@@ -120,24 +121,19 @@ public class ResinBlock extends AbstractResinBlock {
     }
 
     @Override
-    public @NotNull BlockState updateShape(
+    protected @NonNull BlockState updateShape(
         BlockState state,
-        @NotNull Direction direction,
-        @NotNull BlockState neighborState,
-        @NotNull LevelAccessor world,
-        @NotNull BlockPos pos,
-        @NotNull BlockPos neighborPos
+        @NonNull LevelReader level,
+        @NonNull ScheduledTickAccess ticks,
+        @NonNull BlockPos pos,
+        @NonNull Direction directionToNeighbour,
+        @NonNull BlockPos neighbourPos,
+        @NonNull BlockState neighbourState,
+        @NonNull RandomSource random
     ) {
-        return !state.canSurvive(world, pos)
+        return !state.canSurvive(level, pos)
             ? Blocks.AIR.defaultBlockState()
-            : super.updateShape(
-                state,
-                direction,
-                neighborState,
-                world,
-                pos,
-                neighborPos
-            );
+            : super.updateShape(state, level, ticks, pos, directionToNeighbour, neighbourPos, neighbourState, random);
     }
 
     @Override
@@ -179,9 +175,7 @@ public class ResinBlock extends AbstractResinBlock {
     ) {
         super.randomTick(state, level, pos, random);
         if (
-            !level
-                .getGameRules()
-                .getBoolean(GameRules.RULE_MOBGRIEFING)
+            !level.getGameRules().get(GameRules.MOB_GRIEFING)
         ) {
             return;
         }

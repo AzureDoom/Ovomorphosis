@@ -21,7 +21,7 @@ public final class FabricLootInjects {
                 return;
             }
 
-            var id = key.location();
+            var id = key.registry();
 
             if (!OvomorphosisLootTables.shouldInjectSurvivorNote(id)) {
                 return;

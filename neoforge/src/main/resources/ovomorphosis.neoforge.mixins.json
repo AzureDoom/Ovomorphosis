@@ -2,8 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "mod.azure.ovomorphosis.mixins",
-  "compatibilityLevel": "JAVA_21",
-  "refmap": "ovomorphosis.refmap.json",
+  "compatibilityLevel": "JAVA_25",
   "injectors": {
     "defaultRequire": 1
   },
@@ -11,12 +10,12 @@
     "AbstractHorseMixin",
     "CatFacehuggerReactionMixin",
     "EntityMixin",
+    "EntityRidingMixin",
     "FlameBlockMixin",
     "FoxMixin",
     "LivingEntityMixin",
     "MixinEntityTypeBuilder_SilenceDataFixerError",
-    "MixinItem_ChorusFruit",
-    "MixinItem_GigeresqueSurgeryKit",
+    "MixinTeleportRandomlyConsumeEffect",
     "MobEntityMixin",
     "PlayerEntityMixin",
     "ServerLevelMixin",
@@ -26,8 +25,10 @@
     "WolfFacehuggerReactionMixin"
   ],
   "client": [
+    "client.FirstPersonHandsAndItemsMixin",
     "client.HeldItemRendererMixin",
     "client.LivingEntityRendererMixin",
+    "client.LivingEntityRenderStateMixin",
     "client.MouseHandlerMixin",
     "client.PlayerRendererMixin"
   ]

@@ -4,7 +4,7 @@ import com.azure.azurecortex.api.blackboard.Blackboard;
 import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
 import com.azure.azurecortex.sensing.TargetSensor;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.animal.AbstractFish;
+import net.minecraft.world.entity.animal.fish.AbstractFish;
 import net.minecraft.world.phys.AABB;
 
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;

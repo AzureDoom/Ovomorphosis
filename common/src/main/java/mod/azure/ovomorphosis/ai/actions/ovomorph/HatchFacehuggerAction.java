@@ -67,7 +67,7 @@ public final class HatchFacehuggerAction<G> implements Action<OvomorphEntity, G>
                         var side = eggPos.relative(dir);
                         if (level.getBlockState(side).isAir()) {
                             facehugger.setPos(side.getX() + 0.5, side.getY(), side.getZ() + 0.5);
-                            var nudge = Vec3.atCenterOf(dir.getNormal()).scale(0.2);
+                            var nudge = Vec3.atCenterOf(dir.getUnitVec3i()).scale(0.2);
                             facehugger.setDeltaMovement(nudge.x, 0.1, nudge.z);
                             spawned = true;
                             break;

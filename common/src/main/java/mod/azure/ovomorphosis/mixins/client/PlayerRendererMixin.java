@@ -1,9 +1,10 @@
 package mod.azure.ovomorphosis.mixins.client;
 
 import net.minecraft.client.model.HumanoidModel;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.entity.player.PlayerRenderer;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Avatar;
+import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -12,19 +13,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import mod.azure.ovomorphosis.items.MagmaSprayerItem;
 import mod.azure.ovomorphosis.items.MotionTrackerItem;
 
-@Mixin(PlayerRenderer.class)
+@Mixin(AvatarRenderer.class)
 public class PlayerRendererMixin {
 
-    @Inject(method = "getArmPose", at = @At(value = "TAIL"), cancellable = true)
+    @Inject(
+        method = "getArmPose(Lnet/minecraft/world/entity/Avatar;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/client/model/HumanoidModel$ArmPose;",
+        at = @At(value = "TAIL"), cancellable = true
+    )
     private static void tryItemPose(
-        AbstractClientPlayer player,
+        Avatar avatar,
+        ItemStack itemInHand,
         InteractionHand hand,
-        CallbackInfoReturnable<HumanoidModel.ArmPose> ci
+        CallbackInfoReturnable<HumanoidModel.ArmPose> cir
     ) {
-        var itemstack = player.getItemInHand(hand);
+        var itemstack = avatar.getItemInHand(hand);
         if (itemstack.getItem() instanceof MotionTrackerItem)
-            ci.setReturnValue(HumanoidModel.ArmPose.CROSSBOW_HOLD);
+            cir.setReturnValue(HumanoidModel.ArmPose.CROSSBOW_HOLD);
         if (itemstack.getItem() instanceof MagmaSprayerItem)
-            ci.setReturnValue(HumanoidModel.ArmPose.BOW_AND_ARROW);
+            cir.setReturnValue(HumanoidModel.ArmPose.BOW_AND_ARROW);
     }
 }

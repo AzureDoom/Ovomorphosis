@@ -1,22 +1,21 @@
 package mod.azure.ovomorphosis.client.facehugger;
 
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.JsonOps;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.FileToIdConverter;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
-import net.minecraft.util.GsonHelper;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import mod.azure.ovomorphosis.CommonMod;
 
@@ -40,21 +39,23 @@ public record EntityHeadOffsetData(
     OffsetExpression faceOffset
 ) {
 
-    public static final Codec<EntityHeadOffsetData> CODEC = RecordCodecBuilder.create(
+    public static final MapCodec<EntityHeadOffsetData> MAP_CODEC = RecordCodecBuilder.mapCodec(
         instance -> instance.group(
             OffsetExpression.CODEC.fieldOf("vertical_offset").forGetter(EntityHeadOffsetData::verticalOffset),
             OffsetExpression.CODEC.fieldOf("face_offset").forGetter(EntityHeadOffsetData::faceOffset)
         ).apply(instance, EntityHeadOffsetData::new)
     );
 
+    public static final Codec<EntityHeadOffsetData> CODEC = MAP_CODEC.codec();
+
     public static volatile Map<EntityType<?>, EntityHeadOffsetData> ENTITY_HEAD_OFFSET_DATA_BY_TYPE = Map.of();
 
     public static OffsetResult resolve(EntityType<?> hostType, EntityHeadData head, Entity parasite) {
-        EntityHeadOffsetData data = ENTITY_HEAD_OFFSET_DATA_BY_TYPE.get(hostType);
+        var data = ENTITY_HEAD_OFFSET_DATA_BY_TYPE.get(hostType);
         if (data == null) {
             return null;
         }
-        OffsetExpression.OffsetContext ctx = new OffsetExpression.OffsetContext(
+        var ctx = new OffsetExpression.OffsetContext(
             head.size().x,
             head.size().y,
             head.size().z,
@@ -72,40 +73,51 @@ public record EntityHeadOffsetData(
         double face
     ) {}
 
-    public static class ReloadListener extends SimpleJsonResourceReloadListener {
+    /**
+     * One datapack file: the offset data plus an optional explicit {@code "entity"} target. Both live at the top level
+     * of the same JSON object, so the offset fields are pulled in via {@link #MAP_CODEC} rather than nested.
+     */
+    public record HeadOffsetFile(
+        Optional<Identifier> entity,
+        EntityHeadOffsetData data
+    ) {
+
+        public static final Codec<HeadOffsetFile> CODEC = RecordCodecBuilder.create(
+            instance -> instance.group(
+                Identifier.CODEC.optionalFieldOf("entity").forGetter(HeadOffsetFile::entity),
+                MAP_CODEC.forGetter(HeadOffsetFile::data)
+            ).apply(instance, HeadOffsetFile::new)
+        );
+    }
+
+    public static class ReloadListener extends SimpleJsonResourceReloadListener<HeadOffsetFile> {
 
         public ReloadListener() {
-            super(new GsonBuilder().create(), "ovomorphosis_head_offsets");
+            super(HeadOffsetFile.CODEC, FileToIdConverter.json("ovomorphosis_head_offsets"));
         }
 
         @Override
         protected void apply(
-            Map<ResourceLocation, JsonElement> jsons,
-            @NotNull ResourceManager rm,
-            @NotNull ProfilerFiller profiler
+            @NonNull Map<Identifier, HeadOffsetFile> files,
+            @NonNull ResourceManager rm,
+            @NonNull ProfilerFiller profiler
         ) {
             Map<EntityType<?>, EntityHeadOffsetData> map = new HashMap<>();
-            for (var entry : jsons.entrySet()) {
+            for (var entry : files.entrySet()) {
                 var file = entry.getKey();
-                try {
-                    var obj = GsonHelper.convertToJsonObject(entry.getValue(), "head_offset");
-                    ResourceLocation entityId;
-                    if (obj.has("entity")) {
-                        entityId = ResourceLocation.parse(GsonHelper.getAsString(obj, "entity"));
-                    } else {
-                        entityId = ResourceLocation.fromNamespaceAndPath("minecraft", file.getPath());
-                    }
+                var parsed = entry.getValue();
 
-                    var type = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId)
-                        .orElseThrow(() -> new IllegalArgumentException("Unknown entity type: " + entityId));
+                // Same fallback as before: no "entity" field means the file name is a vanilla entity id.
+                var entityId = parsed.entity()
+                    .orElseGet(() -> Identifier.withDefaultNamespace(file.getPath()));
 
-                    var data = CODEC.parse(JsonOps.INSTANCE, entry.getValue())
-                        .getOrThrow(IllegalArgumentException::new);
-
-                    map.put(type, data);
-                } catch (Exception e) {
-                    CommonMod.LOGGER.error("Failed to load head offset {}: {}", file, e.getMessage());
+                var type = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId);
+                if (type.isEmpty()) {
+                    CommonMod.LOGGER.error("Failed to load head offset {}: unknown entity type {}", file, entityId);
+                    continue;
                 }
+
+                map.put(type.get(), parsed.data());
             }
             ENTITY_HEAD_OFFSET_DATA_BY_TYPE = Map.copyOf(map);
             CommonMod.LOGGER.info("Loaded {} entity head offset entries", map.size());

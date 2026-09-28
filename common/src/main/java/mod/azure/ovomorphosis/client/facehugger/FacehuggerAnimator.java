@@ -1,10 +1,10 @@
 package mod.azure.ovomorphosis.client.facehugger;
 
-import mod.azure.azurelib.common.animation.AzAnimatorConfig;
-import mod.azure.azurelib.common.animation.controller.AzAnimationController;
-import mod.azure.azurelib.common.animation.controller.AzAnimationControllerContainer;
-import mod.azure.azurelib.common.animation.impl.AzEntityAnimator;
-import net.minecraft.resources.ResourceLocation;
+import mod.azure.azurelib.animation.AzAnimatorConfig;
+import mod.azure.azurelib.animation.controller.AzAnimationController;
+import mod.azure.azurelib.animation.controller.AzAnimationControllerContainer;
+import mod.azure.azurelib.animation.impl.AzEntityAnimator;
+import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -13,7 +13,7 @@ import mod.azure.ovomorphosis.util.CommonStrings;
 
 public class FacehuggerAnimator extends AzEntityAnimator<FacehuggerEntity> {
 
-    private static final ResourceLocation ANIMATIONS = CommonMod.modResource(
+    private static final Identifier ANIMATIONS = CommonMod.modResource(
         "animations/entity/facehugger.animation.json"
     );
 
@@ -53,7 +53,7 @@ public class FacehuggerAnimator extends AzEntityAnimator<FacehuggerEntity> {
     }
 
     @Override
-    public @NotNull ResourceLocation getAnimationLocation(FacehuggerEntity animatable) {
+    public @NotNull Identifier getAnimationLocation(FacehuggerEntity animatable) {
         return ANIMATIONS;
     }
 }

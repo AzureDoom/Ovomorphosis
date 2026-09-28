@@ -7,6 +7,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -33,14 +34,15 @@ public abstract class PlayerEntityMixin extends LivingEntity {
     protected void ovomorphosis$stopPlayerUsing(
         Entity entity,
         InteractionHand hand,
-        CallbackInfoReturnable<InteractionResult> callbackInfo
+        Vec3 location,
+        CallbackInfoReturnable<InteractionResult> cir
     ) {
         if (this.getPassengers().stream().anyMatch(FacehuggerEntity.class::isInstance))
-            callbackInfo.setReturnValue(InteractionResult.FAIL);
+            cir.setReturnValue(InteractionResult.FAIL);
     }
 
     @Inject(method = { "attack" }, at = { @At("HEAD") }, cancellable = true)
-    protected void ovomorphosis$noAttacking(Entity target, CallbackInfo callbackInfo) {
+    protected void ovomorphosis$noAttacking(Entity entity, CallbackInfo callbackInfo) {
         if (this.getPassengers().stream().anyMatch(FacehuggerEntity.class::isInstance))
             this.stopUsingItem();
     }

@@ -1,11 +1,11 @@
 package mod.azure.ovomorphosis.network;
 
-import mod.azure.azurelib.common.network.AbstractPacket;
+import mod.azure.azurelib.network.AbstractPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -17,7 +17,7 @@ import mod.azure.ovomorphosis.client.layer.EggmorphRenderState;
  */
 public class EggmorphProgressPacket implements AbstractPacket {
 
-    public static final ResourceLocation ID = CommonMod.modResource(
+    public static final Identifier ID = CommonMod.modResource(
         "eggmorph_progress"
     );
 

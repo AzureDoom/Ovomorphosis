@@ -39,7 +39,7 @@ public final class ResinWebRegistry {
      * @param pos   the block position (will be stored as an immutable copy)
      */
     public static void register(Level level, BlockPos pos) {
-        chunkSet(level.dimension(), ChunkPos.asLong(pos)).add(pos.immutable());
+        chunkSet(level.dimension(), ChunkPos.pack(pos)).add(pos.immutable());
     }
 
     /**
@@ -52,7 +52,7 @@ public final class ResinWebRegistry {
         var dimMap = REGISTRY.get(level.dimension());
         if (dimMap == null)
             return;
-        var set = dimMap.get(ChunkPos.asLong(pos));
+        var set = dimMap.get(ChunkPos.pack(pos));
         if (set != null)
             set.remove(pos);
     }
@@ -97,7 +97,7 @@ public final class ResinWebRegistry {
 
         for (var cx = originChunkX - chunkRadius; cx <= originChunkX + chunkRadius; cx++) {
             for (var cz = originChunkZ - chunkRadius; cz <= originChunkZ + chunkRadius; cz++) {
-                var set = dimMap.get(ChunkPos.asLong(cx, cz));
+                var set = dimMap.get(ChunkPos.pack(cx, cz));
                 if (set == null)
                     continue;
                 for (var pos : set) {
@@ -140,7 +140,7 @@ public final class ResinWebRegistry {
 
         for (var cx = originChunkX - chunkRadius; cx <= originChunkX + chunkRadius; cx++) {
             for (var cz = originChunkZ - chunkRadius; cz <= originChunkZ + chunkRadius; cz++) {
-                var set = dimMap.get(ChunkPos.asLong(cx, cz));
+                var set = dimMap.get(ChunkPos.pack(cx, cz));
                 if (set == null)
                     continue;
                 for (var pos : set) {

@@ -1,18 +1,13 @@
 plugins {
     id 'multiloader-loader'
-    id 'net.neoforged.moddev' version "${neo_moddev}"
-    id 'me.modmuss50.mod-publish-plugin' version "${modmuss50_mod_publish_version}"
+    id 'net.neoforged.moddev'
+    id 'me.modmuss50.mod-publish-plugin'
     id 'com.diffplug.spotless'
 }
 
 neoForge {
     version = "${neo_version}"
     accessTransformers = ["../common/src/main/resources/META-INF/accesstransformer.cfg"]
-
-    parchment {
-        minecraftVersion = "${parchment_minecraft}"
-        mappingsVersion = "${parchment_version}"
-    }
 
     runs {
         client {
@@ -27,13 +22,12 @@ neoForge {
         configureEach {
             systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
             ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
-            logLevel = org.slf4j.event.Level.DEBUG
         }
     }
 
     mods {
         "${mod_id}" {
-            sourceSet(sourceSets.main)
+            sourceSet sourceSets.main
         }
     }
 }
@@ -42,17 +36,12 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 dependencies {
     implementation "mod.azure.azurelib:azurelib-neo-${minecraft_version}:${azurelib_version}"
-    implementation "maven.modrinth:gigeresque:0.8.16"
-    compileOnly("com.avp.alien:avp_alien-neoforge-1.21.1:0.2.0-fork") {
-        exclude group: 'org.slf4j', module: 'slf4j-api'
-    }
     jarJar(implementation("com.azure.azurecortex:azurecortex-neoforge-${minecraft_version}:${azurecortex_version}")) {
         version {
             strictly "[${azurecortex_version}]"
             prefer azurecortex_version
         }
     }
-    implementation "curse.maven:spark-361579:6225208"
 }
 
 def keyPropsFile = new File(rootProject.projectDir, "key.properties")

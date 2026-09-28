@@ -1,5 +1,6 @@
 package mod.azure.ovomorphosis;
 
+import mod.azure.azurelib.AzureLib;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -7,14 +8,13 @@ import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.SpawnPlacementTypes;
 import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.RegisterSpawnPlacementsEvent;
@@ -36,6 +36,7 @@ import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
 
 @Mod(CommonMod.MOD_ID)
+@SuppressWarnings("unused")
 public final class NeoForgeMod {
 
     public static DeferredRegister<EntityType<?>> entityTypeDeferredRegister = DeferredRegister.create(
@@ -43,8 +44,7 @@ public final class NeoForgeMod {
         CommonMod.MOD_ID
     );
 
-    public static DeferredRegister<Block> blockDeferredRegister = DeferredRegister.create(
-        BuiltInRegistries.BLOCK,
+    public static DeferredRegister<Block> blockDeferredRegister = DeferredRegister.createBlocks(
         CommonMod.MOD_ID
     );
 
@@ -53,8 +53,7 @@ public final class NeoForgeMod {
         CommonMod.MOD_ID
     );
 
-    public static DeferredRegister<Item> itemDeferredRegister = DeferredRegister.create(
-        BuiltInRegistries.ITEM,
+    public static DeferredRegister.Items itemDeferredRegister = DeferredRegister.createItems(
         CommonMod.MOD_ID
     );
 
@@ -71,7 +70,10 @@ public final class NeoForgeMod {
         itemDeferredRegister.register(modEventBus);
         soundEventDeferredRegister.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(
-            (AddReloadListenerEvent event) -> event.addListener(new EntityHeadOffsetData.ReloadListener())
+            (AddServerReloadListenersEvent event) -> event.addListener(
+                AzureLib.modResource("ovomorphosis_head_offsets"),
+                new EntityHeadOffsetData.ReloadListener()
+            )
         );
         NeoForge.EVENT_BUS.addListener(
             (LevelEvent.Unload event) -> {

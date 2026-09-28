@@ -419,7 +419,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                             }
                         }
                         mob.setDeltaMovement(move);
-                        mob.hasImpulse = true;
+                        mob.needsSync = true;
                         faceMovementDirection(mob, move);
                         return ActionOutcome.running();
                     } else if (waypointIsTightPassage) {
@@ -553,7 +553,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 CrawlController.setWallCrawling(mob, true);
                 CrawlController.updateCrawlOrientation(mob, crest);
                 mob.setDeltaMovement(crest);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, crest);
                 return;
             }
@@ -588,7 +588,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             CrawlController.setWallCrawling(mob, true);
             CrawlController.updateCrawlOrientation(mob, move);
             mob.setDeltaMovement(move);
-            mob.hasImpulse = true;
+            mob.needsSync = true;
             faceMovementDirection(mob, move);
             return;
         }
@@ -617,7 +617,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             CrawlController.setWallCrawling(mob, true);
             CrawlController.updateCrawlOrientation(mob, shaftVelocity);
             mob.setDeltaMovement(shaftVelocity);
-            mob.hasImpulse = true;
+            mob.needsSync = true;
             faceMovementDirection(mob, shaftVelocity);
             return;
         }
@@ -660,7 +660,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 if (!descendingInTunnel)
                     CrawlController.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, tunnelVelocity);
                 return;
             }
@@ -676,7 +676,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 }
                 CrawlController.updateCrawlOrientation(mob, tunnelVelocity);
                 mob.setDeltaMovement(tunnelVelocity);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceDestination(mob, destination);
                 return;
             }
@@ -734,7 +734,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             CrawlController.setWallCrawling(mob, true);
             CrawlController.updateCrawlOrientation(mob, crawlVelocity);
             mob.setDeltaMovement(crawlVelocity);
-            mob.hasImpulse = true;
+            mob.needsSync = true;
             faceMovementDirection(mob, crawlVelocity);
             return;
         }
@@ -749,7 +749,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 var move = toWaypoint.normalize().scale(speed);
                 var yVel = Math.min(mob.getDeltaMovement().y, -0.15D);
                 mob.setDeltaMovement(move.x, yVel, move.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, move);
                 return;
             }
@@ -765,7 +765,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                     var pushVelocity = new Vec3(wallDir.x * speed * 0.3D, speed * 0.6D, wallDir.z * speed * 0.3D);
                     CrawlController.updateCrawlOrientation(mob, pushVelocity);
                     mob.setDeltaMovement(pushVelocity);
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     faceDestination(mob, destination);
                     return;
                 }
@@ -780,7 +780,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             if (toGoal.lengthSqr() > 0.01D) {
                 var stepDown = toGoal.normalize().scale(speed);
                 mob.setDeltaMovement(stepDown.x, Math.min(mob.getDeltaMovement().y, -0.15D), stepDown.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceMovementDirection(mob, stepDown);
                 return;
             }
@@ -795,7 +795,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             var detourSafe = MovementController.findSafeMovement(mob, detourMove, steerBias);
             if (!detourSafe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(detourSafe.x, mob.getDeltaMovement().y, detourSafe.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 faceDestination(mob, destination);
                 return;
             }
@@ -814,7 +814,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 if (downForward.lengthSqr() > 0.0001D)
                     downForward = downForward.normalize().scale(speed * 0.6D);
                 mob.setDeltaMovement(downForward.x, -Math.max(0.18D, speed * 0.45D), downForward.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 stuckTicks = 0;
                 repathCooldown = 0;
                 faceDestination(mob, destination);
@@ -825,7 +825,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
 
             if (!destBelow && mob.onGround() && isStairBlockAhead(mob, forward)) {
                 mob.setDeltaMovement(forward.x * speed * 0.9D, 0.32D, forward.z * speed * 0.9D);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 stuckTicks = 0;
                 faceDestination(mob, destination);
                 return;
@@ -839,7 +839,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                         mob.getDeltaMovement().y,
                         nudge.normalize().scale(speed).z
                     );
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     stuckTicks = 0;
                     repathCooldown = 0;
                     faceDestination(mob, destination);
@@ -860,7 +860,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
                 stuckTicks = 0;
             } else if (mob.onGround() && destination.getY() >= mob.getY() - 0.5D) {
                 mob.setDeltaMovement(movement.x * 0.8D, 0.42D, movement.z * 0.8D);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 stuckTicks = 0;
                 repathCooldown = 0;
                 faceDestination(mob, destination);
@@ -876,7 +876,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
         }
 
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
         faceDestination(mob, destination);
     }
 
@@ -904,7 +904,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
             var safe = MovementController.findSafeMovement(mob, movement, steerBias);
             if (!safe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
             } else {
                 halt(mob);
             }
@@ -1214,7 +1214,7 @@ public final class MoveToDestinationAction<E extends Mob, G> implements Action<E
 
     private void halt(E mob) {
         mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-        mob.hasImpulse = false;
+        mob.needsSync = false;
     }
 
     private void faceDestination(E mob, BlockPos destination) {

@@ -7,15 +7,9 @@
     " P "
   ],
   "key": {
-    "A": {
-      "item": "minecraft:amethyst_shard"
-    },
-    "S": {
-      "item": "minecraft:sculk_sensor"
-    },
-    "P": {
-      "item": "minecraft:copper_ingot"
-    }
+    "A": "minecraft:amethyst_shard",
+    "S": "minecraft:sculk_sensor",
+    "P": "minecraft:copper_ingot"
   },
   "result": {
     "id": "ovomorphosis:motion_tracker",

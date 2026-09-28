@@ -10,12 +10,13 @@ import com.azure.azurecortex.goap.PlanFeedback;
 import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -126,9 +127,10 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         }
 
         if (
-            !mob.level()
-                .getGameRules()
-                .getBoolean(GameRules.RULE_MOBGRIEFING)
+            mob.level() instanceof ServerLevel serverLevel &&
+                !serverLevel
+                    .getGameRules()
+                    .get(GameRules.MOB_GRIEFING)
         ) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION, AiGoalType.BREAK_OBSTACLE);
         }

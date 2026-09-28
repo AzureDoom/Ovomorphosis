@@ -1,6 +1,6 @@
 package mod.azure.ovomorphosis.loot;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 
@@ -8,7 +8,7 @@ public final class OvomorphosisLootTables {
 
     private OvomorphosisLootTables() {}
 
-    public static final Set<ResourceLocation> SURVIVOR_NOTE_TARGETS = Set.of(
+    public static final Set<Identifier> SURVIVOR_NOTE_TARGETS = Set.of(
         vanillaNamespace("chests/abandoned_mineshaft"),
         vanillaNamespace("chests/simple_dungeon"),
         vanillaNamespace("chests/desert_pyramid"),
@@ -28,11 +28,11 @@ public final class OvomorphosisLootTables {
         vanillaNamespace("chests/spawn_bonus_chest")
     );
 
-    public static boolean shouldInjectSurvivorNote(ResourceLocation id) {
+    public static boolean shouldInjectSurvivorNote(Identifier id) {
         return SURVIVOR_NOTE_TARGETS.contains(id);
     }
 
-    private static ResourceLocation vanillaNamespace(String path) {
-        return ResourceLocation.fromNamespaceAndPath("minecraft", path);
+    private static Identifier vanillaNamespace(String path) {
+        return Identifier.fromNamespaceAndPath("minecraft", path);
     }
 }

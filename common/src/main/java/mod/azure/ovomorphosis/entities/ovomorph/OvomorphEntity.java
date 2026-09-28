@@ -4,10 +4,10 @@ import com.azure.azurecortex.runtime.CortexRuntime;
 import com.azure.azurecortex.sensing.TargetSensor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
@@ -20,10 +20,13 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
@@ -86,17 +89,17 @@ public class OvomorphEntity extends AbstractAlienEntity {
     }
 
     @Override
-    public void addAdditionalSaveData(@NotNull CompoundTag nbt) {
+    public void addAdditionalSaveData(@NotNull ValueOutput nbt) {
         super.addAdditionalSaveData(nbt);
         nbt.putBoolean("hasFacehugger", hasFacehugger());
         nbt.putInt("eggState", getEggState());
     }
 
     @Override
-    public void readAdditionalSaveData(@NotNull CompoundTag nbt) {
+    public void readAdditionalSaveData(@NotNull ValueInput nbt) {
         super.readAdditionalSaveData(nbt);
-        setHasFacehugger(nbt.getBoolean("hasFacehugger"));
-        setEggState(nbt.getInt("eggState"));
+        setHasFacehugger(nbt.getBooleanOr("hasFacehugger", true));
+        setEggState(nbt.getInt("eggState").orElse(0));
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -137,7 +140,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         }
 
         if (
-            !level().isClientSide &&
+            !level().isClientSide() &&
                 entity instanceof LivingEntity living &&
                 TargetingUtils.faceHuggerTest(this, living)
         ) {
@@ -151,7 +154,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
     }
 
     @Override
-    public boolean canBeCollidedWith() {
+    public boolean canBeCollidedWith(@Nullable Entity other) {
         return this.isAlive();
     }
 
@@ -169,7 +172,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
     public @Nullable SpawnGroupData finalizeSpawn(
         @NotNull ServerLevelAccessor level,
         @NotNull DifficultyInstance difficulty,
-        @NotNull MobSpawnType spawnType,
+        @NotNull EntitySpawnReason spawnType,
         @Nullable SpawnGroupData spawnGroupData
     ) {
         float yaw = this.getRandom().nextInt(4) * 90.0f;
@@ -188,7 +191,17 @@ public class OvomorphEntity extends AbstractAlienEntity {
     public void setYHeadRot(float yaw) {}
 
     @Override
-    public void knockback(double strength, double x, double z) {}
+    public void knockback(double power, double xd, double zd, @NonNull DamageSource source, float damage) {}
+
+    @Override
+    public void knockback(
+        double power,
+        double xd,
+        double zd,
+        @NonNull DamageSource source,
+        float damage,
+        boolean comesFromEffect
+    ) {}
 
     @Override
     public void tick() {
@@ -205,10 +218,10 @@ public class OvomorphEntity extends AbstractAlienEntity {
             brainRuntime.tick();
         }
         if (tickCount == 1) {
-            moveTo(Mth.floor(getX()) + 0.5, getY(), Mth.floor(getZ()) + 0.5, getYRot(), getXRot());
+            snapTo(Mth.floor(getX()) + 0.5, getY(), Mth.floor(getZ()) + 0.5, getYRot(), getXRot());
         }
         this.setDeltaMovement(Vec3.ZERO);
-        this.hasImpulse = false;
+        this.needsSync = false;
 
         var yaw = 90.0f;
         this.setYRot(yaw);
@@ -218,11 +231,11 @@ public class OvomorphEntity extends AbstractAlienEntity {
     }
 
     @Override
-    public boolean hurt(@NotNull DamageSource source, float amount) {
+    public boolean hurtServer(@NonNull ServerLevel level, DamageSource source, float amount) {
         if (hasFacehugger() && amount > 0) {
             this.setEggState(EggStates.HATCHING.ordinal());
         }
-        return super.hurt(source, amount);
+        return super.hurtServer(level, source, amount);
     }
 
     /**
@@ -234,7 +247,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         var pos = this.blockPosition();
 
         for (var dir : Direction.values()) {
-            if (!level.getBlockState(pos.relative(dir)).isSolidRender(level, pos.relative(dir))) {
+            if (!level.getBlockState(pos.relative(dir)).isSolidRender()) {
                 return false;
             }
         }
@@ -243,7 +256,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         for (var dx : new int[] { -1, 1 }) {
             for (var dz : new int[] { -1, 1 }) {
                 var diag = above.offset(dx, 0, dz);
-                if (!level.getBlockState(diag).isSolidRender(level, diag)) {
+                if (!level.getBlockState(diag).isSolidRender()) {
                     return false;
                 }
             }
@@ -261,7 +274,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
         var count = 0;
         for (var i = 1; i <= 3; i++) {
             var check = pos.above(i);
-            if (level.getBlockState(check).isSolidRender(level, check))
+            if (level.getBlockState(check).isSolidRender())
                 break;
             count++;
         }
@@ -300,7 +313,7 @@ public class OvomorphEntity extends AbstractAlienEntity {
     public static boolean canOvomorphSpawn(
         EntityType<OvomorphEntity> type,
         ServerLevelAccessor level,
-        MobSpawnType reason,
+        EntitySpawnReason reason,
         BlockPos pos,
         RandomSource random
     ) {

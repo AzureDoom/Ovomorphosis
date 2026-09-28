@@ -7,18 +7,10 @@
     "ACA"
   ],
   "key": {
-    "A": {
-      "item": "minecraft:amethyst_shard"
-    },
-    "O": {
-      "item": "minecraft:observer"
-    },
-    "C": {
-      "item": "minecraft:copper_ingot"
-    },
-    "L": {
-      "item": "minecraft:redstone_lamp"
-    }
+    "A": "minecraft:amethyst_shard",
+    "O": "minecraft:observer",
+    "C": "minecraft:copper_ingot",
+    "L": "minecraft:redstone_lamp"
   },
   "result": {
     "id": "ovomorphosis:infection_scanner",

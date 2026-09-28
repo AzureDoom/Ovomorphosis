@@ -16,7 +16,7 @@ public final class OvomorphStructureChecks {
         }
 
         var structureRegistry =
-            serverLevel.registryAccess().registryOrThrow(Registries.STRUCTURE);
+            serverLevel.registryAccess().lookupOrThrow(Registries.STRUCTURE);
 
         for (var holder : structureRegistry.getTagOrEmpty(ModTags.INFESTABLE_STRUCTURES)) {
             var structure = holder.value();

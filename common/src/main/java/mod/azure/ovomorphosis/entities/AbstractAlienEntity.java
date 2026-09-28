@@ -4,9 +4,8 @@ import com.azure.azurecortex.api.navigation.MovementCapability;
 import com.azure.azurecortex.navigation.crawl.CrawlCapability;
 import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.navigation.crawl.CrawlState;
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -19,8 +18,11 @@ import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.util.ClientAnimState;
@@ -106,15 +108,15 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
     }
 
     @Override
-    public void addAdditionalSaveData(@NotNull CompoundTag tag) {
+    public void addAdditionalSaveData(@NotNull ValueOutput tag) {
         super.addAdditionalSaveData(tag);
         tag.putFloat("fireToleranceNbt", getFireToleranceNbt());
     }
 
     @Override
-    public void readAdditionalSaveData(@NotNull CompoundTag tag) {
+    protected void readAdditionalSaveData(@NotNull ValueInput tag) {
         super.readAdditionalSaveData(tag);
-        this.setFireToleranceNbt(tag.getFloat("fireToleranceNbt"));
+        this.setFireToleranceNbt(tag.getFloatOr("fireToleranceNbt", getFireToleranceNbt()));
     }
 
     @Override
@@ -133,8 +135,9 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public boolean isHazardEntityType(EntityType<?> type) {
-        return type.is(ModTags.DANGER_ENTITIES);
+        return type.builtInRegistryHolder().is(ModTags.DANGER_ENTITIES);
     }
 
     @Override
@@ -238,7 +241,7 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
     }
 
     @Override
-    public boolean causeFallDamage(float fallDistance, float multiplier, @NotNull DamageSource source) {
+    public boolean causeFallDamage(double fallDistance, float multiplier, @NotNull DamageSource source) {
         if (fallDistance <= 12.0F) {
             return false;
         }
@@ -250,7 +253,6 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
         ++this.deathTime;
         if (this.deathTime >= 40 && !this.level().isClientSide() && !this.isRemoved()) {
             this.level().broadcastEntityEvent(this, (byte) 60);
-            this.dropExperience(this);
             this.remove(RemovalReason.KILLED);
         }
     }
@@ -262,7 +264,7 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
     }
 
     @Override
-    public boolean hurt(@NotNull DamageSource source, float amount) {
+    public boolean hurtServer(@NonNull ServerLevel level, DamageSource source, float amount) {
         if (source.is(DamageTypes.IN_WALL)) {
             return false;
         }
@@ -270,7 +272,7 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
         if (isAlive() && amount > 4F) {
             MobUtils.spawnAcid(damageSources(), source, this);
         }
-        return super.hurt(source, amount);
+        return super.hurtServer(level, source, amount);
     }
 
     @Override

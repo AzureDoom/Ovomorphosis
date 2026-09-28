@@ -8,8 +8,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ambient.AmbientCreature;
 import net.minecraft.world.entity.ambient.Bat;
-import net.minecraft.world.entity.animal.WaterAnimal;
 import net.minecraft.world.entity.animal.allay.Allay;
+import net.minecraft.world.entity.animal.fish.WaterAnimal;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Phantom;
 import net.minecraft.world.entity.monster.Vex;
@@ -163,16 +163,20 @@ public final class TargetingUtils {
         if (target instanceof Vex)
             return false;
 
-        if (target.getType().is(EntityTypeTags.UNDEAD))
+        if (target.getType().builtInRegistryHolder().is(EntityTypeTags.UNDEAD))
             return false;
 
         if (target instanceof AbstractAlienEntity)
             return false;
 
-        if (target.getType().is(ModTags.FACEHUGGER_BLACKLIST))
+        if (target.getType().builtInRegistryHolder().is(ModTags.FACEHUGGER_BLACKLIST))
             return false;
 
-        if (!(target.getType().is(ModTags.XENOMORPH_HOST) || target.getType().is(ModTags.RUNNER_HOST)))
+        if (
+            !(target.getType().builtInRegistryHolder().is(ModTags.XENOMORPH_HOST) || target.getType()
+                .builtInRegistryHolder()
+                .is(ModTags.RUNNER_HOST))
+        )
             return false;
 
         if (isFacehuggerAttached(target))

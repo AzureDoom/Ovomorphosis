@@ -50,7 +50,7 @@ public final class TunnelEntryRegistry {
      * @param pos   the entry position (stored as an immutable copy)
      */
     public static void register(Level level, BlockPos pos) {
-        var set = chunkSet(level.dimension(), ChunkPos.asLong(pos));
+        var set = chunkSet(level.dimension(), ChunkPos.pack(pos));
         if (set.size() >= MAX_ENTRIES_PER_CHUNK) {
             return;
         }
@@ -68,7 +68,7 @@ public final class TunnelEntryRegistry {
         if (dimMap == null) {
             return;
         }
-        var set = dimMap.get(ChunkPos.asLong(pos));
+        var set = dimMap.get(ChunkPos.pack(pos));
         if (set != null) {
             set.remove(pos);
         }
@@ -124,7 +124,7 @@ public final class TunnelEntryRegistry {
 
         for (var cx = originChunkX - chunkRadius; cx <= originChunkX + chunkRadius; cx++) {
             for (var cz = originChunkZ - chunkRadius; cz <= originChunkZ + chunkRadius; cz++) {
-                var set = dimMap.get(ChunkPos.asLong(cx, cz));
+                var set = dimMap.get(ChunkPos.pack(cx, cz));
                 if (set == null || set.isEmpty()) {
                     continue;
                 }

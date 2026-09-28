@@ -3,12 +3,15 @@ package mod.azure.ovomorphosis;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.minecraft.core.Holder;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 import net.neoforged.neoforge.common.loot.IGlobalLootModifier;
 import net.neoforged.neoforge.common.loot.LootModifier;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
 
 import mod.azure.ovomorphosis.items.SurvivorNoteBook;
 import mod.azure.ovomorphosis.loot.OvomorphosisLootTables;
@@ -20,8 +23,8 @@ public class SurvivorNoteLootModifier extends LootModifier {
             instance -> codecStart(instance).apply(instance, SurvivorNoteLootModifier::new)
         );
 
-    protected SurvivorNoteLootModifier(LootItemCondition[] conditions) {
-        super(conditions);
+    protected SurvivorNoteLootModifier(Optional<Holder<LootItemCondition>> condition, int priority) {
+        super(condition, priority);
     }
 
     @Override

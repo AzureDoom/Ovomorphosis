@@ -81,7 +81,7 @@ public final class XenomorphCombatAction<E extends Mob, G> implements Action<E, 
         stalkLateralBias = mob.getRandom().nextBoolean() ? 1 : -1;
         stalkSteerBias[0] = 0;
         wasCrawlingOnStart = CrawlController.wasRecentlyWallCrawling(mob);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         if (wasCrawlingOnStart) {
             CrawlController.setWallCrawling(mob, true);
@@ -230,7 +230,7 @@ public final class XenomorphCombatAction<E extends Mob, G> implements Action<E, 
 
         var safe = MovementController.findSafeMovement(mob, movement, new int[] { 0 });
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         int duration = isThreatResponse ? 24 : 14;
         if (phaseAge >= duration) {
@@ -257,7 +257,7 @@ public final class XenomorphCombatAction<E extends Mob, G> implements Action<E, 
     private void enterPhase(E mob, Phase next) {
         phase = next;
         phaseAge = 0;
-        mob.hasImpulse = true;
+        mob.needsSync = true;
     }
 
     private void maintainCrawl(E mob) {
@@ -292,6 +292,6 @@ public final class XenomorphCombatAction<E extends Mob, G> implements Action<E, 
         var safe = MovementController.findSafeMovement(mob, candidate, stalkSteerBias);
         var result = safe.equals(Vec3.ZERO) ? candidate : safe;
         mob.setDeltaMovement(result.x, mob.getDeltaMovement().y, result.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
     }
 }

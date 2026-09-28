@@ -1,13 +1,18 @@
 package mod.azure.ovomorphosis.mixins;
 
-import com.google.common.collect.ImmutableSet;
+import net.minecraft.resources.DependantName;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.storage.loot.LootTable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
+
+import java.util.Optional;
 
 import mod.azure.ovomorphosis.entities.SilencedEntityTypeBuilder;
 
@@ -16,14 +21,14 @@ public class MixinEntityTypeBuilder_SilenceDataFixerError implements SilencedEnt
 
     @Final
     @Shadow
-    private EntityType.EntityFactory<Entity> factory;
+    private EntityType.EntityFactory<?> factory;
 
     @Final
     @Shadow
     private MobCategory category;
 
     @Shadow
-    private ImmutableSet<Block> immuneTo;
+    private TagKey<Block> immuneTo;
 
     @Shadow
     private boolean serialize;
@@ -55,10 +60,25 @@ public class MixinEntityTypeBuilder_SilenceDataFixerError implements SilencedEnt
     @Shadow
     private FeatureFlagSet requiredFeatures;
 
+    @Shadow
+    private DependantName<EntityType<?>, Optional<ResourceKey<LootTable>>> lootTable;
+
+    @Final
+    @Shadow
+    private DependantName<EntityType<?>, String> descriptionId;
+
+    @Shadow
+    private boolean allowedInPeaceful;
+
+    @Shadow
+    private boolean trackDeltas;
+
     @Unique
     @Override
-    @SuppressWarnings("unchecked")
-    public <T extends Entity> EntityType<T> buildWithoutDataFixerCheck() {
+    @SuppressWarnings({ "unchecked" })
+    public <T extends Entity> EntityType<T> buildWithoutDataFixerCheck(
+        ResourceKey<EntityType<?>> name
+    ) {
         return new EntityType<>(
             (EntityType.EntityFactory<T>) this.factory,
             this.category,
@@ -71,7 +91,11 @@ public class MixinEntityTypeBuilder_SilenceDataFixerError implements SilencedEnt
             this.spawnDimensionsScale,
             this.clientTrackingRange,
             this.updateInterval,
-            this.requiredFeatures
+            this.descriptionId.get(name),
+            this.lootTable.get(name),
+            this.requiredFeatures,
+            this.allowedInPeaceful,
+            this.trackDeltas
         );
     }
 }

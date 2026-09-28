@@ -1,11 +1,11 @@
 package mod.azure.ovomorphosis.client.layer;
 
-import mod.azure.azurelib.common.model.AzBone;
-import mod.azure.azurelib.common.render.AzRendererPipeline;
-import mod.azure.azurelib.common.render.AzRendererPipelineContext;
-import mod.azure.azurelib.common.render.layer.AzRenderLayer;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.resources.ResourceLocation;
+import mod.azure.azurelib.model.AzBone;
+import mod.azure.azurelib.render.AzRendererPipeline;
+import mod.azure.azurelib.render.AzRendererPipelineContext;
+import mod.azure.azurelib.render.layer.AzRenderLayer;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.resources.Identifier;
 
 import java.util.UUID;
 
@@ -23,7 +23,7 @@ public class TextureGrowthOverlayLayer<T extends AbstractAlienEntity & Growable>
     public void render(AzRendererPipelineContext<UUID, T> context) {
         T animatable = context.animatable();
         AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
-        var rendertype = RenderType.entityTranslucentCull(getEntityTexture(animatable));
+        var rendertype = RenderTypes.entityTranslucentCull(getEntityTexture(animatable));
 
         if (animatable.getGrowth() < animatable.getMaxGrowth() && animatable.isAlive()) {
             context.setRenderType(rendertype);
@@ -41,7 +41,7 @@ public class TextureGrowthOverlayLayer<T extends AbstractAlienEntity & Growable>
     @Override
     public void renderForBone(AzRendererPipelineContext<UUID, T> context, AzBone bone) {}
 
-    private ResourceLocation getEntityTexture(AbstractAlienEntity entity) {
+    private Identifier getEntityTexture(AbstractAlienEntity entity) {
         var name = "xenomorph";
         if (entity instanceof RunnerEntity)
             name = "runner";

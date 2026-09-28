@@ -14,7 +14,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -162,7 +162,7 @@ public final class FleeFireAction<E extends Mob, G> implements Action<E, G> {
         var move = safe.equals(Vec3.ZERO) ? desired : safe;
 
         mob.setDeltaMovement(move.x, mob.getDeltaMovement().y, move.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         var yaw = (float) (Math.atan2(move.z, move.x) * (180.0 / Math.PI)) - 90.0F;
         mob.setYRot(yaw);
@@ -281,18 +281,12 @@ public final class FleeFireAction<E extends Mob, G> implements Action<E, G> {
      * lava bucket, or a fire-charge-type item.
      */
     private static boolean isHoldingFireTool(LivingEntity entity) {
-        for (var slot : entity.getHandSlots()) {
-            var item = slot.getItem();
-            var id = BuiltInRegistries.ITEM.getKey(item).getPath();
-            if (
-                id.contains("flint_and_steel")
-                    || id.contains("lava_bucket")
-                    || id.contains("fire_charge")
-            ) {
-                return true;
-            }
-        }
-        return false;
+        return entity.isHolding(stack -> {
+            var path = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+            return path.contains("flint_and_steel")
+                || path.contains("lava_bucket")
+                || path.contains("fire_charge");
+        });
     }
 
     /**

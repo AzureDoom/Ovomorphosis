@@ -1,65 +1,40 @@
 package mod.azure.ovomorphosis.structuremodifier;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.mojang.serialization.JsonOps;
-import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.FileToIdConverter;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
+import org.jspecify.annotations.NonNull;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import mod.azure.ovomorphosis.CommonMod;
 
-public final class StructureModifierManager extends SimpleJsonResourceReloadListener implements IdentifiableResourceReloadListener {
+@SuppressWarnings("unused")
+public final class StructureModifierManager extends SimpleJsonResourceReloadListener<StructureModifierEntry> {
+
+    public static final Identifier ID = CommonMod.modResource("structure_modifier");
 
     public static final StructureModifierManager INSTANCE = new StructureModifierManager();
 
-    private Map<ResourceLocation, StructureModifierEntry> entries = Collections.emptyMap();
+    private Map<Identifier, StructureModifierEntry> entries = Map.of();
 
     private StructureModifierManager() {
-        super(new Gson(), "fabric/structure_modifier");
+        super(StructureModifierEntry.CODEC, FileToIdConverter.json("fabric/structure_modifier"));
     }
 
     @Override
     protected void apply(
-        Map<ResourceLocation, JsonElement> object,
-        ResourceManager resourceManager,
-        ProfilerFiller profiler
+        @NonNull Map<Identifier, StructureModifierEntry> parsed,
+        @NonNull ResourceManager resourceManager,
+        @NonNull ProfilerFiller profiler
     ) {
-        Map<ResourceLocation, StructureModifierEntry> parsed = new HashMap<>();
-
-        for (var pair : object.entrySet()) {
-            var id = pair.getKey();
-            var json = pair.getValue();
-
-            var result = StructureModifierEntry.CODEC.parse(
-                JsonOps.INSTANCE,
-                json
-            );
-
-            result.resultOrPartial(
-                error -> CommonMod.LOGGER.error(
-                    "Failed to parse structure modifier {}: {}",
-                    id,
-                    error
-                )
-            ).ifPresent(entry -> parsed.put(id, entry));
-        }
-
         this.entries = Map.copyOf(parsed);
+        CommonMod.LOGGER.info("Loaded {} structure modifier entries", entries.size());
     }
 
-    public Map<ResourceLocation, StructureModifierEntry> getEntries() {
+    public Map<Identifier, StructureModifierEntry> getEntries() {
         return entries;
-    }
-
-    @Override
-    public ResourceLocation getFabricId() {
-        return CommonMod.modResource("structure_modifier");
     }
 }

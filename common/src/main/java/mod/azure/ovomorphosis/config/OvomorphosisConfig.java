@@ -1,7 +1,7 @@
 package mod.azure.ovomorphosis.config;
 
-import mod.azure.azurelib.common.config.Config;
-import mod.azure.azurelib.common.config.Configurable;
+import mod.azure.azurelib.config.Config;
+import mod.azure.azurelib.config.Configurable;
 
 import mod.azure.ovomorphosis.CommonMod;
 

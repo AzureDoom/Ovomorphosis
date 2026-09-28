@@ -6,9 +6,11 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.ai.util.TargetingUtils;
 import mod.azure.ovomorphosis.infection.EggmorphTracker;
+import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.registry.BlockEntityRegistry;
 
 public class ResinWebBlockEntity extends BlockEntity {
@@ -32,6 +34,15 @@ public class ResinWebBlockEntity extends BlockEntity {
             if (!TargetingUtils.eggmorphValid().test(entity))
                 continue;
             tracker.onEntityInside(entity);
+        }
+    }
+
+    @Override
+    public void preRemoveSideEffects(@NotNull BlockPos pos, @NotNull BlockState state) {
+        super.preRemoveSideEffects(pos, state); // keeps Container dropping if you ever implement it
+        if (this.level != null && !this.level.isClientSide()) {
+            EggmorphTracker.remove(pos);
+            ResinWebRegistry.unregister(this.level, pos);
         }
     }
 }

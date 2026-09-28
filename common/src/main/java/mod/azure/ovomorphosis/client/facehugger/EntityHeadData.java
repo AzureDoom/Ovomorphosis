@@ -1,6 +1,7 @@
 package mod.azure.ovomorphosis.client.facehugger;
 
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.HashMap;
@@ -29,37 +30,37 @@ public record EntityHeadData(
 
     public static final Map<EntityType<?>, EntityHeadData> ENTITY_HEAD_DATA_BY_TYPE = new HashMap<>(
         Map.ofEntries(
-            Map.entry(EntityType.CAMEL, adjust(vec3(7, 8, 19), vec3(-3.5, 22, -24), vec3(0, 23, -9))),
-            Map.entry(EntityType.COW, COW),
-            Map.entry(EntityType.DONKEY, HORSE),
-            Map.entry(EntityType.DOLPHIN, adjust(vec3(2, 2, 4), vec3(-1, 0, -13), vec3(0, 0, -3))),
-            Map.entry(EntityType.EVOKER, VILLAGER),
-            Map.entry(EntityType.FOX, adjust(vec3(8, 6, 6), vec3(-4, 3.5, -8), vec3(1, 7.5, -3))),
-            Map.entry(EntityType.GOAT, adjust(vec3(5, 7, 10), vec3(-3, 16, -14), vec3(-0.5, 10, 0))),
-            Map.entry(EntityType.HOGLIN, adjust(vec3(14, 6, 19), vec3(-7, 21, -24), vec3(0, 22, -5))),
-            Map.entry(EntityType.HORSE, HORSE),
-            Map.entry(EntityType.ILLUSIONER, VILLAGER),
-            Map.entry(EntityType.LLAMA, LLAMA),
-            Map.entry(EntityType.MOOSHROOM, COW),
-            Map.entry(EntityType.MULE, HORSE),
-            Map.entry(EntityType.PANDA, adjust(vec3(13, 10, 9), vec3(-6.5, 7.5, -21), vec3(0, 12.5, -17))),
-            Map.entry(EntityType.PIG, adjust(vec3(8, 8, 8), vec3(-4, 8, -14), vec3(0, 12, -6))),
-            Map.entry(EntityType.PIGLIN, PIGLIN),
-            Map.entry(EntityType.PIGLIN_BRUTE, PIGLIN),
-            Map.entry(EntityType.PILLAGER, VILLAGER),
-            Map.entry(EntityType.PLAYER, adjust(vec3(8, 8, 8), vec3(-4, 24, -4), vec3(0, 24, 0))),
-            Map.entry(EntityType.POLAR_BEAR, adjust(vec3(7, 7, 7), vec3(-3.5, 10, -19), vec3(0, 14, -16 - 3))),
-            Map.entry(EntityType.RAVAGER, adjust(vec3(16, 20, 16), vec3(-8, 14, -24), vec3(0, 14, -10 - 2.5))),
-            Map.entry(EntityType.SHEEP, adjust(vec3(6, 6, 8), vec3(-3, 16, -14), vec3(0, 18, -8))),
-            Map.entry(EntityType.SNIFFER, adjust(vec3(13, 18, 11), vec3(-6.5, 5, -31), vec3(0, 12.5, -19.5))),
-            Map.entry(EntityType.TRADER_LLAMA, LLAMA),
-            Map.entry(EntityType.VILLAGER, VILLAGER),
-            Map.entry(EntityType.VINDICATOR, VILLAGER),
-            Map.entry(EntityType.WITCH, VILLAGER),
-            Map.entry(EntityType.WANDERING_TRADER, VILLAGER),
-            Map.entry(EntityType.WOLF, adjust(vec3(6, 6, 4), vec3(-3, 7.5, -9), vec3(1, 10.5, -7))),
-            Map.entry(EntityType.ZOGLIN, adjust(vec3(14, 6, 19), vec3(-7, 21, -24), vec3(0, 22, -5))),
-            Map.entry(EntityType.ZOMBIE_VILLAGER, VILLAGER)
+            Map.entry(EntityTypes.CAMEL, adjust(vec3(7, 8, 19), vec3(-3.5, 22, -24), vec3(0, 23, -9))),
+            Map.entry(EntityTypes.COW, COW),
+            Map.entry(EntityTypes.DONKEY, HORSE),
+            Map.entry(EntityTypes.DOLPHIN, adjust(vec3(2, 2, 4), vec3(-1, 0, -13), vec3(0, 0, -3))),
+            Map.entry(EntityTypes.EVOKER, VILLAGER),
+            Map.entry(EntityTypes.FOX, adjust(vec3(8, 6, 6), vec3(-4, 3.5, -8), vec3(1, 7.5, -3))),
+            Map.entry(EntityTypes.GOAT, adjust(vec3(5, 7, 10), vec3(-3, 16, -14), vec3(-0.5, 10, 0))),
+            Map.entry(EntityTypes.HOGLIN, adjust(vec3(14, 6, 19), vec3(-7, 21, -24), vec3(0, 22, -5))),
+            Map.entry(EntityTypes.HORSE, HORSE),
+            Map.entry(EntityTypes.ILLUSIONER, VILLAGER),
+            Map.entry(EntityTypes.LLAMA, LLAMA),
+            Map.entry(EntityTypes.MOOSHROOM, COW),
+            Map.entry(EntityTypes.MULE, HORSE),
+            Map.entry(EntityTypes.PANDA, adjust(vec3(13, 10, 9), vec3(-6.5, 7.5, -21), vec3(0, 12.5, -17))),
+            Map.entry(EntityTypes.PIG, adjust(vec3(8, 8, 8), vec3(-4, 8, -14), vec3(0, 12, -6))),
+            Map.entry(EntityTypes.PIGLIN, PIGLIN),
+            Map.entry(EntityTypes.PIGLIN_BRUTE, PIGLIN),
+            Map.entry(EntityTypes.PILLAGER, VILLAGER),
+            Map.entry(EntityTypes.PLAYER, adjust(vec3(8, 8, 8), vec3(-4, 24, -4), vec3(0, 24, 0))),
+            Map.entry(EntityTypes.POLAR_BEAR, adjust(vec3(7, 7, 7), vec3(-3.5, 10, -19), vec3(0, 14, -16 - 3))),
+            Map.entry(EntityTypes.RAVAGER, adjust(vec3(16, 20, 16), vec3(-8, 14, -24), vec3(0, 14, -10 - 2.5))),
+            Map.entry(EntityTypes.SHEEP, adjust(vec3(6, 6, 8), vec3(-3, 16, -14), vec3(0, 18, -8))),
+            Map.entry(EntityTypes.SNIFFER, adjust(vec3(13, 18, 11), vec3(-6.5, 5, -31), vec3(0, 12.5, -19.5))),
+            Map.entry(EntityTypes.TRADER_LLAMA, LLAMA),
+            Map.entry(EntityTypes.VILLAGER, VILLAGER),
+            Map.entry(EntityTypes.VINDICATOR, VILLAGER),
+            Map.entry(EntityTypes.WITCH, VILLAGER),
+            Map.entry(EntityTypes.WANDERING_TRADER, VILLAGER),
+            Map.entry(EntityTypes.WOLF, adjust(vec3(6, 6, 4), vec3(-3, 7.5, -9), vec3(1, 10.5, -7))),
+            Map.entry(EntityTypes.ZOGLIN, adjust(vec3(14, 6, 19), vec3(-7, 21, -24), vec3(0, 22, -5))),
+            Map.entry(EntityTypes.ZOMBIE_VILLAGER, VILLAGER)
         )
     );
 

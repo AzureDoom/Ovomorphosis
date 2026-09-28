@@ -231,7 +231,7 @@ public final class CarryToWebAction<E extends Mob, G> implements Action<E, G> {
             return ActionOutcome.failed(PlanFailureReason.FAILED_NO_PATH);
         }
 
-        victim.startRiding(mob, true);
+        victim.startRiding(mob, true, true);
 
         var webVec = Vec3.atBottomCenterOf(webTarget);
         if (mob.distanceToSqr(webVec) <= 1.8D * 1.8D) {
@@ -463,7 +463,7 @@ public final class CarryToWebAction<E extends Mob, G> implements Action<E, G> {
         var toApply = safe.equals(Vec3.ZERO) ? normalised : safe;
 
         mob.setDeltaMovement(toApply.x, mob.getDeltaMovement().y, toApply.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
     }
 
     private void faceToward(E mob, Vec3 target) {

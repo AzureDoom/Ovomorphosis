@@ -8,10 +8,10 @@ import com.azure.azurecortex.goap.PlannedGoal;
 import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.runtime.CortexRuntime;
 import com.azure.azurecortex.sensing.TargetSensor;
-import mod.azure.azurelib.common.util.MoveAnalysis;
+import mod.azure.azurelib.util.MoveAnalysis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -19,6 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
+import net.minecraft.util.Prediction;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -33,9 +34,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.*;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -190,9 +194,13 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
-    public boolean killedEntity(@NotNull ServerLevel level, @NotNull LivingEntity entity) {
+    public boolean killedEntity(
+        @NotNull ServerLevel level,
+        @NotNull LivingEntity entity,
+        @NonNull DamageSource damageSource
+    ) {
         targetSelector.onTargetKilled();
-        return super.killedEntity(level, entity);
+        return super.killedEntity(level, entity, damageSource);
     }
 
     @Override
@@ -297,10 +305,10 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     public @Nullable SpawnGroupData finalizeSpawn(
         @NotNull ServerLevelAccessor level,
         @NotNull DifficultyInstance difficulty,
-        @NotNull MobSpawnType spawnType,
+        @NotNull EntitySpawnReason spawnType,
         @Nullable SpawnGroupData spawnGroupData
     ) {
-        if (spawnType == MobSpawnType.SPAWN_EGG || spawnType == MobSpawnType.COMMAND)
+        if (spawnType == EntitySpawnReason.SPAWN_ITEM_USE || spawnType == EntitySpawnReason.COMMAND)
             setGrowth(1200);
 
         if (level instanceof ServerLevel serverLevel) {
@@ -338,23 +346,23 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
-    public void addAdditionalSaveData(@NotNull CompoundTag tag) {
+    public void addAdditionalSaveData(@NotNull ValueOutput tag) {
         super.addAdditionalSaveData(tag);
         tag.putFloat("growth", getGrowth());
         tag.putBoolean("isExecuting", this.isExecuting());
         if (hiveId != null) {
-            tag.putUUID("HiveId", hiveId);
+            tag.store("HiveId", UUIDUtil.CODEC, hiveId);
         }
     }
 
     @Override
-    public void readAdditionalSaveData(@NotNull CompoundTag tag) {
+    public void readAdditionalSaveData(@NotNull ValueInput tag) {
         super.readAdditionalSaveData(tag);
-        this.setGrowth(tag.getFloat("growth"));
-        this.setIsExecuting(tag.getBoolean("isExecuting"));
+        this.setGrowth(tag.getFloatOr("growth", 0));
+        this.setIsExecuting(tag.getBooleanOr("isExecuting", false));
 
-        if (tag.hasUUID("HiveId")) {
-            this.hiveId = tag.getUUID("HiveId");
+        if (tag.read("HiveId", UUIDUtil.CODEC).isPresent()) {
+            this.hiveId = tag.read("HiveId", UUIDUtil.CODEC).get();
         } else {
             this.hiveId = null;
         }
@@ -376,7 +384,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         }
 
         if (this.tickCount % 20 == 0) {
-            mob.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 100, true, true));
+            mob.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 100, true, true));
             mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 40, 1, true, true));
         }
 
@@ -412,18 +420,18 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
-    public boolean doHurtTarget(@NotNull Entity target) {
+    public boolean doHurtTarget(@NonNull ServerLevel serverLevel, @NotNull Entity target) {
         if (
             CommonMod.getConfig().entityConfigs.xenomorphConfigs.enableXenomorphItemSlap &&
                 target instanceof LivingEntity livingEntity
-                && !this.level().isClientSide
+                && !this.level().isClientSide()
                 && this.getRandom().nextInt(100) < 5
         ) {
             disarmTarget(livingEntity);
         }
 
         this.heal(1.0833F);
-        return super.doHurtTarget(target);
+        return super.doHurtTarget(serverLevel, target);
     }
 
     private void bindToHive(HiveMemory hive) {
@@ -461,11 +469,11 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
     private void disarmTarget(LivingEntity livingEntity) {
         if (livingEntity instanceof Player player) {
-            var selectedItem = player.getInventory().getSelected();
+            var selectedItem = player.getInventory().getSelectedItem();
 
             if (!selectedItem.isEmpty()) {
-                player.drop(selectedItem, false);
-                player.getInventory().setItem(player.getInventory().selected, ItemStack.EMPTY);
+                player.drop(selectedItem, false, Prediction.PREDICTED);
+                player.getInventory().setItem(player.getInventory().getSelectedSlot(), ItemStack.EMPTY);
             }
         } else if (livingEntity instanceof Mob mob) {
             var mainHandItem = mob.getMainHandItem();
@@ -564,7 +572,7 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
 
             if (CrawlController.isWallCrawling(this)) {
                 playAnimation(ClientAnimState.CRAWLING);
-            } else if (this.isAggressive() && !this.swinging) {
+            } else if (this.isAggressive() && !this.isSwinging()) {
                 playAnimation(ClientAnimState.RUN);
             } else {
                 playAnimation(ClientAnimState.WALK);

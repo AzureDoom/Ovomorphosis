@@ -4,30 +4,33 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.item.component.CustomModelData;
+import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 
 import mod.azure.ovomorphosis.util.ModTags;
 
@@ -37,47 +40,42 @@ public class MotionTrackerItem extends Item {
 
     private static final int COOLDOWN_TICKS = 20;
 
-    private static final int MAX_DAMAGE = 64;
-
     private static final int LIT_MODEL_DATA = 1;
 
-    public MotionTrackerItem() {
-        super(new Item.Properties().durability(MAX_DAMAGE).stacksTo(1));
+    public MotionTrackerItem(Item.Properties properties) {
+        super(properties);
     }
 
     @Override
-    public @NotNull InteractionResultHolder<ItemStack> use(
-        @NotNull Level level,
-        @NotNull Player player,
-        @NotNull InteractionHand hand
+    @SuppressWarnings("deprecation")
+    public @NonNull InteractionResult use(
+        @NonNull Level level,
+        @NonNull Player player,
+        @NonNull InteractionHand hand
     ) {
         var stack = player.getItemInHand(hand);
 
-        if (player.getCooldowns().isOnCooldown(this)) {
-            return InteractionResultHolder.fail(stack);
+        if (player.getCooldowns().isOnCooldown(stack)) {
+            return InteractionResult.FAIL;
         }
 
-        if (level.isClientSide()) {
-            return InteractionResultHolder.consume(stack);
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return InteractionResult.CONSUME;
         }
-
-        var serverLevel = (ServerLevel) level;
-        var serverPlayer = (ServerPlayer) player;
 
         var nearby = serverLevel.getEntitiesOfClass(
             PathfinderMob.class,
             new AABB(player.blockPosition()).inflate(24),
-            e -> e.getType().is(ModTags.MOTION_TRACKABLE)
+            e -> e.getType().builtInRegistryHolder().is(ModTags.MOTION_TRACKABLE)
                 && e.isAlive()
                 && !e.isInvisible()
                 && e.getDeltaMovement().lengthSqr() > 0.025
         );
 
         if (nearby.isEmpty()) {
-            player.displayClientMessage(
+            player.sendOverlayMessage(
                 Component.translatable("item.ovomorphosis.motion_tracker.clear")
-                    .withStyle(ChatFormatting.GREEN),
-                true
+                    .withStyle(ChatFormatting.GREEN)
             );
         } else {
             nearby.sort(Comparator.comparingDouble(e -> e.distanceToSqr(player)));
@@ -116,10 +114,9 @@ public class MotionTrackerItem extends Item {
                 results.append("+").append(nearby.size() - 3).append(" more");
             }
 
-            player.displayClientMessage(
+            player.sendOverlayMessage(
                 Component.literal("▶ " + results.toString().trim())
-                    .withStyle(ChatFormatting.RED),
-                true
+                    .withStyle(ChatFormatting.RED)
             );
 
             level.playSound(
@@ -132,38 +129,39 @@ public class MotionTrackerItem extends Item {
             );
         }
 
-        stack.hurtAndBreak(1, serverPlayer, player.getEquipmentSlotForItem(stack));
-        stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(LIT_MODEL_DATA));
-        player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
+        stack.hurtAndBreak(1, player, player.getEquipmentSlotForItem(stack));
+        stack.set(
+            DataComponents.CUSTOM_MODEL_DATA,
+            new CustomModelData(List.of((float) LIT_MODEL_DATA), List.of(), List.of(), List.of())
+        );
+        player.getCooldowns().addCooldown(stack, COOLDOWN_TICKS);
 
-        return InteractionResultHolder.consume(stack);
+        return InteractionResult.CONSUME;
     }
 
     @Override
-    public @NotNull UseAnim getUseAnimation(@NotNull ItemStack stack) {
-        return UseAnim.NONE;
+    public @NonNull ItemUseAnimation getUseAnimation(@NonNull ItemStack stack) {
+        return ItemUseAnimation.NONE;
     }
 
     @Override
-    public int getUseDuration(@NotNull ItemStack stack, @NotNull LivingEntity entity) {
-        return 72000;
+    public int getUseDuration(@NonNull ItemStack stack, @NonNull LivingEntity entity) {
+        return APPROXIMATELY_INFINITE_USE_DURATION;
     }
 
     @Override
     public void inventoryTick(
-        @NotNull ItemStack stack,
-        @NotNull Level level,
-        @NotNull Entity entity,
-        int slot,
-        boolean selected
+        @NonNull ItemStack stack,
+        @NonNull ServerLevel level,
+        @NonNull Entity entity,
+        @Nullable EquipmentSlot slot
     ) {
-        if (level.isClientSide())
-            return;
-
-        if (stack.has(DataComponents.CUSTOM_MODEL_DATA) && entity instanceof Player player) {
-            if (!player.getCooldowns().isOnCooldown(this)) {
-                stack.remove(DataComponents.CUSTOM_MODEL_DATA);
-            }
+        if (
+            stack.has(DataComponents.CUSTOM_MODEL_DATA)
+                && entity instanceof Player player
+                && !player.getCooldowns().isOnCooldown(stack)
+        ) {
+            stack.remove(DataComponents.CUSTOM_MODEL_DATA);
         }
     }
 
@@ -172,14 +170,13 @@ public class MotionTrackerItem extends Item {
      */
     private static int countWallBlocksBetween(ServerLevel level, Vec3 from, Vec3 to) {
         var count = 0;
-        var current = from;
         var direction = to.subtract(from).normalize();
         var totalDist = from.distanceTo(to);
         var stepped = 0D;
 
         while (stepped < totalDist) {
             stepped += 1.0D;
-            current = from.add(direction.scale(stepped));
+            var current = from.add(direction.scale(stepped));
 
             var result = level.clip(
                 new ClipContext(
@@ -193,7 +190,7 @@ public class MotionTrackerItem extends Item {
 
             if (result.getType() == HitResult.Type.BLOCK) {
                 var bs = level.getBlockState(result.getBlockPos());
-                if (bs.isSolidRender(level, result.getBlockPos())) {
+                if (bs.isSolidRender()) {
                     count++;
                 }
             }
@@ -216,20 +213,18 @@ public class MotionTrackerItem extends Item {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public void appendHoverText(
-        @NotNull ItemStack stack,
-        @NotNull TooltipContext context,
-        @NotNull List<Component> components,
-        @NotNull TooltipFlag flag
+        @NonNull ItemStack itemStack,
+        @NonNull TooltipContext context,
+        @NonNull TooltipDisplay display,
+        @NonNull Consumer<Component> builder,
+        @NonNull TooltipFlag tooltipFlag
     ) {
-        components.add(
+        builder.accept(
             Component.translatable("item.ovomorphosis.motion_tracker.tooltip")
                 .withStyle(ChatFormatting.GRAY)
         );
-    }
-
-    @Override
-    public boolean isEnchantable(@NotNull ItemStack stack) {
-        return false;
+        super.appendHoverText(itemStack, context, display, builder, tooltipFlag);
     }
 }

@@ -108,7 +108,7 @@ public record DodgeProjectileAction<E extends Mob, G>(int priority) implements A
         var impulse = safe.equals(Vec3.ZERO) ? lateral : safe;
 
         mob.setDeltaMovement(impulse.x, DODGE_JUMP, impulse.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         var yaw = (float) (Math.atan2(impulse.z, impulse.x) * (180.0 / Math.PI)) - 90.0F;
         mob.setYRot(yaw);

@@ -1,26 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
+  "category": "equipment",
   "pattern": [
     "CIC",
     "CLC",
     "CMG"
   ],
   "key": {
-    "C": {
-      "item": "minecraft:copper_ingot"
-    },
-    "I": {
-      "item": "minecraft:iron_ingot"
-    },
-    "L": {
-      "item": "minecraft:lever"
-    },
-    "M": {
-      "item": "minecraft:magma_cream"
-    },
-    "G": {
-      "item": "minecraft:glass_bottle"
-    }
+    "C": "minecraft:copper_ingot",
+    "I": "minecraft:iron_ingot",
+    "L": "minecraft:lever",
+    "M": "minecraft:magma_cream",
+    "G": "minecraft:glass_bottle"
   },
   "result": {
     "id": "ovomorphosis:magma_sprayer",

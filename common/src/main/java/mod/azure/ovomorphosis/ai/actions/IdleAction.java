@@ -54,7 +54,7 @@ public final class IdleAction<E extends Mob, G> implements Action<E, G> {
 
             if (!safe.equals(Vec3.ZERO)) {
                 mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 return ActionOutcome.running();
             }
         }

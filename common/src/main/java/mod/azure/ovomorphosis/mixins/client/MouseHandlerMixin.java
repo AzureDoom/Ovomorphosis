@@ -1,9 +1,9 @@
 package mod.azure.ovomorphosis.mixins.client;
 
-import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Util;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -50,9 +50,8 @@ public class MouseHandlerMixin {
             return;
         }
 
-        minecraft.player.displayClientMessage(
-            Component.translatable("msg.ovomorphosis.facehugger_head_locked"),
-            true
+        minecraft.player.sendOverlayMessage(
+            Component.translatable("msg.ovomorphosis.facehugger_head_locked")
         );
     }
 }

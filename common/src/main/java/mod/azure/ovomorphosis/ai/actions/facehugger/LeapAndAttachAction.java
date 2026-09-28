@@ -56,12 +56,13 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity, G> implements
             if (attachedTicks >= CommonMod.getConfig().entityConfigs.facehuggerConfigs.facehuggerAttachMaxTicks) {
                 mob.stopRiding();
                 mob.setIsInfertile(true);
-                mob.kill();
+                if (mob.level() instanceof ServerLevel serverLevel)
+                    mob.kill(serverLevel);
                 return ActionOutcome.success();
             }
 
             mob.setDeltaMovement(Vec3.ZERO);
-            mob.hasImpulse = false;
+            mob.needsSync = false;
             return ActionOutcome.running();
         }
 
@@ -87,13 +88,17 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity, G> implements
             if (target.isBlocking() || MobUtils.hasBlockingHelmet(target)) {
                 var knockback = mob.position().subtract(target.position()).normalize().scale(0.4D);
                 mob.setDeltaMovement(knockback.x, 0.3D, knockback.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
                 windUpTicks = -1;
                 inAir = false;
 
                 var helmetBlocked = MobUtils.hasBlockingHelmet(target);
                 leapCooldown = helmetBlocked ? 40 : 30;
-                mob.playSound(helmetBlocked ? SoundEvents.ITEM_BREAK : SoundEvents.SHIELD_BLOCK, 1.0F, 1.0F);
+                mob.playSound(
+                    helmetBlocked ? SoundEvents.ITEM_BREAK.value() : SoundEvents.SHIELD_BLOCK.value(),
+                    1.0F,
+                    1.0F
+                );
 
                 if (helmetBlocked) {
                     MobUtils.punishBlockingHelmet(target);
@@ -143,7 +148,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity, G> implements
             if (toTarget.lengthSqr() > 0.001D) {
                 var movement = toTarget.normalize().scale(0.25D);
                 mob.setDeltaMovement(movement);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
             }
             return ActionOutcome.running();
         }
@@ -168,7 +173,7 @@ public final class LeapAndAttachAction<E extends FacehuggerEntity, G> implements
                     inAir = true;
                     var leap = horizontal.normalize().scale(0.95D);
                     mob.setDeltaMovement(leap.x, 0.55D, leap.z);
-                    mob.hasImpulse = true;
+                    mob.needsSync = true;
                     leapCooldown = 15;
                 }
 

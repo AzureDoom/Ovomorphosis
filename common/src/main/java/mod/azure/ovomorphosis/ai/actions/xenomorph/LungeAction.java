@@ -147,7 +147,7 @@ public final class LungeAction<E extends AbstractAlienEntity, G> implements Acti
                 0.45D,
                 lungeDir.z * 1.05D
             );
-            mob.hasImpulse = true;
+            mob.needsSync = true;
 
             phase = Phase.AIRBORNE;
             phaseAge = 0;

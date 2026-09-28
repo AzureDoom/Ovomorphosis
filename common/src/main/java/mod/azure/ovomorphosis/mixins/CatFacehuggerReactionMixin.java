@@ -1,7 +1,7 @@
 package mod.azure.ovomorphosis.mixins;
 
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.world.entity.animal.Cat;
+import net.minecraft.world.entity.animal.feline.Cat;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -43,7 +43,7 @@ public class CatFacehuggerReactionMixin {
         );
 
         if (!nearby.isEmpty()) {
-            self.playSound(SoundEvents.CAT_HISS, 1.0F, self.getVoicePitch());
+            self.playSound(SoundEvents.CAT_HISS_BABY.value(), 1.0F, self.getVoicePitch());
             ovomorphosis$hissCooldown = COOLDOWN_TICKS;
         }
     }

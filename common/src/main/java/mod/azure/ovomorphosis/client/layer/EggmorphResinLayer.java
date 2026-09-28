@@ -2,66 +2,58 @@ package mod.azure.ovomorphosis.client.layer;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.EntityModel;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.LivingEntity;
-import org.jetbrains.annotations.NotNull;
+import net.minecraft.resources.Identifier;
+import org.jspecify.annotations.NonNull;
 
 import mod.azure.ovomorphosis.CommonMod;
 
-public class EggmorphResinLayer<T extends LivingEntity, M extends EntityModel<T>> extends RenderLayer<T, M> {
+public class EggmorphResinLayer<S extends LivingEntityRenderState, M extends EntityModel<? super S>> extends RenderLayer<S, M> {
 
-    private static final ResourceLocation RESIN_TEXTURE = CommonMod.modResource(
-        "textures/block/resin_web_6.png"
-    );
+    private static final Identifier RESIN_TEXTURE = CommonMod.modResource("textures/block/resin_web_6.png");
 
-    public EggmorphResinLayer(RenderLayerParent<T, M> renderer) {
+    public EggmorphResinLayer(RenderLayerParent<S, M> renderer) {
         super(renderer);
     }
 
     @Override
-    public void render(
-        @NotNull PoseStack poseStack,
-        @NotNull MultiBufferSource bufferSource,
-        int packedLight,
-        T entity,
-        float limbSwing,
-        float limbSwingAmount,
-        float partialTick,
-        float ageInTicks,
-        float netHeadYaw,
-        float headPitch
+    public void submit(
+        @NonNull PoseStack poseStack,
+        @NonNull SubmitNodeCollector submitNodeCollector,
+        int lightCoords,
+        @NonNull S state,
+        float yRot,
+        float xRot
     ) {
-        if (!EggmorphRenderState.isEggmorphing(entity.getId()))
+        if (state.isInvisible)
             return;
 
-        var progress = EggmorphRenderState.get(entity.getId());
+        var progress = ((EggmorphRenderStateAccess) state).ovomorphosis$getEggmorphProgress();
         if (progress <= 0f)
             return;
 
         var alpha = 0.05f + (progress * 0.80f);
 
-        var renderType = RenderType.entityTranslucent(RESIN_TEXTURE);
-        var consumer = bufferSource.getBuffer(renderType);
-
-        poseStack.pushPose();
-        getParentModel().prepareMobModel(entity, limbSwing, limbSwingAmount, partialTick);
-        getParentModel().renderToBuffer(
-            poseStack,
-            consumer,
-            packedLight,
-            OverlayTexture.NO_OVERLAY,
-            toArgb(alpha)
-        );
-        poseStack.popPose();
+        submitNodeCollector.order(1)
+            .submitModel(
+                getParentModel(),
+                state,
+                poseStack,
+                RenderTypes.entityTranslucent(RESIN_TEXTURE),
+                lightCoords,
+                OverlayTexture.NO_OVERLAY,
+                whiteWithAlpha(alpha),
+                null,
+                state.outlineColor
+            );
     }
 
-    private static int toArgb(float a) {
-        return ((int) (a * 255) << 24) | ((int) ((float) 1.0 * 255) << 16) | ((int) ((float) 1.0
-            * 255) << 8) | (int) ((float) 1.0 * 255);
+    private static int whiteWithAlpha(float alpha) {
+        return ((int) (alpha * 255f) << 24) | 0x00FFFFFF;
     }
 }

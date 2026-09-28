@@ -21,7 +21,7 @@ public class ServerLevelMixin {
     private boolean ovomorphosis$dataLoaded = false;
 
     @Inject(at = @At("HEAD"), method = "tick(Ljava/util/function/BooleanSupplier;)V")
-    public void ovomorphosis$tick(BooleanSupplier hasTimeLeft, CallbackInfo ci) {
+    public void ovomorphosis$tick(BooleanSupplier haveTime, CallbackInfo ci) {
         var serverLevel = ServerLevel.class.cast(this);
 
         if (!ovomorphosis$dataLoaded) {

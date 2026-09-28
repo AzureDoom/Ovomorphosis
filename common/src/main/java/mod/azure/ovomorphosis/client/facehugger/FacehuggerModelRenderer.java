@@ -2,11 +2,11 @@ package mod.azure.ovomorphosis.client.facehugger;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import mod.azure.azurelib.common.render.AzLayerRenderer;
-import mod.azure.azurelib.common.render.entity.AzEntityRendererPipeline;
+import mod.azure.azurelib.render.AzLayerRenderer;
+import mod.azure.azurelib.render.entity.AzEntityRendererPipeline;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.npc.AbstractVillager;
+import net.minecraft.world.entity.npc.villager.AbstractVillager;
 
 import java.util.UUID;
 
@@ -65,9 +65,9 @@ public class FacehuggerModelRenderer extends XenoModelRenderer<FacehuggerEntity>
         var headYaw = Mth.rotLerp(partialTick, host.yHeadRotO, host.yHeadRot) - bodyYaw;
         var headPitch = Mth.rotLerp(partialTick, host.getXRot(), host.xRotO);
 
-        poseStack.mulPose(Axis.YN.rotationDegrees(bodyYaw));
-        poseStack.mulPose(Axis.YN.rotationDegrees(headYaw));
-        poseStack.mulPose(Axis.XP.rotationDegrees(headPitch));
+        poseStack.rotate(Axis.YN.rotationDegrees(bodyYaw));
+        poseStack.rotate(Axis.YN.rotationDegrees(headYaw));
+        poseStack.rotate(Axis.XP.rotationDegrees(headPitch));
 
         var offsetZ = 0.0;
         if (host instanceof AbstractVillager) {

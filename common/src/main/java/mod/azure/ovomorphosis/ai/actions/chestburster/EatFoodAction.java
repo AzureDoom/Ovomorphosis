@@ -110,7 +110,7 @@ public class EatFoodAction<G> implements Action<ChestbursterEntity, G> {
 
         this.eatTicks++;
         mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         if (!this.consumed && this.eatTicks >= 20) {
             if (this.food != null && this.food.isAlive() && !this.food.getItem().isEmpty()) {
@@ -118,7 +118,7 @@ public class EatFoodAction<G> implements Action<ChestbursterEntity, G> {
                 if (this.food.getItem().is(ModTags.POTIONS)) {
                     mob.playSound(SoundEvents.GLASS_BREAK);
                 } else {
-                    mob.playSound(SoundEvents.GENERIC_EAT);
+                    mob.playSound(SoundEvents.GENERIC_EAT.value());
                 }
             }
             this.consumed = true;
@@ -134,7 +134,7 @@ public class EatFoodAction<G> implements Action<ChestbursterEntity, G> {
     @Override
     public void stop(ChestbursterEntity mob, Blackboard blackboard, CooldownTracker cooldowns, ActionStatus reason) {
         mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
         this.food = null;
         this.eatTicks = 0;
         this.eatingStarted = false;
@@ -155,7 +155,7 @@ public class EatFoodAction<G> implements Action<ChestbursterEntity, G> {
         this.eatingStarted = true;
         this.eatTicks = 0;
         mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
         this.eatAnimation.accept(mob);
     }
 
@@ -189,12 +189,12 @@ public class EatFoodAction<G> implements Action<ChestbursterEntity, G> {
 
         if (safe.equals(Vec3.ZERO)) {
             mob.setDeltaMovement(0.0D, mob.getDeltaMovement().y, 0.0D);
-            mob.hasImpulse = false;
+            mob.needsSync = false;
             return;
         }
 
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         var dx = destination.getX() + 0.5D - mob.getX();
         var dz = destination.getZ() + 0.5D - mob.getZ();

@@ -207,19 +207,5 @@
 			"color": 0,
 			"children": [7, 8, 9, 10]
 		}
-	],
-	"overrides": [
-		{
-			"predicate": {
-				"custom_model_data": 1
-			},
-			"model": "ovomorphosis:item/infection_scanner_symptomatic"
-		},
-		{
-			"predicate": {
-				"custom_model_data": 2
-			},
-			"model": "ovomorphosis:item/infection_scanner_critical"
-		}
 	]
 }

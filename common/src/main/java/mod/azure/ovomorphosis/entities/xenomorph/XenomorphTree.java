@@ -263,9 +263,9 @@ public class XenomorphTree {
                 );
                 var yGap = currentTarget.getY() - xenomorph.getY();
                 var canReachVert = Math.abs(yGap) <= 2.5D;
-                var dangerTarget = currentTarget.getType().is(ModTags.DANGER_ENTITIES);
+                var dangerTarget = currentTarget.getType().builtInRegistryHolder().is(ModTags.DANGER_ENTITIES);
                 var hasMeleeLOS = TargetingUtils.hasMeleeLineOfSight(xenomorph, currentTarget);
-                var cannotGrab = currentTarget.getType().is(ModTags.XENO_GRAB_BLACKLIST);
+                var cannotGrab = currentTarget.getType().builtInRegistryHolder().is(ModTags.XENO_GRAB_BLACKLIST);
                 var inMeleeRange = TargetingUtils.isInAttackRange(xenomorph, currentTarget, 2.0D);
                 var combatCoolsFree = cooldowns.ready("swipe_combo") && cooldowns.ready("tail_attack");
                 var defending = goalType == AiGoalType.DEFEND_HIVE;

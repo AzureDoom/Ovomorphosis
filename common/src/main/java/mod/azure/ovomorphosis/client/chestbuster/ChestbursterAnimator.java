@@ -1,10 +1,10 @@
 package mod.azure.ovomorphosis.client.chestbuster;
 
-import mod.azure.azurelib.common.animation.AzAnimatorConfig;
-import mod.azure.azurelib.common.animation.controller.AzAnimationController;
-import mod.azure.azurelib.common.animation.controller.AzAnimationControllerContainer;
-import mod.azure.azurelib.common.animation.impl.AzEntityAnimator;
-import net.minecraft.resources.ResourceLocation;
+import mod.azure.azurelib.animation.AzAnimatorConfig;
+import mod.azure.azurelib.animation.controller.AzAnimationController;
+import mod.azure.azurelib.animation.controller.AzAnimationControllerContainer;
+import mod.azure.azurelib.animation.impl.AzEntityAnimator;
+import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.NotNull;
 
 import mod.azure.ovomorphosis.CommonMod;
@@ -13,7 +13,7 @@ import mod.azure.ovomorphosis.util.CommonStrings;
 
 public class ChestbursterAnimator extends AzEntityAnimator<ChestbursterEntity> {
 
-    private static final ResourceLocation ANIMATIONS = CommonMod.modResource(
+    private static final Identifier ANIMATIONS = CommonMod.modResource(
         "animations/entity/chestburster.animation.json"
     );
 
@@ -32,7 +32,7 @@ public class ChestbursterAnimator extends AzEntityAnimator<ChestbursterEntity> {
     }
 
     @Override
-    public @NotNull ResourceLocation getAnimationLocation(ChestbursterEntity chestburster) {
+    public @NotNull Identifier getAnimationLocation(ChestbursterEntity chestburster) {
         return ANIMATIONS;
     }
 }

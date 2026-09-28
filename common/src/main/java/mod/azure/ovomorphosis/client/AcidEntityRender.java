@@ -1,38 +1,21 @@
 package mod.azure.ovomorphosis.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.world.entity.Entity;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
-public class AcidEntityRender extends EntityRenderer<Entity> {
+import mod.azure.ovomorphosis.entities.AcidEntity;
 
-    private static final ResourceLocation TEXTURE = ResourceLocation.parse("textures/entity/allay/allay.png");
+public class AcidEntityRender<T extends Entity> extends EntityRenderer<AcidEntity, EntityRenderState> {
 
     public AcidEntityRender(EntityRendererProvider.Context context) {
         super(context);
     }
 
     @Override
-    public @NotNull ResourceLocation getTextureLocation(@NotNull Entity entity) {
-        return TEXTURE;
-    }
-
-    @Override
-    public void render(
-        @NotNull Entity entity,
-        float f,
-        float g,
-        @NotNull PoseStack matrixStack,
-        @NotNull MultiBufferSource vertexConsumerProvider,
-        int i
-    ) {
-        super.render(entity, f, g, matrixStack, vertexConsumerProvider, i);
-        matrixStack.pushPose();
-        matrixStack.scale(0, 0, 0);
-        matrixStack.popPose();
+    public @NonNull EntityRenderState createRenderState() {
+        return new EntityRenderState();
     }
 }

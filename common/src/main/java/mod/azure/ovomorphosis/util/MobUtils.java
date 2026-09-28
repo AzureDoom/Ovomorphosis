@@ -17,7 +17,7 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.gamerules.GameRules;
 
 import java.util.Set;
 
@@ -47,7 +47,7 @@ public class MobUtils {
         }
 
         var acidEntity = new AcidEntity(EntityRegistry.ACID.get(), alienEntity.level());
-        acidEntity.moveTo(alienEntity.getX(), alienEntity.getY(), alienEntity.getZ(), alienEntity.getYRot(), 0);
+        acidEntity.snapTo(alienEntity.getX(), alienEntity.getY(), alienEntity.getZ(), alienEntity.getYRot(), 0);
         alienEntity.level().addFreshEntity(acidEntity);
     }
 
@@ -107,10 +107,10 @@ public class MobUtils {
 
     public static void applyBlockBreaking(int age, Entity entity) {
         if (
-            age % 5 == 0 &&
-                (CommonMod.getConfig().enableAcidBlockBreaking || entity.level()
+            age % 5 == 0 && entity.level() instanceof ServerLevel serverLevel &&
+                (CommonMod.getConfig().enableAcidBlockBreaking || serverLevel
                     .getGameRules()
-                    .getBoolean(GameRules.RULE_MOBGRIEFING))
+                    .get(GameRules.MOB_GRIEFING))
         ) {
             var blockStateBelow = entity.level().getBlockState(entity.blockPosition().below());
             if (!blockStateBelow.is(ModTags.ACID_RESISTANT_BLOCKS)) {
@@ -155,7 +155,7 @@ public class MobUtils {
 
     private static boolean shouldSkipAcidEffect(LivingEntity living) {
         return living.hasEffect(MobEffects.POISON)
-            || living.getType().is(ModTags.ACID_RESISTANT_ENTITIES)
+            || living.getType().builtInRegistryHolder().is(ModTags.ACID_RESISTANT_ENTITIES)
             || living instanceof Player player
                 && (player.isCreative() || player.isSpectator());
     }
@@ -177,15 +177,18 @@ public class MobUtils {
 
         if (target.getRandom().nextFloat() < 0.05F) {
             target.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
-            target.spawnAtLocation(helmet);
-            target.playSound(SoundEvents.ITEM_BREAK, 1.0F, 1.0F);
+            target.spawnAtLocation(serverLevel, helmet);
+            target.playSound(SoundEvents.ITEM_BREAK.value(), 1.0F, 1.0F);
             return;
         }
 
         if (helmet.isDamageableItem() && target instanceof ServerPlayer player) {
-            helmet.hurtAndBreak(1, serverLevel, player, item -> {
-                target.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
-            });
+            helmet.hurtAndBreak(
+                1,
+                serverLevel,
+                player,
+                item -> target.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY)
+            );
         }
     }
 }

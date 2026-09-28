@@ -1,12 +1,13 @@
 package mod.azure.ovomorphosis.blocks;
 
-import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.util.RandomSource;
+import net.minecraft.util.Util;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -17,6 +18,7 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -113,11 +115,7 @@ public class ResinWebBlock extends AbstractResinBlock {
     }
 
     @Override
-    public boolean propagatesSkylightDown(
-        @NotNull BlockState state,
-        @NotNull BlockGetter world,
-        @NotNull BlockPos pos
-    ) {
+    protected boolean propagatesSkylightDown(@NonNull BlockState state) {
         return true;
     }
 
@@ -183,18 +181,29 @@ public class ResinWebBlock extends AbstractResinBlock {
     }
 
     @Override
-    public @NotNull BlockState updateShape(
-        @NotNull BlockState state,
-        @NotNull Direction direction,
-        @NotNull BlockState neighborState,
-        @NotNull LevelAccessor world,
-        @NotNull BlockPos pos,
-        @NotNull BlockPos neighborPos
+    protected @NonNull BlockState updateShape(
+        @NonNull BlockState state,
+        @NonNull LevelReader level,
+        @NonNull ScheduledTickAccess ticks,
+        @NonNull BlockPos pos,
+        @NonNull Direction directionToNeighbour,
+        @NonNull BlockPos neighbourPos,
+        @NonNull BlockState neighbourState,
+        @NonNull RandomSource random
     ) {
-        if (direction == Direction.DOWN)
-            return super.updateShape(state, direction, neighborState, world, pos, neighborPos);
+        if (directionToNeighbour == Direction.DOWN)
+            return super.updateShape(
+                state,
+                level,
+                ticks,
+                pos,
+                directionToNeighbour,
+                neighbourPos,
+                neighbourState,
+                random
+            );
         else {
-            var blockState = getPlacementShape(state, world, pos);
+            var blockState = getPlacementShape(state, level, pos);
             return !hasAdjacentBlocks(blockState) ? Blocks.AIR.defaultBlockState() : blockState;
         }
     }

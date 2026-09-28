@@ -1,12 +1,15 @@
 package mod.azure.ovomorphosis.registry;
 
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 
 import java.util.function.Supplier;
 
+import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.entities.AcidEntity;
 import mod.azure.ovomorphosis.entities.SilencedEntityTypeBuilder;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
@@ -82,10 +85,14 @@ public class EntityRegistry {
         float height,
         boolean noSummon
     ) {
+        var key = ResourceKey.create(
+            Registries.ENTITY_TYPE,
+            CommonMod.modResource(entityName)
+        );
         return XenoServices.COMMON_REGISTRY.register(
             BuiltInRegistries.ENTITY_TYPE,
             entityName,
-            () -> create(entity, mobCategory, width, height, noSummon).buildWithoutDataFixerCheck()
+            () -> create(entity, mobCategory, width, height, noSummon).buildWithoutDataFixerCheck(key)
         );
     }
 

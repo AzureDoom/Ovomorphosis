@@ -1,12 +1,12 @@
 package mod.azure.ovomorphosis;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.registry.FlammableBlockRegistry;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.SpawnPlacementTypes;
@@ -14,6 +14,7 @@ import net.minecraft.world.entity.SpawnPlacements;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.level.levelgen.Heightmap;
 
+import mod.azure.ovomorphosis.client.facehugger.EntityHeadOffsetData;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
@@ -26,14 +27,18 @@ import mod.azure.ovomorphosis.registry.ItemRegistry;
 import mod.azure.ovomorphosis.structuremodifier.StructureModifierManager;
 import mod.azure.ovomorphosis.util.ModTags;
 
+@SuppressWarnings("unused")
 public final class FabricLibMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
         CommonMod.initRegistries();
         FabricLootInjects.init();
-        ResourceManagerHelper.get(PackType.SERVER_DATA)
-            .registerReloadListener(new FabricHeadOffsetReloadListener());
+        ResourceLoader.get(PackType.SERVER_DATA)
+            .registerReloadListener(
+                CommonMod.modResource("ovomorphosis_head_offsets"),
+                new EntityHeadOffsetData.ReloadListener()
+            );
         ServerLifecycleEvents.SERVER_STARTED.register(FabricStructureSpawnPatcher::patch);
 
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resourceManager, success) -> {
@@ -41,8 +46,11 @@ public final class FabricLibMod implements ModInitializer {
                 FabricStructureSpawnPatcher.patch(server);
             }
         });
-        ResourceManagerHelper.get(PackType.SERVER_DATA)
-            .registerReloadListener(StructureModifierManager.INSTANCE);
+        ResourceLoader.get(PackType.SERVER_DATA)
+            .registerReloadListener(
+                StructureModifierManager.ID,
+                StructureModifierManager.INSTANCE
+            );
         FlammableBlockRegistry.getDefaultInstance().add(ModTags.RESIN, 50, 50);
         FabricDefaultAttributeRegistry.register(
             EntityRegistry.OVOMORPH.get(),
@@ -64,23 +72,22 @@ public final class FabricLibMod implements ModInitializer {
             EntityRegistry.RUNNER.get(),
             RunnerEntity.createAttributes()
         );
-        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.SPAWN_EGGS).register(entries -> {
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(entries -> {
             entries.accept(ItemRegistry.OVOMORPH_SPAWN_EGG.get());
             entries.accept(ItemRegistry.FACEHUGGER_SPAWN_EGG.get());
             entries.accept(ItemRegistry.CHESTBURSTER_SPAWN_EGG.get());
             entries.accept(ItemRegistry.XENOMORPH_SPAWN_EGG.get());
             entries.accept(ItemRegistry.RUNNER_SPAWN_EGG.get());
         });
-        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.BUILDING_BLOCKS).register(entries -> {
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.BUILDING_BLOCKS).register(entries -> {
             entries.accept(BlockRegistry.RESIN_ITEM.get());
             entries.accept(BlockRegistry.RESIN_WEB_ITEM.get());
             entries.accept(BlockRegistry.RESIN_WEB_CROSS_ITEM.get());
             entries.accept(BlockRegistry.RESIN_VENT_ITEM.get());
         });
-        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.COMBAT).register(entries -> {
-            entries.accept(ItemRegistry.FLAMETHROWER.get());
-        });
-        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.COMBAT)
+            .register(entries -> entries.accept(ItemRegistry.FLAMETHROWER.get()));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
             entries.accept(ItemRegistry.SCANNER.get());
             entries.accept(ItemRegistry.MOTION_TRACKER.get());
         });
@@ -114,6 +121,6 @@ public final class FabricLibMod implements ModInitializer {
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (entityType, world, reason, pos, random) -> world.getBiome(pos).is(BiomeTags.IS_OVERWORLD)
         );
-        ServerWorldEvents.UNLOAD.register((server, world) -> ResinWebRegistry.clearDimension(world.dimension()));
+        ServerLevelEvents.UNLOAD.register((server, level) -> ResinWebRegistry.clearDimension(level.dimension()));
     }
 }

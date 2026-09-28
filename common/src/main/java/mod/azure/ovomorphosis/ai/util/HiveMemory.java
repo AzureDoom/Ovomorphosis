@@ -1,10 +1,9 @@
 package mod.azure.ovomorphosis.ai.util;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtUtils;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
@@ -143,7 +142,7 @@ public final class HiveMemory {
      * valid entrance/exit pairs for each other. Deliberately generous relative to block-to-block adjacency since vent
      * blocks placed during hive construction (see {@code PlaceResinAction}) won't always end up literally touching.
      */
-    private static final double VENT_LINK_RADIUS = 6.0D;
+    public static final double VENT_LINK_RADIUS = 6.0D;
 
     /**
      * Flat cost added to a vent route's distance estimate, representing the time/risk of the crawl-through itself. This
@@ -249,7 +248,7 @@ public final class HiveMemory {
      * of {@code seed} (i.e. the whole connected network {@code seed} belongs to), so each node's linked-exits list
      * stays an accurate cache rather than going stale as more vent blocks register nearby over time.
      */
-    private void relinkVentCluster(BlockPos seed) {
+    public void relinkVentCluster(BlockPos seed) {
         var radiusSq = VENT_LINK_RADIUS * VENT_LINK_RADIUS;
 
         var component = createComponent(seed, radiusSq);
@@ -1026,19 +1025,17 @@ public final class HiveMemory {
 
     public CompoundTag save() {
         var tag = new CompoundTag();
-        tag.putUUID("hiveId", hiveId);
+        tag.store("hiveId", UUIDUtil.CODEC, hiveId);
+
         var list = new ListTag();
         for (var pos : ownedWebCrosses) {
             var entry = new CompoundTag();
-            entry.put(NBT_KEY, NbtUtils.writeBlockPos(pos));
+            entry.store(NBT_KEY, BlockPos.CODEC, pos);
             list.add(entry);
         }
-
         tag.put("blocks", list);
 
-        if (domeCenter != null) {
-            tag.put("domeCenter", NbtUtils.writeBlockPos(domeCenter));
-        }
+        tag.storeNullable("domeCenter", BlockPos.CODEC, domeCenter);
         tag.putInt("domeFillCount", domeFillCount);
         tag.putBoolean("domeComplete", domeComplete);
         tag.putInt("structureBlockCount", structureBlockCount);
@@ -1047,7 +1044,7 @@ public final class HiveMemory {
         var tunnelList = new ListTag();
         for (var tunnel : activeTunnels) {
             var entry = new CompoundTag();
-            entry.put("tip", NbtUtils.writeBlockPos(tunnel.tip()));
+            entry.store("tip", BlockPos.CODEC, tunnel.tip());
             entry.putDouble("dx", tunnel.dirX());
             entry.putDouble("dy", tunnel.dirY());
             entry.putDouble("dz", tunnel.dirZ());
@@ -1065,7 +1062,7 @@ public final class HiveMemory {
         var threatList = new ListTag();
         for (var threat : recentThreats) {
             var entry = new CompoundTag();
-            entry.put("pos", NbtUtils.writeBlockPos(threat.pos()));
+            entry.store("pos", BlockPos.CODEC, threat.pos());
             entry.putLong("tick", threat.tick());
             threatList.add(entry);
         }
@@ -1074,7 +1071,7 @@ public final class HiveMemory {
         var breachList = new ListTag();
         for (var breach : pendingBreaches) {
             var entry = new CompoundTag();
-            entry.put("pos", NbtUtils.writeBlockPos(breach.pos()));
+            entry.store("pos", BlockPos.CODEC, breach.pos());
             entry.putLong("tick", breach.tick());
             breachList.add(entry);
         }
@@ -1083,7 +1080,7 @@ public final class HiveMemory {
         var ventList = new ListTag();
         for (var node : ventNodes.values()) {
             var entry = new CompoundTag();
-            entry.put("pos", NbtUtils.writeBlockPos(node.position()));
+            entry.store("pos", BlockPos.CODEC, node.position());
             entry.putLong("lastUsed", node.lastUsedTick());
             ventList.add(entry);
         }
@@ -1095,103 +1092,73 @@ public final class HiveMemory {
     public static HiveMemory load(CompoundTag tag) {
         var memory = new HiveMemory();
 
-        if (tag.hasUUID("hiveId")) {
-            memory.hiveId = tag.getUUID("hiveId");
-        }
+        tag.read("hiveId", UUIDUtil.CODEC).ifPresent(id -> memory.hiveId = id);
 
-        if (tag.contains("blocks", Tag.TAG_LIST)) {
-            var list = tag.getList("blocks", Tag.TAG_COMPOUND);
+        tag.getListOrEmpty("blocks")
+            .compoundStream()
+            .forEach(entry -> entry.read(NBT_KEY, BlockPos.CODEC).ifPresent(memory::trackOwnedWebCross));
 
-            for (var i = 0; i < list.size(); i++) {
-                NbtUtils.readBlockPos(
-                    list.getCompound(i),
-                    NBT_KEY
-                ).ifPresent(memory::trackOwnedWebCross);
-            }
-        }
+        tag.read("domeCenter", BlockPos.CODEC).ifPresent(pos -> memory.domeCenter = pos.immutable());
 
-        if (tag.contains("domeCenter")) {
-            NbtUtils.readBlockPos(tag, "domeCenter")
-                .ifPresent(
-                    pos -> memory.domeCenter = pos.immutable()
-                );
-        }
+        memory.domeFillCount = tag.getIntOr("domeFillCount", 0);
+        memory.domeComplete = tag.getBooleanOr("domeComplete", false);
+        memory.structureBlockCount = tag.getIntOr("structureBlockCount", 0);
+        memory.everHadStructure = tag.getBooleanOr("everHadStructure", false);
 
-        memory.domeFillCount =
-            tag.getInt("domeFillCount");
-
-        memory.domeComplete =
-            tag.getBoolean("domeComplete");
-
-        memory.structureBlockCount =
-            tag.getInt("structureBlockCount");
-
-        memory.everHadStructure =
-            tag.getBoolean("everHadStructure");
-
-        if (tag.contains("tunnels", Tag.TAG_LIST)) {
-            var tunnelList =
-                tag.getList("tunnels", Tag.TAG_COMPOUND);
-
-            for (var i = 0; i < tunnelList.size(); i++) {
-                var entry = tunnelList.getCompound(i);
-
-                var tip =
-                    NbtUtils.readBlockPos(entry, "tip")
-                        .orElse(null);
-
-                if (tip == null)
-                    continue;
-
-                memory.activeTunnels.add(
-                    new TunnelState(
-                        tip,
-                        entry.getDouble("dx"),
-                        entry.getDouble("dy"),
-                        entry.getDouble("dz"),
-                        entry.getInt("remaining")
+        tag.getListOrEmpty("tunnels")
+            .compoundStream()
+            .forEach(
+                entry -> entry.read("tip", BlockPos.CODEC)
+                    .ifPresent(
+                        tip -> memory.activeTunnels.add(
+                            new TunnelState(
+                                tip,
+                                entry.getDoubleOr("dx", 0.0D),
+                                entry.getDoubleOr("dy", 0.0D),
+                                entry.getDoubleOr("dz", 0.0D),
+                                entry.getIntOr("remaining", 0)
+                            )
+                        )
                     )
-                );
-            }
-        }
+            );
 
-        memory.xenoCount = tag.getInt("xenoCount");
-        memory.ovomorphCount = tag.getInt("ovomorphCount");
-        memory.restrainedHostCount = tag.getInt("restrainedHostCount");
-        memory.hiveLightLevel = tag.getInt("hiveLightLevel");
-        memory.needsRecomputedAtTick = tag.getLong("needsRecomputedAtTick");
+        memory.xenoCount = tag.getIntOr("xenoCount", 0);
+        memory.ovomorphCount = tag.getIntOr("ovomorphCount", 0);
+        memory.restrainedHostCount = tag.getIntOr("restrainedHostCount", 0);
+        memory.hiveLightLevel = tag.getIntOr("hiveLightLevel", 0);
+        memory.needsRecomputedAtTick = tag.getLongOr("needsRecomputedAtTick", 0L);
 
-        if (tag.contains("threats", Tag.TAG_LIST)) {
-            var threatList = tag.getList("threats", Tag.TAG_COMPOUND);
-            for (var i = 0; i < threatList.size(); i++) {
-                var entry = threatList.getCompound(i);
-                var pos = NbtUtils.readBlockPos(entry, "pos").orElse(null);
-                if (pos == null)
-                    continue;
-                memory.recentThreats.addLast(new ThreatRecord(pos, entry.getLong("tick")));
-            }
-        }
+        tag.getListOrEmpty("threats")
+            .compoundStream()
+            .forEach(
+                entry -> entry.read("pos", BlockPos.CODEC)
+                    .ifPresent(
+                        pos -> memory.recentThreats.addLast(new ThreatRecord(pos, entry.getLongOr("tick", 0L)))
+                    )
+            );
 
-        if (tag.contains("breaches", Tag.TAG_LIST)) {
-            var breachList = tag.getList("breaches", Tag.TAG_COMPOUND);
-            for (var i = 0; i < breachList.size(); i++) {
-                var entry = breachList.getCompound(i);
-                var pos = NbtUtils.readBlockPos(entry, "pos").orElse(null);
-                if (pos == null)
-                    continue;
-                memory.pendingBreaches.addLast(new BreachRecord(pos, entry.getLong("tick")));
-            }
-        }
+        tag.getListOrEmpty("breaches")
+            .compoundStream()
+            .forEach(
+                entry -> entry.read("pos", BlockPos.CODEC)
+                    .ifPresent(
+                        pos -> memory.pendingBreaches.addLast(new BreachRecord(pos, entry.getLongOr("tick", 0L)))
+                    )
+            );
 
-        if (tag.contains("vents", Tag.TAG_LIST)) {
-            var ventList = tag.getList("vents", Tag.TAG_COMPOUND);
-            for (var i = 0; i < ventList.size(); i++) {
-                var entry = ventList.getCompound(i);
-                var pos = NbtUtils.readBlockPos(entry, "pos").orElse(null);
-                if (pos == null)
-                    continue;
-                memory.ventNodes.put(pos, new HiveVentNode(pos, List.of(), entry.getLong("lastUsed"), false));
-            }
+        tag.getListOrEmpty("vents")
+            .compoundStream()
+            .forEach(
+                entry -> entry.read("pos", BlockPos.CODEC)
+                    .ifPresent(
+                        pos -> memory.ventNodes.put(
+                            pos,
+                            new HiveVentNode(pos, List.of(), entry.getLongOr("lastUsed", 0L), false)
+                        )
+                    )
+            );
+
+        if (!memory.ventNodes.isEmpty()) {
             memory.relinkAllVentClusters();
         }
 

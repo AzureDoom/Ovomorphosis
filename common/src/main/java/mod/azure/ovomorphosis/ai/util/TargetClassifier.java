@@ -2,10 +2,12 @@ package mod.azure.ovomorphosis.ai.util;
 
 import com.azure.azurecortex.api.blackboard.Blackboard;
 import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.TridentItem;
@@ -53,6 +55,7 @@ public final class TargetClassifier {
      * @param mob        the xenomorph performing the evaluation
      * @param blackboard the mob's blackboard
      */
+    @SuppressWarnings("deprecation")
     public static void classify(AbstractAlienEntity mob, Blackboard blackboard) {
         var target = blackboard.get(CommonBlackboardKeys.TARGET);
 
@@ -68,13 +71,13 @@ public final class TargetClassifier {
         var isNearHive = isNearHive(mob, target, memory);
         var isArmored = isArmored(target);
         var isValidHost = TargetingUtils.faceHuggerTest(mob, target);
-        var isDangerEntity = target.getType().is(ModTags.DANGER_ENTITIES);
+        var isDangerEntity = target.getType().builtInRegistryHolder().is(ModTags.DANGER_ENTITIES);
 
         var tooHeavy = isArmored && armorPoints(target) >= 16;
         var tooDangerous = isDangerEntity
             || (isRanged && mob.distanceToSqr(target) > 4.0 * 4.0)
             || (tooHeavy)
-            || target.getType().is(ModTags.XENO_GRAB_BLACKLIST);
+            || target.getType().builtInRegistryHolder().is(ModTags.XENO_GRAB_BLACKLIST);
 
         blackboard.set(CommonBlackboardKeys.TARGET_IS_RANGED, isRanged);
         blackboard.set(CommonBlackboardKeys.TARGET_IS_ISOLATED, isIsolated);
@@ -91,15 +94,15 @@ public final class TargetClassifier {
     }
 
     private static boolean isRangedCombatant(AbstractAlienEntity mob, LivingEntity target) {
-        for (var slot : target.getHandSlots()) {
-            var item = slot.getItem();
-            if (
-                item.asItem() instanceof BowItem
-                    || item.asItem() instanceof CrossbowItem
-                    || item.asItem() instanceof TridentItem
-            ) {
-                return true;
-            }
+        var holdingRanged = target.isHolding(stack -> {
+            var item = stack.getItem();
+            return item instanceof BowItem
+                || item instanceof CrossbowItem
+                || item instanceof TridentItem;
+        });
+
+        if (holdingRanged) {
+            return true;
         }
 
         var box = mob.getBoundingBox().inflate(12.0D);
@@ -141,10 +144,11 @@ public final class TargetClassifier {
     }
 
     private static int filledArmorSlots(LivingEntity target) {
-        int filled = 0;
-        for (var slot : target.getArmorSlots()) {
-            if (!slot.isEmpty())
+        var filled = 0;
+        for (var slot : EquipmentSlotGroup.ARMOR) {
+            if (slot.getType() == EquipmentSlot.Type.HUMANOID_ARMOR && !target.getItemBySlot(slot).isEmpty()) {
                 filled++;
+            }
         }
         return filled;
     }

@@ -8,10 +8,11 @@ import com.azure.azurecortex.api.blackboard.CommonBlackboardKeys;
 import com.azure.azurecortex.goap.PlanFailureReason;
 import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.HashSet;
@@ -67,9 +68,10 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity, G> implemen
         var level = mob.level();
 
         if (
-            !mob.level()
-                .getGameRules()
-                .getBoolean(GameRules.RULE_MOBGRIEFING)
+            mob.level() instanceof ServerLevel serverLevel &&
+                !serverLevel
+                    .getGameRules()
+                    .get(GameRules.MOB_GRIEFING)
         ) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
@@ -134,7 +136,7 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity, G> implemen
                     : mob.getDeltaMovement().y;
 
                 mob.setDeltaMovement(move.x, yVel, move.z);
-                mob.hasImpulse = true;
+                mob.needsSync = true;
 
                 var yaw = (float) (Math.atan2(move.z, move.x) * (180.0D / Math.PI)) - 90.0F;
                 mob.setYRot(yaw);

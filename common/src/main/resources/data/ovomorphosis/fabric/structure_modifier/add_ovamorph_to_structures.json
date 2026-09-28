@@ -1,8 +1,11 @@
 {
-  "structures": ["#ovomorphosis:infestable_structures"],
-  "category": "monster",
-  "bounding_box": "full",
-  "spawns": [
-    { "entity": "ovomorphosis:ovomorph", "weight": 2, "min_count": 1, "max_count": 1 }
+  "type": "ovomorphosis:add_spawns",
+  "structures": "#ovomorphosis:infestable_structures",
+  "spawners": [
+    {
+      "type": "ovomorphosis:ovomorph",
+      "weight": 2,
+      "count": 1
+    }
   ]
 }

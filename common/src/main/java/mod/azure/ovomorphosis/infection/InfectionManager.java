@@ -98,13 +98,12 @@ public final class InfectionManager {
             var entity = level.getEntity(uuid);
             if (!(entity instanceof LivingEntity host)) {
                 if (state.lastKnownPos != null && !state.lastKnownPos.equals(BlockPos.ZERO)) {
-                    var chunkPos = new ChunkPos(state.lastKnownPos);
+                    var chunkPos = new ChunkPos(state.lastKnownPos.getX(), state.lastKnownPos.getZ());
                     level.getChunkSource()
-                        .addRegionTicket(
+                        .addTicketWithRadius(
                             TicketType.UNKNOWN,
                             chunkPos,
-                            2,
-                            chunkPos
+                            2
                         );
                 }
                 continue;
@@ -140,7 +139,7 @@ public final class InfectionManager {
                         host.addEffect(new MobEffectInstance(MobEffects.HUNGER, 140, 0, true, false));
                     }
                     case CRITICAL -> {
-                        host.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 160, 1, true, false));
+                        host.addEffect(new MobEffectInstance(MobEffects.NAUSEA, 160, 1, true, false));
                         host.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 160, 1, true, false));
                         host.addEffect(new MobEffectInstance(MobEffects.HUNGER, 160, 1, true, false));
                         host.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 60, 0, true, false));
@@ -152,9 +151,8 @@ public final class InfectionManager {
                 if (state.ticksSinceLastDamage >= 20) {
                     state.ticksSinceLastDamage = 0;
                     if (entity instanceof ServerPlayer serverPlayer) {
-                        serverPlayer.displayClientMessage(
-                            Component.translatable("msg.ovomorphosis.chest_bursting"),
-                            true
+                        serverPlayer.sendOverlayMessage(
+                            Component.translatable("msg.ovomorphosis.chest_bursting")
                         );
                     }
                     applyInfectionDamage(host, level);
@@ -189,9 +187,9 @@ public final class InfectionManager {
 
         level.playSound(host, host.blockPosition(), SoundRegistry.CHEST_BURST.get(), SoundSource.HOSTILE, 1.0F, 1.0F);
         spawnBloodParticles(host, level, true);
-        if (host.getType().is(ModTags.XENOMORPH_HOST)) {
+        if (host.getType().builtInRegistryHolder().is(ModTags.XENOMORPH_HOST)) {
             spawnMob(host, level, new ChestbursterEntity(EntityRegistry.CHESTBURSTER.get(), level));
-        } else if (host.getType().is(ModTags.RUNNER_HOST)) {
+        } else if (host.getType().builtInRegistryHolder().is(ModTags.RUNNER_HOST)) {
             spawnMob(host, level, new RunnerEntity(EntityRegistry.RUNNER.get(), level));
         }
 

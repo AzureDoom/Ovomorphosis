@@ -95,7 +95,7 @@ public final class FleeAction<E extends Mob, G> implements Action<E, G> {
         }
 
         mob.setDeltaMovement(safe.x, mob.getDeltaMovement().y, safe.z);
-        mob.hasImpulse = true;
+        mob.needsSync = true;
 
         var yaw = (float) (Math.atan2(safe.z, safe.x) * (180.0D / Math.PI)) - 90.0F;
         mob.setYRot(yaw);

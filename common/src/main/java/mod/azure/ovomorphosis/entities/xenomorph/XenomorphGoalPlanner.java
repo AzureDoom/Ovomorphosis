@@ -291,7 +291,9 @@ public final class XenomorphGoalPlanner implements GoalPlanner<XenomorphEntity, 
         }
 
         var opponentIsThreatening = hasTarget
-            && (targetTooDangerous || targetIsRanged || target.getType().is(ModTags.DANGER_ENTITIES));
+            && (targetTooDangerous || targetIsRanged || target.getType()
+                .builtInRegistryHolder()
+                .is(ModTags.DANGER_ENTITIES));
         var opponentIsWeak = hasTarget && targetIsIsolated && !opponentIsThreatening;
 
         if (healthyAggressive) {
