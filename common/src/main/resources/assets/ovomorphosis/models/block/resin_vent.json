@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "ovomorphosis:block/resin"
+    "all": "ovomorphosis:block/resin_vent"
   }
 }
