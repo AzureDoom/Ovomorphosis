@@ -226,19 +226,19 @@ public class InfectionScannerItem extends Item {
             if (CommonMod.getConfig().itemConfigs.disableInfectionScannerTimeOutput) {
                 scanner.displayClientMessage(
                     Component.translatable(
-                        "item.ovomorphosis.infection_scanner.tooltip.infected",
+                        "item.ovomorphosis.infection_scanner.tooltip.infected_no_time",
                         who,
-                        phaseKey,
-                        remainingTicks / 20
+                        phaseKey
                     ).withStyle(ChatFormatting.RED),
                     true
                 );
             } else {
                 scanner.displayClientMessage(
                     Component.translatable(
-                        "item.ovomorphosis.infection_scanner.tooltip.infected_no_time",
+                        "item.ovomorphosis.infection_scanner.tooltip.infected",
                         who,
-                        phaseKey
+                        phaseKey,
+                        remainingTicks / 20
                     ).withStyle(ChatFormatting.RED),
                     true
                 );
