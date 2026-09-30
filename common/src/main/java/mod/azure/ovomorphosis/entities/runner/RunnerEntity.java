@@ -310,6 +310,11 @@ public class RunnerEntity extends AbstractAlienEntity implements Growable {
     }
 
     @Override
+    protected boolean canBreakOutOfSuffocation() {
+        return true;
+    }
+
+    @Override
     protected boolean canRide(@NotNull Entity vehicle) {
         return false;
     }
