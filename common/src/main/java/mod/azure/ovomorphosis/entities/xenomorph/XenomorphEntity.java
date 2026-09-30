@@ -598,4 +598,9 @@ public class XenomorphEntity extends AbstractAlienEntity implements Growable {
         lookCooldown = 120;
         playAnimation(ClientAnimState.IDLE);
     }
+
+    @Override
+    protected boolean canBreakOutOfSuffocation() {
+        return true;
+    }
 }

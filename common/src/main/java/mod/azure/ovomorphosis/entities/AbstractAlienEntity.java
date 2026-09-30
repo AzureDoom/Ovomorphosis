@@ -17,11 +17,18 @@ import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.BooleanOp;
+import net.minecraft.world.phys.shapes.Shapes;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
 import mod.azure.ovomorphosis.util.ClientAnimState;
@@ -78,6 +85,10 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
     protected int lookTicks = 0;
 
     protected int lastAnimationTick = -1;
+
+    private static final int SUFFOCATION_GRACE_TICKS = 10;
+
+    private int suffocationTicks = 0;
 
     public AbstractAlienEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
         super(entityType, level);
@@ -219,6 +230,10 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
                 )
                 .toList()
                 .forEach(this::removeEffect);
+
+            if (canBreakOutOfSuffocation()) {
+                tickSuffocationEscape((ServerLevel) this.level());
+            }
         }
 
         if (moveAnalysis != null)
@@ -235,6 +250,67 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
         if (this.tickCount % 10 == 0) {
             this.refreshDimensions();
         }
+    }
+
+    protected boolean canBreakOutOfSuffocation() {
+        return false;
+    }
+
+    private void tickSuffocationEscape(ServerLevel level) {
+        if (this.isNoAi() || this.noPhysics || !this.isAlive()) {
+            suffocationTicks = 0;
+            return;
+        }
+
+        var suffocating = findSuffocatingBlocks(level);
+
+        if (suffocating.isEmpty()) {
+            suffocationTicks = 0;
+            return;
+        }
+
+        if (++suffocationTicks < SUFFOCATION_GRACE_TICKS) {
+            return;
+        }
+
+        if (!level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
+            return;
+        }
+
+        for (var pos : suffocating) {
+            level.destroyBlock(pos, true, this);
+        }
+
+        suffocationTicks = 0;
+    }
+
+    private List<BlockPos> findSuffocatingBlocks(ServerLevel level) {
+        var result = new ArrayList<BlockPos>();
+        var width = this.getBbWidth() * 0.8F;
+        var eyeBox = AABB.ofSize(this.getEyePosition(), width, 1.0E-6, width);
+        var eyeShape = Shapes.create(eyeBox);
+
+        BlockPos.betweenClosedStream(eyeBox).forEach(mutable -> {
+            var state = level.getBlockState(mutable);
+
+            if (state.isAir() || !state.isSuffocating(level, mutable))
+                return;
+
+            if (state.is(ModTags.RESIN) || state.is(ModTags.VENT_BLOCKS))
+                return;
+
+            if (state.getDestroySpeed(level, mutable) < 0F)
+                return;
+
+            var collision = state.getCollisionShape(level, mutable)
+                .move(mutable.getX(), mutable.getY(), mutable.getZ());
+
+            if (Shapes.joinIsNotEmpty(collision, eyeShape, BooleanOp.AND)) {
+                result.add(mutable.immutable());
+            }
+        });
+
+        return result;
     }
 
     @Override
