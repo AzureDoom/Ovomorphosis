@@ -10,9 +10,9 @@ import com.azure.azurecortex.goap.PlanFeedback;
 import com.azure.azurecortex.navigation.crawl.CrawlController;
 import com.azure.azurecortex.runtime.CooldownTracker;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -23,6 +23,7 @@ import mod.azure.ovomorphosis.ai.actions.MoveToTargetAction;
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.ai.goap.AiGoalType;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.services.XenoServices;
 import mod.azure.ovomorphosis.util.ModTags;
 
 /**
@@ -126,9 +127,8 @@ public class BreakToTargetAction<E extends AbstractAlienEntity> implements Actio
         }
 
         if (
-            !mob.level()
-                .getGameRules()
-                .getBoolean(GameRules.RULE_MOBGRIEFING)
+            !(mob.level() instanceof ServerLevel serverLevel)
+                || !XenoServices.COMMON_REGISTRY.canEntityGrief(serverLevel, mob)
         ) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION, AiGoalType.BREAK_OBSTACLE);
         }

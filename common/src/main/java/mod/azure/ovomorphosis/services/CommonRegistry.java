@@ -1,10 +1,14 @@
 package mod.azure.ovomorphosis.services;
 
 import net.minecraft.core.Registry;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.world.level.GameRules;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Supplier;
 
@@ -26,4 +30,8 @@ public interface CommonRegistry {
     boolean isDevelopmentEnvironment();
 
     boolean isModLoaded(String modId);
+
+    default boolean canEntityGrief(ServerLevel level, @Nullable Entity entity) {
+        return level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING);
+    }
 }

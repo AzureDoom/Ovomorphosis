@@ -2,7 +2,9 @@ package mod.azure.ovomorphosis.platform;
 
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
@@ -12,6 +14,8 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
+import net.neoforged.neoforge.event.EventHooks;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Supplier;
 
@@ -67,5 +71,10 @@ public class NeoForgeCommonRegistry implements CommonRegistry {
     @Override
     public boolean isModLoaded(String modId) {
         return ModList.get().isLoaded(modId);
+    }
+
+    @Override
+    public boolean canEntityGrief(ServerLevel level, @Nullable Entity entity) {
+        return EventHooks.canEntityGrief(level, entity);
     }
 }
