@@ -23,7 +23,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.CollisionContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Comparator;
@@ -89,7 +88,12 @@ public class MotionTrackerItem extends Item {
                 if (reported >= 3)
                     break;
 
-                var wallBlocks = countWallBlocksBetween(serverLevel, player.getEyePosition(), xeno.getEyePosition());
+                var wallBlocks = countWallBlocksBetween(
+                    serverLevel,
+                    player,
+                    player.getEyePosition(),
+                    xeno.getEyePosition()
+                );
                 var obscured = wallBlocks >= WALL_THRESHOLD;
 
                 var dist = player.distanceTo(xeno);
@@ -132,8 +136,9 @@ public class MotionTrackerItem extends Item {
             );
         }
 
-        stack.hurtAndBreak(1, serverPlayer, player.getEquipmentSlotForItem(stack));
-        stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(LIT_MODEL_DATA));
+        stack.hurtAndBreak(1, serverPlayer, LivingEntity.getSlotForHand(hand));
+        if (!stack.isEmpty())
+            stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(LIT_MODEL_DATA));
         player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
 
         return InteractionResultHolder.consume(stack);
@@ -170,7 +175,7 @@ public class MotionTrackerItem extends Item {
     /**
      * Counts solid blocks between two points using raycasting.
      */
-    private static int countWallBlocksBetween(ServerLevel level, Vec3 from, Vec3 to) {
+    private static int countWallBlocksBetween(ServerLevel level, Entity viewer, Vec3 from, Vec3 to) {
         var count = 0;
         var current = from;
         var direction = to.subtract(from).normalize();
@@ -187,7 +192,7 @@ public class MotionTrackerItem extends Item {
                     current,
                     ClipContext.Block.COLLIDER,
                     ClipContext.Fluid.NONE,
-                    CollisionContext.empty()
+                    viewer
                 )
             );
 
