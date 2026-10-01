@@ -26,7 +26,7 @@ import mod.azure.ovomorphosis.util.BlockBreakProgressManager;
 
 public final class OvomorphosisSavedData extends SavedData {
 
-    private final UUID hiveId = UUID.randomUUID();
+    private UUID hiveId = UUID.randomUUID();
 
     private final Map<ResourceKey<Level>, List<HiveMemory>> hives = new HashMap<>();
 
@@ -189,6 +189,8 @@ public final class OvomorphosisSavedData extends SavedData {
     private static OvomorphosisSavedData load(CompoundTag tag) {
         var data = new OvomorphosisSavedData();
         resetRuntimeState();
+        if (tag.hasUUID("hiveId"))
+            data.hiveId = tag.getUUID("hiveId");
         if (tag.contains("eggmorph", Tag.TAG_LIST))
             loadEggmorph(tag.getList("eggmorph", Tag.TAG_COMPOUND));
         if (tag.contains("infections", Tag.TAG_LIST))
