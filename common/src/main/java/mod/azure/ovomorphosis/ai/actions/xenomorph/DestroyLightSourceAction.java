@@ -12,7 +12,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.HashSet;
@@ -20,6 +19,7 @@ import java.util.Set;
 
 import mod.azure.ovomorphosis.ai.core.AiKeys;
 import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
+import mod.azure.ovomorphosis.services.XenoServices;
 
 /**
  * The xenomorph seeks out and destroys nearby light-emitting blocks, helping it keep the environment dark for hive
@@ -68,10 +68,8 @@ public class DestroyLightSourceAction<E extends AbstractAlienEntity, G> implemen
         var level = mob.level();
 
         if (
-            mob.level() instanceof ServerLevel serverLevel &&
-                !serverLevel
-                    .getGameRules()
-                    .get(GameRules.MOB_GRIEFING)
+            !(mob.level() instanceof ServerLevel serverLevel)
+                || !XenoServices.COMMON_REGISTRY.canEntityGrief(serverLevel, mob)
         ) {
             return ActionOutcome.failed(PlanFailureReason.FAILED_PRECONDITION);
         }
