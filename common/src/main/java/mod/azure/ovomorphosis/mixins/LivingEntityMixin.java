@@ -54,14 +54,18 @@ public abstract class LivingEntityMixin extends Entity {
                 .drown() || source == damageSources().inWall())
         )
             callbackInfo.setReturnValue(false);
-        if (
-            damage >= 2 && this.getFirstPassenger() != null && this.getPassengers()
-                .stream()
-                .anyMatch(
-                    FacehuggerEntity.class::isInstance
-                )
-        ) {
-            var facehugger = (FacehuggerEntity) this.getFirstPassenger();
+        if (damage < 2) {
+            return;
+        }
+
+        var facehugger = this.getPassengers()
+            .stream()
+            .filter(FacehuggerEntity.class::isInstance)
+            .map(FacehuggerEntity.class::cast)
+            .findFirst()
+            .orElse(null);
+
+        if (facehugger != null) {
             facehugger.hurtServer(level, source, damage / 2);
             facehugger.addEffect(
                 new MobEffectInstance(
