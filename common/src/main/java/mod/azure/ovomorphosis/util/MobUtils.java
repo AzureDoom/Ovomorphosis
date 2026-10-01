@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.util;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
@@ -16,7 +17,6 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.GameRules;
 
 import java.util.Set;
 
@@ -25,6 +25,7 @@ import mod.azure.ovomorphosis.entities.AbstractAlienEntity;
 import mod.azure.ovomorphosis.entities.AcidEntity;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.SoundRegistry;
+import mod.azure.ovomorphosis.services.XenoServices;
 
 public class MobUtils {
 
@@ -106,26 +107,37 @@ public class MobUtils {
         }
     }
 
+    /**
+     * Acid work applied per hit (every 5 ticks) is {@code acidDestroySpeedMultiplier / ACID_WORK_DIVISOR}, in hardness
+     * units. At the default multiplier of 3 that dissolves stone (hardness 1.5) in ~15 seconds, dirt in ~5 seconds, and
+     * obsidian in several minutes.
+     */
+    private static final float ACID_WORK_DIVISOR = 120F;
+
     public static void applyBlockBreaking(int age, Entity entity) {
-        if (
-            age % 5 == 0 &&
-                (CommonMod.getConfig().enableAcidBlockBreaking || entity.level()
-                    .getGameRules()
-                    .getBoolean(GameRules.RULE_MOBGRIEFING))
-        ) {
-            var blockStateBelow = entity.level().getBlockState(entity.blockPosition().below());
-            if (!blockStateBelow.is(ModTags.ACID_RESISTANT_BLOCKS)) {
-                var blockHardness = blockStateBelow.getDestroySpeed(
-                    entity.level(),
-                    entity.blockPosition().below()
-                );
-                BlockBreakProgressManager.damage(
-                    entity.level(),
-                    entity.blockPosition().below(),
-                    blockHardness * CommonMod.getConfig().acidDestroySpeedMultiplier
-                );
-            }
+        if (age % 5 != 0 || !CommonMod.getConfig().enableAcidBlockBreaking) {
+            return;
         }
+
+        if (
+            !(entity.level() instanceof ServerLevel serverLevel)
+                || !XenoServices.COMMON_REGISTRY.canEntityGrief(serverLevel, entity)
+        ) {
+            return;
+        }
+
+        var posBelow = entity.blockPosition().below();
+        var blockStateBelow = serverLevel.getBlockState(posBelow);
+
+        if (blockStateBelow.isAir() || blockStateBelow.is(ModTags.ACID_RESISTANT_BLOCKS)) {
+            return;
+        }
+
+        BlockBreakProgressManager.damage(
+            serverLevel,
+            posBelow,
+            CommonMod.getConfig().acidDestroySpeedMultiplier / ACID_WORK_DIVISOR
+        );
     }
 
     public static void applyContactEffects(int age, RandomSource random, Entity entity) {
@@ -167,7 +179,7 @@ public class MobUtils {
     }
 
     public static void punishBlockingHelmet(LivingEntity target) {
-        if (!(target.level() instanceof ServerLevel serverLevel)) {
+        if (!(target.level() instanceof ServerLevel)) {
             return;
         }
 
@@ -183,10 +195,8 @@ public class MobUtils {
             return;
         }
 
-        if (helmet.isDamageableItem()) {
-            helmet.hurtAndBreak(1, target, item -> {
-                target.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
-            });
+        if (helmet.isDamageableItem() && target instanceof ServerPlayer player) {
+            helmet.hurtAndBreak(1, player, item -> target.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY));
         }
     }
 }
