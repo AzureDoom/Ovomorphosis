@@ -5,6 +5,7 @@ import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
@@ -46,6 +47,8 @@ public class InfectionScannerItem extends Item {
     private static final String SCAN_START = "ScanStart";
 
     private static final String SCAN_TARGET = "ScanTarget";
+
+    private static final double MAX_TARGET_DISTANCE = 8.0D;
 
     public InfectionScannerItem(Item.Properties properties) {
         super(properties);
@@ -132,19 +135,96 @@ public class InfectionScannerItem extends Item {
         var targetId = getScanTarget(stack);
         clearScanState(stack);
 
-        LivingEntity target = player;
+        var target = resolveScanTarget(targetId, player, level);
 
-        if (targetId != null && !targetId.equals(player.getUUID())) {
-            var resolved = level.getEntity(targetId);
-            if (resolved instanceof LivingEntity living && living.isAlive()) {
-                target = living;
-            }
+        if (target == null) {
+            reportTargetLost(stack, player, level);
+        } else {
+            scanEntity(target, player, stack);
         }
 
-        scanEntity(target, player, stack);
-
-        stack.hurtAndBreak(1, player, player.getEquipmentSlotForItem(stack));
+        damageScanner(stack, player);
         player.getCooldowns().addCooldown(stack, 30);
+    }
+
+    /**
+     * Resolves the target locked in when the scan started.
+     *
+     * @return the player for a self-scan, the target if it is still alive, in this level and within
+     *         {@link #MAX_TARGET_DISTANCE}, or {@code null} if the target was lost during the scan
+     */
+    private static LivingEntity resolveScanTarget(UUID targetId, Player player, Level level) {
+        if (targetId == null || targetId.equals(player.getUUID())) {
+            return player;
+        }
+
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return null;
+        }
+
+        if (
+            serverLevel.getEntity(targetId) instanceof LivingEntity living
+                && living.isAlive()
+                && living.distanceToSqr(player) <= MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE
+        ) {
+            return living;
+        }
+
+        return null;
+    }
+
+    private void reportTargetLost(ItemStack stack, Player player, Level level) {
+        setScannerModel(stack, MODEL_CLEAR);
+        clearScanTime(stack);
+
+        player.sendOverlayMessage(
+            Component.translatable("item.ovomorphosis.infection_scanner.tooltip.target_lost")
+                .withStyle(ChatFormatting.YELLOW)
+        );
+
+        level.playSound(
+            null,
+            player.blockPosition(),
+            SoundEvents.NOTE_BLOCK_BASS.value(),
+            SoundSource.PLAYERS,
+            CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
+            0.8F
+        );
+    }
+
+    /**
+     * Applies one point of durability. Scans keep running from {@link #inventoryTick} even after the player switches
+     * away, so the scanner isn't necessarily in the main hand. The break event is attributed to whichever hand actually
+     * holds it, and if it's in neither hand, only the break sound is played.
+     */
+    private static void damageScanner(ItemStack stack, Player player) {
+        if (!(player.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        var heldSlot = player.getMainHandItem() == stack
+            ? EquipmentSlot.MAINHAND
+            : player.getOffhandItem() == stack ? EquipmentSlot.OFFHAND : null;
+
+        stack.hurtAndBreak(
+            1,
+            serverLevel,
+            player instanceof ServerPlayer serverPlayer ? serverPlayer : null,
+            item -> {
+                if (heldSlot != null) {
+                    player.onEquippedItemBroken(item, heldSlot);
+                } else {
+                    serverLevel.playSound(
+                        null,
+                        player.blockPosition(),
+                        SoundEvents.ITEM_BREAK.value(),
+                        player.getSoundSource(),
+                        0.8F,
+                        0.8F + serverLevel.getRandom().nextFloat() * 0.4F
+                    );
+                }
+            }
+        );
     }
 
     /**
@@ -256,17 +336,17 @@ public class InfectionScannerItem extends Item {
     }
 
     /**
-     * Finds the nearest living entity the player is roughly looking at. Returns null if none found (triggers
-     * self-scan).
+     * Finds the living entity closest to the player's line of sight within range, ignoring anything behind walls.
+     * Returns null if none found (triggers self-scan).
      */
-    public static @Nullable LivingEntity findLookTarget(Player player, Level level) {
+    public static LivingEntity findLookTarget(Player player, Level level) {
         var eyePos = player.getEyePosition();
         var lookVec = player.getLookAngle();
 
         return level.getEntitiesOfClass(
             LivingEntity.class,
             new AABB(player.blockPosition()).inflate(4),
-            e -> e != player && e.isAlive()
+            e -> e != player && e.isAlive() && player.hasLineOfSight(e)
         )
             .stream()
             .filter(e -> {

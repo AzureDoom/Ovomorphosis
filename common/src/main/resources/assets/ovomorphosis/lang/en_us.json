@@ -76,6 +76,7 @@
   "item.ovomorphosis.infection_scanner.tooltip": "Detects facehugger embryo presence. Point at a target or use on yourself.",
   "item.ovomorphosis.infection_scanner.tooltip.self": "SELF",
   "item.ovomorphosis.infection_scanner.tooltip.clear": "► [%s] CLEAR",
+  "item.ovomorphosis.infection_scanner.tooltip.target_lost": "► SCAN FAILED - Target lost",
   "item.ovomorphosis.infection_scanner.tooltip.infected": "► [%s] INFECTED - Stage: %s - Seconds Remaining: %s",
   "item.ovomorphosis.infection_scanner.tooltip.infected_no_time": "► [%s] INFECTED - Stage: %s",
   "item.ovomorphosis.infection_scanner.tooltip.stage.dormant": "DORMANT",
