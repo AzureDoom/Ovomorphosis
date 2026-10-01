@@ -11,7 +11,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
@@ -23,10 +22,11 @@ import mod.azure.ovomorphosis.ai.util.HiveMemory;
 import mod.azure.ovomorphosis.infection.EggmorphTracker;
 import mod.azure.ovomorphosis.infection.InfectionManager;
 import mod.azure.ovomorphosis.infection.InfectionState;
+import mod.azure.ovomorphosis.util.BlockBreakProgressManager;
 
 public final class OvomorphosisSavedData extends SavedData {
 
-    private UUID hiveId = UUID.randomUUID();
+    private final UUID hiveId = UUID.randomUUID();
 
     private final Map<ResourceKey<Level>, List<HiveMemory>> hives = new HashMap<>();
 
@@ -40,7 +40,7 @@ public final class OvomorphosisSavedData extends SavedData {
             .computeIfAbsent(
                 new SavedData.Factory<>(
                     OvomorphosisSavedData::createEmpty,
-                    (tag, provider) -> load(tag, overworld),
+                    (tag, provider) -> load(tag),
                     DataFixTypes.SAVED_DATA_RANDOM_SEQUENCES
                 ),
                 "ovomorphosis_data"
@@ -108,7 +108,17 @@ public final class OvomorphosisSavedData extends SavedData {
     }
 
     private static OvomorphosisSavedData createEmpty() {
+        resetRuntimeState();
         return new OvomorphosisSavedData();
+    }
+
+    /**
+     * Clears all static, per-server runtime state. Called whenever a server's saved data is first created or loaded.
+     */
+    private static void resetRuntimeState() {
+        EggmorphTracker.clearAll();
+        InfectionManager.clearAll();
+        BlockBreakProgressManager.clearAll();
     }
 
     @Override
@@ -176,12 +186,11 @@ public final class OvomorphosisSavedData extends SavedData {
         return false;
     }
 
-    private static OvomorphosisSavedData load(CompoundTag tag, ServerLevel level) {
+    private static OvomorphosisSavedData load(CompoundTag tag) {
         var data = new OvomorphosisSavedData();
-        EggmorphTracker.clearAll();
-        InfectionManager.clearAll();
+        resetRuntimeState();
         if (tag.contains("eggmorph", Tag.TAG_LIST))
-            loadEggmorph(tag.getList("eggmorph", Tag.TAG_COMPOUND), level);
+            loadEggmorph(tag.getList("eggmorph", Tag.TAG_COMPOUND));
         if (tag.contains("infections", Tag.TAG_LIST))
             loadInfections(tag.getList("infections", Tag.TAG_COMPOUND));
         if (tag.contains("hives", Tag.TAG_COMPOUND)) {
@@ -215,16 +224,10 @@ public final class OvomorphosisSavedData extends SavedData {
                 continue;
             }
 
-            var dimensionLocation =
-                ResourceLocation.tryParse(entry.getString("dimension"));
+            var dimension = parseDimension(entry.getString("dimension"));
 
-            if (dimensionLocation == null)
+            if (dimension == null)
                 continue;
-
-            var dimension = ResourceKey.create(
-                Registries.DIMENSION,
-                dimensionLocation
-            );
 
             var hive = HiveMemory.load(
                 entry.getCompound("data")
@@ -239,44 +242,47 @@ public final class OvomorphosisSavedData extends SavedData {
 
     private static ListTag saveEggmorph() {
         var list = new ListTag();
-        for (var entry : EggmorphTracker.snapshotForSave().entrySet()) {
+        for (var entry : EggmorphTracker.snapshotForSave()) {
             var compound = new CompoundTag();
-            compound.put("pos", NbtUtils.writeBlockPos(entry.getKey()));
-
-            var entriesTag = new ListTag();
-            for (var e : entry.getValue().entrySet()) {
-                var entryTag = new CompoundTag();
-                entryTag.putInt("entityId", e.getKey());
-                entryTag.putString("phase", e.getValue().phase().toLowerCase(Locale.ROOT));
-                entryTag.putInt("ticks", e.getValue().ticks());
-                entriesTag.add(entryTag);
-            }
-            compound.put("entries", entriesTag);
+            compound.putString("dimension", entry.dimension().location().toString());
+            compound.put("pos", NbtUtils.writeBlockPos(entry.pos()));
+            compound.putUUID("uuid", entry.entityId());
+            compound.putString("phase", entry.phase());
+            compound.putInt("ticks", entry.ticks());
+            compound.putBoolean("hadNoGravity", entry.hadNoGravity());
             list.add(compound);
         }
         return list;
     }
 
-    private static void loadEggmorph(ListTag list, ServerLevel level) {
+    private static void loadEggmorph(ListTag list) {
         for (var i = 0; i < list.size(); i++) {
             var compound = list.getCompound(i);
-            var pos = NbtUtils.readBlockPos(compound, "pos").orElse(null);
-            if (pos == null)
+
+            if (!compound.hasUUID("uuid") || !compound.contains("dimension", Tag.TAG_STRING))
                 continue;
 
-            var entriesTag = compound.getList("entries", Tag.TAG_COMPOUND);
-            for (var j = 0; j < entriesTag.size(); j++) {
-                var entryTag = entriesTag.getCompound(j);
-                var entityId = entryTag.getInt("entityId");
-                var phase = entryTag.getString("phase");
-                var ticks = entryTag.getInt("ticks");
+            var pos = NbtUtils.readBlockPos(compound, "pos").orElse(null);
+            var dimension = parseDimension(compound.getString("dimension"));
+            if (pos == null || dimension == null)
+                continue;
 
-                var entity = level.getEntity(entityId);
-                if (entity instanceof LivingEntity living) {
-                    EggmorphTracker.restoreEntry(pos, living, phase, ticks);
-                }
-            }
+            EggmorphTracker.restorePending(
+                new EggmorphTracker.SavedEntry(
+                    dimension,
+                    pos,
+                    compound.getUUID("uuid"),
+                    compound.getString("phase"),
+                    compound.getInt("ticks"),
+                    compound.getBoolean("hadNoGravity")
+                )
+            );
         }
+    }
+
+    private static @Nullable ResourceKey<Level> parseDimension(String raw) {
+        var location = ResourceLocation.tryParse(raw);
+        return location == null ? null : ResourceKey.create(Registries.DIMENSION, location);
     }
 
     private static ListTag saveInfections() {
@@ -290,6 +296,9 @@ public final class OvomorphosisSavedData extends SavedData {
             compound.putBoolean("hasBurst", entry.getValue().hasBurst);
             if (entry.getValue().lastKnownPos != null)
                 compound.put("lastKnownPos", NbtUtils.writeBlockPos(entry.getValue().lastKnownPos));
+            if (entry.getValue().dimension != null)
+                compound.putString("dimension", entry.getValue().dimension.location().toString());
+            compound.putBoolean("isPlayer", entry.getValue().isPlayer);
             list.add(compound);
         }
         return list;
@@ -306,6 +315,9 @@ public final class OvomorphosisSavedData extends SavedData {
             if (compound.contains("lastKnownPos"))
                 state.lastKnownPos = NbtUtils.readBlockPos(compound, "lastKnownPos")
                     .orElse(BlockPos.ZERO);
+            if (compound.contains("dimension", Tag.TAG_STRING))
+                state.dimension = parseDimension(compound.getString("dimension"));
+            state.isPlayer = compound.getBoolean("isPlayer");
             InfectionManager.restore(uuid, state);
         }
     }

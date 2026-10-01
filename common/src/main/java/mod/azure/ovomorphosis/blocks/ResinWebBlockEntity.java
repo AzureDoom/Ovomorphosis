@@ -21,16 +21,17 @@ public class ResinWebBlockEntity extends BlockEntity {
     public static void serverTick(Level level, BlockPos pos, BlockState state, BlockEntity be) {
         if (level.isClientSide())
             return;
-        var tracker = EggmorphTracker.getOrCreate(pos.immutable());
-
         var cx = pos.getX() + 0.5;
         var cy = pos.getY() + 0.5;
         var cz = pos.getZ() + 0.5;
         var aabb = new AABB(cx - 0.5, cy - 0.5, cz - 0.5, cx + 0.5, cy + 0.5, cz + 0.5);
 
-        for (var entity : level.getEntitiesOfClass(LivingEntity.class, aabb)) {
-            if (!TargetingUtils.eggmorphValid().test(entity))
-                continue;
+        var hosts = level.getEntitiesOfClass(LivingEntity.class, aabb, TargetingUtils.eggmorphValid());
+        if (hosts.isEmpty())
+            return;
+
+        var tracker = EggmorphTracker.getOrCreate(level, pos);
+        for (var entity : hosts) {
             tracker.onEntityInside(entity);
         }
     }
