@@ -14,6 +14,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,9 +58,12 @@ public final class InfectionManager {
         if (isInfected(host))
             return;
 
-        var range = CommonMod.getConfig().infectionMaxTicks - CommonMod.getConfig().infectionMinTicks;
-        var duration = CommonMod.getConfig().infectionMinTicks + Math.abs(random % (range + 1));
-        INFECTIONS.put(host.getUUID(), new InfectionState(duration));
+        var duration = rollInfectionDuration(random);
+        var state = new InfectionState(duration);
+        state.lastKnownPos = host.blockPosition();
+        state.dimension = host.level().dimension();
+        state.isPlayer = host instanceof Player;
+        INFECTIONS.put(host.getUUID(), state);
         host.level()
             .playSound(
                 host,
@@ -74,6 +78,19 @@ public final class InfectionManager {
         }
     }
 
+    /**
+     * Picks an infection duration between the configured min and max (inclusive). Guards against misconfiguration: a
+     * non-positive minimum is raised to 1 tick, and a maximum below the minimum is treated as equal to it, so a swapped
+     * min/max can no longer produce a divide-by-zero or a negative duration. {@code floorMod} keeps the roll in range
+     * even for {@link Integer#MIN_VALUE}, where {@code Math.abs} would stay negative.
+     */
+    static int rollInfectionDuration(int random) {
+        var min = Math.max(1, CommonMod.getConfig().infectionMinTicks);
+        var max = Math.max(min, CommonMod.getConfig().infectionMaxTicks);
+        var span = (long) max - min + 1L;
+        return (int) (min + Math.floorMod(random, span));
+    }
+
     public static boolean isInfected(LivingEntity entity) {
         return INFECTIONS.containsKey(entity.getUUID());
     }
@@ -82,12 +99,7 @@ public final class InfectionManager {
         INFECTIONS.remove(entity.getUUID());
     }
 
-    private static boolean hasLoggedOnce = false;
-
     public static void tick(ServerLevel level) {
-        if (!hasLoggedOnce) {
-            hasLoggedOnce = true;
-        }
         var it = INFECTIONS.entrySet().iterator();
 
         while (it.hasNext()) {
@@ -97,17 +109,12 @@ public final class InfectionManager {
 
             var entity = level.getEntity(uuid);
             if (!(entity instanceof LivingEntity host)) {
-                if (state.lastKnownPos != null && !state.lastKnownPos.equals(BlockPos.ZERO)) {
-                    var chunkPos = new ChunkPos(state.lastKnownPos.getX(), state.lastKnownPos.getZ());
-                    level.getChunkSource()
-                        .addTicketWithRadius(
-                            TicketType.UNKNOWN,
-                            chunkPos,
-                            2
-                        );
-                }
+                keepHostChunkLoaded(level, state);
                 continue;
             }
+
+            state.dimension = level.dimension();
+            state.isPlayer = host instanceof Player;
 
             if (!host.isAlive()) {
                 it.remove();
@@ -177,10 +184,37 @@ public final class InfectionManager {
         }
     }
 
-    private static void applyInfectionDamage(LivingEntity host, ServerLevel level) {
-        host.hurt(DamageTypeRegistry.of(level, DamageTypeRegistry.XENOMORPH_INFECTION), 1F);
+    /**
+     * {@link #tick} runs once per dimension over the shared infection map, so a host that isn't in {@code level} is
+     * very often simply in another dimension. Only re-ticket the host's last known chunk when the host is a non-player
+     * that was last seen in this dimension. Infections from older saves without a recorded dimension are assumed to be
+     * in the Overworld until the host is found.
+     */
+    private static void keepHostChunkLoaded(ServerLevel level, InfectionState state) {
+        if (state.isPlayer)
+            return;
+
+        var lastDimension = state.dimension != null ? state.dimension : Level.OVERWORLD;
+        if (!lastDimension.equals(level.dimension()))
+            return;
+
+        if (state.lastKnownPos == null || state.lastKnownPos.equals(BlockPos.ZERO))
+            return;
+
+        var chunkPos = new ChunkPos(state.lastKnownPos.getX(), state.lastKnownPos.getZ());
+        level.getChunkSource()
+            .addTicketWithRadius(
+                TicketType.UNKNOWN,
+                chunkPos,
+                2
+            );
     }
 
+    private static void applyInfectionDamage(LivingEntity host, ServerLevel level) {
+        host.hurtServer(level, DamageTypeRegistry.of(level, DamageTypeRegistry.XENOMORPH_INFECTION), 1F);
+    }
+
+    @SuppressWarnings("deprecation")
     private static void triggerBurst(LivingEntity host, ServerLevel level) {
         if (level.isClientSide())
             return;

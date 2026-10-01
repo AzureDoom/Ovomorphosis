@@ -710,7 +710,7 @@ public final class HiveMemory {
 
         xenoCount = level.getEntitiesOfClass(XenomorphEntity.class, aabb).size();
         ovomorphCount = level.getEntitiesOfClass(OvomorphEntity.class, aabb).size();
-        restrainedHostCount = EggmorphTracker.countActiveNear(domeCenter, NEEDS_SCAN_RADIUS);
+        restrainedHostCount = EggmorphTracker.countActiveNear(level, domeCenter, NEEDS_SCAN_RADIUS);
         hiveLightLevel = computeHiveLightLevel(level);
 
         evictStaleThreats(currentTick);
