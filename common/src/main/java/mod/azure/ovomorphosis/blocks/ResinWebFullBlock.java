@@ -49,7 +49,7 @@ public class ResinWebFullBlock extends AbstractResinBlock implements EntityBlock
         boolean movedByPiston
     ) {
         if (!level.isClientSide()) {
-            EggmorphTracker.remove(pos);
+            EggmorphTracker.remove(level, pos);
             ResinWebRegistry.unregister(level, pos);
         }
         super.onRemove(state, level, pos, newState, movedByPiston);

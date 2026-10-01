@@ -1,6 +1,9 @@
 package mod.azure.ovomorphosis.infection;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.Nullable;
 
 public final class InfectionState {
 
@@ -14,12 +17,18 @@ public final class InfectionState {
 
     public BlockPos lastKnownPos;
 
+    public @Nullable ResourceKey<Level> dimension;
+
+    public boolean isPlayer;
+
     public InfectionState(int duration) {
         this.duration = duration;
         this.ticks = 0;
         this.ticksSinceLastDamage = 0;
         this.hasBurst = false;
         this.lastKnownPos = BlockPos.ZERO;
+        this.dimension = null;
+        this.isPlayer = false;
     }
 
     public boolean isInDamagePhase() {
