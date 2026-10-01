@@ -26,6 +26,7 @@ import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -79,6 +80,42 @@ public class MagmaSprayerItem extends Item {
         return InteractionResult.CONSUME;
     }
 
+    /**
+     * Places fire on the face of the first non-air block along the spray, after the same permission checks flint and
+     * steel goes through: {@link Level#mayInteract} covers spawn protection and the world border, and
+     * {@link Player#mayUseItemAt} covers adventure mode and build restrictions. Without these, fire was placed directly
+     * with {@code setBlockAndUpdate} and ignored spawn protection.
+     */
+    private static void igniteFirstBlockInSight(
+        ServerLevel level,
+        Player player,
+        ItemStack stack,
+        Vec3 eyePos,
+        Vec3 lookVec
+    ) {
+        for (var i = 1; i <= RANGE; i++) {
+            var checkPos = BlockPos.containing(eyePos.add(lookVec.scale(i)));
+            var bs = level.getBlockState(checkPos);
+
+            if (bs.isAir()) {
+                continue;
+            }
+
+            var face = Direction.getApproximateNearest(lookVec.reverse());
+            var facePos = checkPos.relative(face);
+
+            if (
+                level.getBlockState(facePos).isAir()
+                    && level.mayInteract(player, facePos)
+                    && player.mayUseItemAt(facePos, face, stack)
+                    && BaseFireBlock.canBePlacedAt(level, facePos, player.getDirection())
+            ) {
+                level.setBlockAndUpdate(facePos, BaseFireBlock.getState(level, facePos));
+            }
+            return;
+        }
+    }
+
     @Override
     public boolean releaseUsing(
         @NonNull ItemStack stack,
@@ -111,7 +148,7 @@ public class MagmaSprayerItem extends Item {
     private InteractionResult tryRefill(Level level, Player player, ItemStack sprayer) {
         var currentFuel = getFuel(sprayer);
 
-        if (currentFuel >= MAX_FUEL) {
+        if (currentFuel > MAX_FUEL - FUEL_PER_REFILL) {
             return InteractionResult.FAIL;
         }
 
@@ -192,7 +229,7 @@ public class MagmaSprayerItem extends Item {
         serverLevel.getEntitiesOfClass(
             LivingEntity.class,
             new AABB(player.blockPosition()).inflate(RANGE),
-            e -> e != player && e.isAlive()
+            e -> e != player && e.isAlive() && player.hasLineOfSight(e)
         ).forEach(e -> {
             var toEntity = e.getEyePosition().subtract(eyePos).normalize();
             if (toEntity.dot(lookVec) >= CONE_DOT) {
@@ -206,38 +243,14 @@ public class MagmaSprayerItem extends Item {
             }
         });
 
-        for (var i = 1; i <= RANGE; i++) {
-            var checkPos = BlockPos.containing(eyePos.add(lookVec.scale(i)));
-            var bs = serverLevel.getBlockState(checkPos);
-
-            if (!bs.isAir()) {
-                var facePos = checkPos.relative(
-                    Direction.getNearest(
-                        (int) -lookVec.x,
-                        (int) -lookVec.y,
-                        (int) -lookVec.z,
-                        Direction.UP
-                    )
-                );
-                if (
-                    serverLevel.getBlockState(facePos).isAir()
-                        && BaseFireBlock.canBePlacedAt(serverLevel, facePos, player.getDirection())
-                ) {
-                    serverLevel.setBlockAndUpdate(
-                        facePos,
-                        BaseFireBlock.getState(serverLevel, facePos)
-                    );
-                }
-                break;
-            }
-        }
+        igniteFirstBlockInSight(serverLevel, player, stack, eyePos, lookVec);
 
         if (!player.getAbilities().instabuild) {
             consumeFuel(stack);
         }
 
         if (player.getRandom().nextFloat() < 0.25F) {
-            stack.hurtAndBreak(1, player, player.getEquipmentSlotForItem(stack));
+            stack.hurtAndBreak(1, player, player.getUsedItemHand().asEquipmentSlot());
         }
     }
 

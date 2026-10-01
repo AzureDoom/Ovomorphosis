@@ -24,7 +24,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.CollisionContext;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -87,7 +86,12 @@ public class MotionTrackerItem extends Item {
                 if (reported >= 3)
                     break;
 
-                var wallBlocks = countWallBlocksBetween(serverLevel, player.getEyePosition(), xeno.getEyePosition());
+                var wallBlocks = countWallBlocksBetween(
+                    serverLevel,
+                    player,
+                    player.getEyePosition(),
+                    xeno.getEyePosition()
+                );
                 var obscured = wallBlocks >= WALL_THRESHOLD;
 
                 var dist = player.distanceTo(xeno);
@@ -129,11 +133,12 @@ public class MotionTrackerItem extends Item {
             );
         }
 
-        stack.hurtAndBreak(1, player, player.getEquipmentSlotForItem(stack));
-        stack.set(
-            DataComponents.CUSTOM_MODEL_DATA,
-            new CustomModelData(List.of((float) LIT_MODEL_DATA), List.of(), List.of(), List.of())
-        );
+        stack.hurtAndBreak(1, player, hand.asEquipmentSlot());
+        if (!stack.isEmpty())
+            stack.set(
+                DataComponents.CUSTOM_MODEL_DATA,
+                new CustomModelData(List.of((float) LIT_MODEL_DATA), List.of(), List.of(), List.of())
+            );
         player.getCooldowns().addCooldown(stack, COOLDOWN_TICKS);
 
         return InteractionResult.CONSUME;
@@ -168,15 +173,16 @@ public class MotionTrackerItem extends Item {
     /**
      * Counts solid blocks between two points using raycasting.
      */
-    private static int countWallBlocksBetween(ServerLevel level, Vec3 from, Vec3 to) {
+    private static int countWallBlocksBetween(ServerLevel level, Entity viewer, Vec3 from, Vec3 to) {
         var count = 0;
+        var current = from;
         var direction = to.subtract(from).normalize();
         var totalDist = from.distanceTo(to);
         var stepped = 0D;
 
         while (stepped < totalDist) {
             stepped += 1.0D;
-            var current = from.add(direction.scale(stepped));
+            current = from.add(direction.scale(stepped));
 
             var result = level.clip(
                 new ClipContext(
@@ -184,7 +190,7 @@ public class MotionTrackerItem extends Item {
                     current,
                     ClipContext.Block.COLLIDER,
                     ClipContext.Fluid.NONE,
-                    CollisionContext.empty()
+                    viewer
                 )
             );
 
