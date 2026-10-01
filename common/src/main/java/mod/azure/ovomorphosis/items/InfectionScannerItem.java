@@ -8,6 +8,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -21,6 +22,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 
 import mod.azure.ovomorphosis.CommonMod;
 import mod.azure.ovomorphosis.infection.InfectionManager;
@@ -34,6 +36,9 @@ public class InfectionScannerItem extends Item {
     private static final int MODEL_SYMPTOMATIC = 1;
 
     private static final int MODEL_CRITICAL = 2;
+
+    /** A locked-in target further away than this when the scan completes counts as lost. */
+    private static final double MAX_TARGET_DISTANCE = 8.0D;
 
     public InfectionScannerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE));
@@ -88,7 +93,8 @@ public class InfectionScannerItem extends Item {
             return;
         }
 
-        tickScanProgress(stack, level, entity);
+        if (entity != null)
+            tickScanProgress(stack, level, entity);
         tickDecay(stack, level);
     }
 
@@ -134,23 +140,97 @@ public class InfectionScannerItem extends Item {
 
         tag.remove("ScanStart");
         tag.remove("ScanTarget");
-        if (stack.getTag() != null && stack.getTag().isEmpty()) {
-            stack.setTag(null);
+        clearTagIfEmpty(stack);
+
+        var target = resolveScanTarget(targetId, player, level);
+
+        if (target == null) {
+            reportTargetLost(stack, Objects.requireNonNull(player), level);
+        } else {
+            scanEntity(target, player, stack);
         }
 
-        LivingEntity target = player;
-
-        if (targetId != null && !targetId.equals(player.getUUID()) && level instanceof ServerLevel serverLevel) {
-            var resolved = serverLevel.getEntity(targetId);
-            if (resolved instanceof LivingEntity living && living.isAlive()) {
-                target = living;
-            }
-        }
-
-        scanEntity(target, player, stack);
-
-        stack.hurtAndBreak(1, player, s -> player.broadcastBreakEvent(player.getUsedItemHand()));
+        damageScanner(stack, player);
         player.getCooldowns().addCooldown(this, 30);
+    }
+
+    /**
+     * Resolves the target locked in when the scan started.
+     *
+     * @return the player for a self-scan, the target if it is still alive, in this level and within
+     *         {@link #MAX_TARGET_DISTANCE}, or {@code null} if the target was lost during the scan
+     */
+    private static @Nullable LivingEntity resolveScanTarget(@Nullable UUID targetId, Player player, Level level) {
+        if (targetId == null || targetId.equals(player.getUUID())) {
+            return player;
+        }
+
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return null;
+        }
+
+        if (
+            serverLevel.getEntity(targetId) instanceof LivingEntity living
+                && living.isAlive()
+                && living.distanceToSqr(player) <= MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE
+        ) {
+            return living;
+        }
+
+        return null;
+    }
+
+    private void reportTargetLost(ItemStack stack, Player player, Level level) {
+        setScannerModel(stack, MODEL_CLEAR);
+        clearScanTime(stack);
+
+        player.displayClientMessage(
+            Component.translatable("item.ovomorphosis.infection_scanner.tooltip.target_lost")
+                .withStyle(ChatFormatting.YELLOW),
+            true
+        );
+
+        level.playSound(
+            null,
+            player.blockPosition(),
+            SoundEvents.NOTE_BLOCK_BASS.value(),
+            SoundSource.PLAYERS,
+            CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
+            0.8F
+        );
+    }
+
+    /**
+     * Applies one point of durability. Scans keep running from {@link #inventoryTick} even after the player switches
+     * away, so the scanner isn't necessarily in the main hand. The break event is attributed to whichever hand actually
+     * holds it, and if it's in neither hand, only the break sound is played.
+     * <p>
+     * The entity-based {@code hurtAndBreak} already skips creative players, shrinks the stack and awards the
+     * item-broken stat.
+     */
+    private static void damageScanner(ItemStack stack, Player player) {
+        if (!(player.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        var heldSlot = player.getMainHandItem() == stack
+            ? EquipmentSlot.MAINHAND
+            : player.getOffhandItem() == stack ? EquipmentSlot.OFFHAND : null;
+
+        stack.hurtAndBreak(1, player, p -> {
+            if (heldSlot != null) {
+                p.broadcastBreakEvent(heldSlot);
+            } else {
+                serverLevel.playSound(
+                    null,
+                    p.blockPosition(),
+                    SoundEvents.ITEM_BREAK,
+                    p.getSoundSource(),
+                    0.8F,
+                    0.8F + serverLevel.getRandom().nextFloat() * 0.4F
+                );
+            }
+        });
     }
 
     /**
@@ -169,10 +249,7 @@ public class InfectionScannerItem extends Item {
 
         if (level.getGameTime() - tag.getLong("ScanTime") >= 100L) {
             setScannerModel(stack, MODEL_CLEAR);
-            tag.remove("ScanTime");
-            if (stack.getTag() != null && stack.getTag().isEmpty()) {
-                stack.setTag(null);
-            }
+            clearScanTime(stack);
         }
     }
 
@@ -204,7 +281,7 @@ public class InfectionScannerItem extends Item {
             if (modelData > MODEL_CLEAR) {
                 stack.getOrCreateTag().putLong("ScanTime", level.getGameTime());
             } else {
-                stack.getOrCreateTag().remove("ScanTime");
+                clearScanTime(stack);
             }
 
             var who = isSelf
@@ -246,7 +323,7 @@ public class InfectionScannerItem extends Item {
             );
         } else {
             setScannerModel(stack, MODEL_CLEAR);
-            stack.getOrCreateTag().remove("ScanTime");
+            clearScanTime(stack);
 
             var who = isSelf
                 ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
@@ -272,17 +349,17 @@ public class InfectionScannerItem extends Item {
     }
 
     /**
-     * Finds the nearest living entity the player is roughly looking at within SCAN_RANGE. Returns null if none found
-     * (triggers self-scan).
+     * Finds the living entity closest to the player's line of sight within range, ignoring anything behind walls.
+     * Returns null if none found (triggers self-scan).
      */
-    private static LivingEntity findLookTarget(Player player, Level level) {
+    public static @Nullable LivingEntity findLookTarget(Player player, Level level) {
         var eyePos = player.getEyePosition();
         var lookVec = player.getLookAngle();
 
         return level.getEntitiesOfClass(
             LivingEntity.class,
             new AABB(player.blockPosition()).inflate(4),
-            e -> e != player && e.isAlive()
+            e -> e != player && e.isAlive() && player.hasLineOfSight(e)
         )
             .stream()
             .filter(e -> {
@@ -323,15 +400,35 @@ public class InfectionScannerItem extends Item {
 
     public static void setScannerModel(ItemStack stack, int customModelData) {
         if (customModelData <= 0) {
-            stack.getOrCreateTag().remove("CustomModelData");
-
-            if (stack.getTag() != null && stack.getTag().isEmpty()) {
-                stack.setTag(null);
+            var tag = stack.getTag();
+            if (tag != null) {
+                tag.remove("CustomModelData");
+                clearTagIfEmpty(stack);
             }
-
             return;
         }
 
         stack.getOrCreateTag().putInt("CustomModelData", customModelData);
+    }
+
+    /**
+     * Removes the reading timestamp without creating a tag on a clean stack. {@code getOrCreateTag().remove(...)} here
+     * would leave an empty {@code {}} tag behind on every clear scan, because {@link #setScannerModel} may already have
+     * nulled the tag.
+     */
+    private static void clearScanTime(ItemStack stack) {
+        var tag = stack.getTag();
+        if (tag == null) {
+            return;
+        }
+        tag.remove("ScanTime");
+        clearTagIfEmpty(stack);
+    }
+
+    private static void clearTagIfEmpty(ItemStack stack) {
+        var tag = stack.getTag();
+        if (tag != null && tag.isEmpty()) {
+            stack.setTag(null);
+        }
     }
 }
