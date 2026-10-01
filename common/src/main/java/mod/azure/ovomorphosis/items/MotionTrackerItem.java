@@ -30,8 +30,6 @@ import mod.azure.ovomorphosis.util.ModTags;
 
 public class MotionTrackerItem extends Item {
 
-    private static final int RANGE = 24;
-
     private static final int WALL_THRESHOLD = 3;
 
     private static final int COOLDOWN_TICKS = 40;
@@ -39,6 +37,10 @@ public class MotionTrackerItem extends Item {
     private static final int MAX_DAMAGE = 64;
 
     private static final int LIT_MODEL_DATA = 1;
+
+    private static final String LIT_UNTIL_TAG = "LitUntil";
+
+    private static final String LEGACY_LIT_TAG = "lit";
 
     public MotionTrackerItem() {
         super(new Item.Properties().durability(MAX_DAMAGE));
@@ -88,7 +90,12 @@ public class MotionTrackerItem extends Item {
                 if (reported >= 3)
                     break;
 
-                var wallBlocks = countWallBlocksBetween(serverLevel, player.getEyePosition(), xeno.getEyePosition());
+                var wallBlocks = countWallBlocksBetween(
+                    serverLevel,
+                    player,
+                    player.getEyePosition(),
+                    xeno.getEyePosition()
+                );
                 var obscured = wallBlocks >= WALL_THRESHOLD;
 
                 var dist = player.distanceTo(xeno);
@@ -131,12 +138,12 @@ public class MotionTrackerItem extends Item {
             );
         }
 
-        stack.hurtAndBreak(1, serverPlayer, s -> player.broadcastBreakEvent(player.getUsedItemHand()));
-
-        var tag = stack.getOrCreateTag();
-        tag.putBoolean("lit", true);
-        stack.getOrCreateTag().putInt("CustomModelData", LIT_MODEL_DATA);
+        stack.hurtAndBreak(1, serverPlayer, p -> p.broadcastBreakEvent(hand));
         player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
+
+        if (!stack.isEmpty()) {
+            setLit(stack, level.getGameTime() + COOLDOWN_TICKS);
+        }
 
         return InteractionResultHolder.consume(stack);
     }
@@ -151,24 +158,61 @@ public class MotionTrackerItem extends Item {
         return 72000;
     }
 
+    /**
+     * Turns the lit model off once its timer runs out. This runs for whoever is holding the tracker, not just the
+     * player who used it. A tracker sitting in a chest or on the ground doesn't tick, but it clears on the first tick
+     * after someone picks it up instead of waiting for that player's own cooldown.
+     */
     @Override
-    public void inventoryTick(@NotNull ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+    public void inventoryTick(
+        @NotNull ItemStack stack,
+        Level level,
+        @NotNull Entity entity,
+        int slot,
+        boolean selected
+    ) {
         if (level.isClientSide())
             return;
 
+        var tag = stack.getTag();
+        if (tag == null)
+            return;
+
+        if (tag.contains(LEGACY_LIT_TAG)) {
+            clearLit(stack);
+            return;
+        }
+
+        if (tag.contains(LIT_UNTIL_TAG) && level.getGameTime() >= tag.getLong(LIT_UNTIL_TAG)) {
+            clearLit(stack);
+        }
+    }
+
+    private static void setLit(ItemStack stack, long litUntil) {
         var tag = stack.getOrCreateTag();
-        if (tag.getBoolean("lit") && entity instanceof Player player) {
-            if (!player.getCooldowns().isOnCooldown(this)) {
-                tag.putBoolean("lit", false);
-                stack.getOrCreateTag().putInt("CustomModelData", 0);
-            }
+        tag.putLong(LIT_UNTIL_TAG, litUntil);
+        tag.putInt("CustomModelData", LIT_MODEL_DATA);
+    }
+
+    /** Removes the lit state entirely instead of leaving {@code lit:0b} / {@code CustomModelData:0} behind. */
+    private static void clearLit(ItemStack stack) {
+        var tag = stack.getTag();
+        if (tag == null)
+            return;
+
+        tag.remove(LIT_UNTIL_TAG);
+        tag.remove(LEGACY_LIT_TAG);
+        tag.remove("CustomModelData");
+
+        if (tag.isEmpty()) {
+            stack.setTag(null);
         }
     }
 
     /**
      * Counts solid blocks between two points using raycasting.
      */
-    private static int countWallBlocksBetween(ServerLevel level, Vec3 from, Vec3 to) {
+    private static int countWallBlocksBetween(ServerLevel level, Entity viewer, Vec3 from, Vec3 to) {
         var count = 0;
         var current = from;
         var direction = to.subtract(from).normalize();
@@ -185,7 +229,7 @@ public class MotionTrackerItem extends Item {
                     current,
                     ClipContext.Block.COLLIDER,
                     ClipContext.Fluid.NONE,
-                    null
+                    viewer
                 )
             );
 

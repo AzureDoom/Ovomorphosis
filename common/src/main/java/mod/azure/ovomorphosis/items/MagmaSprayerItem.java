@@ -18,6 +18,7 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -28,6 +29,10 @@ import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 public class MagmaSprayerItem extends Item {
 
     private static final String FUEL_TAG = "Fuel";
+
+    private static final int MAX_FUEL = 100;
+
+    private static final int FUEL_PER_REFILL = 25;
 
     private static final int RANGE = 6;
 
@@ -66,6 +71,10 @@ public class MagmaSprayerItem extends Item {
         return InteractionResultHolder.consume(stack);
     }
 
+    /**
+     * Refills by {@link #FUEL_PER_REFILL} per magma cream. Refuses when the tank doesn't have room for a full refill,
+     * so a magma cream is never consumed for less than its full value.
+     */
     private InteractionResultHolder<ItemStack> tryRefill(
         Level level,
         Player player,
@@ -73,7 +82,7 @@ public class MagmaSprayerItem extends Item {
     ) {
         var currentFuel = getFuel(incinerator);
 
-        if (currentFuel >= 100) {
+        if (currentFuel > MAX_FUEL - FUEL_PER_REFILL) {
             return InteractionResultHolder.fail(incinerator);
         }
 
@@ -88,7 +97,7 @@ public class MagmaSprayerItem extends Item {
                 fuelStack.shrink(1);
             }
 
-            setFuel(incinerator, currentFuel + 25);
+            setFuel(incinerator, currentFuel + FUEL_PER_REFILL);
 
             level.playSound(
                 null,
@@ -157,7 +166,7 @@ public class MagmaSprayerItem extends Item {
         serverLevel.getEntitiesOfClass(
             LivingEntity.class,
             new AABB(player.blockPosition()).inflate(RANGE),
-            e -> e != player && e.isAlive()
+            e -> e != player && e.isAlive() && player.hasLineOfSight(e)
         ).forEach(e -> {
             var toEntity = e.getEyePosition().subtract(eyePos).normalize();
             if (toEntity.dot(lookVec) >= CONE_DOT) {
@@ -171,30 +180,7 @@ public class MagmaSprayerItem extends Item {
             }
         });
 
-        for (var i = 1; i <= RANGE; i++) {
-            var checkPos = BlockPos.containing(eyePos.add(lookVec.scale(i)));
-            var bs = serverLevel.getBlockState(checkPos);
-
-            if (!bs.isAir()) {
-                var facePos = checkPos.relative(
-                    Direction.getNearest(
-                        (float) -lookVec.x,
-                        (float) -lookVec.y,
-                        (float) -lookVec.z
-                    )
-                );
-                if (
-                    serverLevel.getBlockState(facePos).isAir()
-                        && BaseFireBlock.canBePlacedAt(serverLevel, facePos, player.getDirection())
-                ) {
-                    serverLevel.setBlockAndUpdate(
-                        facePos,
-                        BaseFireBlock.getState(serverLevel, facePos)
-                    );
-                }
-                break;
-            }
-        }
+        igniteFirstBlockInSight(serverLevel, player, stack, eyePos, lookVec);
 
         if (!player.getAbilities().instabuild) {
             consumeFuel(stack);
@@ -204,8 +190,44 @@ public class MagmaSprayerItem extends Item {
             stack.hurtAndBreak(
                 1,
                 player,
-                s -> player.broadcastBreakEvent(player.getUsedItemHand())
+                p -> p.broadcastBreakEvent(p.getUsedItemHand())
             );
+        }
+    }
+
+    /**
+     * Places fire on the face of the first non-air block along the spray, after the same permission checks flint and
+     * steel goes through: {@link Level#mayInteract} covers spawn protection and the world border, and
+     * {@link Player#mayUseItemAt} covers adventure mode and build restrictions. Without these, fire was placed directly
+     * with {@code setBlockAndUpdate} and ignored spawn protection.
+     */
+    private static void igniteFirstBlockInSight(
+        ServerLevel level,
+        Player player,
+        ItemStack stack,
+        Vec3 eyePos,
+        Vec3 lookVec
+    ) {
+        for (var i = 1; i <= RANGE; i++) {
+            var checkPos = BlockPos.containing(eyePos.add(lookVec.scale(i)));
+            var bs = level.getBlockState(checkPos);
+
+            if (bs.isAir()) {
+                continue;
+            }
+
+            var face = Direction.getNearest((float) -lookVec.x, (float) -lookVec.y, (float) -lookVec.z);
+            var facePos = checkPos.relative(face);
+
+            if (
+                level.getBlockState(facePos).isAir()
+                    && level.mayInteract(player, facePos)
+                    && player.mayUseItemAt(facePos, face, stack)
+                    && BaseFireBlock.canBePlacedAt(level, facePos, player.getDirection())
+            ) {
+                level.setBlockAndUpdate(facePos, BaseFireBlock.getState(level, facePos));
+            }
+            return;
         }
     }
 
@@ -320,7 +342,7 @@ public class MagmaSprayerItem extends Item {
             Component.translatable(
                 "item.ovomorphosis.magma_sprayer.tooltip.fuel",
                 fuel,
-                100
+                MAX_FUEL
             ).withStyle(fuel < 20 ? ChatFormatting.RED : ChatFormatting.YELLOW)
         );
         var durability = stack.getMaxDamage() - stack.getDamageValue();
@@ -348,15 +370,15 @@ public class MagmaSprayerItem extends Item {
         var tag = stack.getTag();
 
         if (tag == null || !tag.contains(FUEL_TAG)) {
-            return 100;
+            return MAX_FUEL;
         }
 
-        return Mth.clamp(tag.getInt(FUEL_TAG), 0, 100);
+        return Mth.clamp(tag.getInt(FUEL_TAG), 0, MAX_FUEL);
     }
 
     private void setFuel(ItemStack stack, int fuel) {
         var tag = stack.getOrCreateTag();
-        tag.putInt(FUEL_TAG, Mth.clamp(fuel, 0, 100));
+        tag.putInt(FUEL_TAG, Mth.clamp(fuel, 0, MAX_FUEL));
     }
 
     private boolean noFuel(ItemStack stack) {
