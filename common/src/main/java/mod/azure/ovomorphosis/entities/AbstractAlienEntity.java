@@ -17,7 +17,6 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -32,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import mod.azure.ovomorphosis.ai.actions.FleeFireAction;
+import mod.azure.ovomorphosis.services.XenoServices;
 import mod.azure.ovomorphosis.util.ClientAnimState;
 import mod.azure.ovomorphosis.util.MobUtils;
 import mod.azure.ovomorphosis.util.ModTags;
@@ -88,6 +88,8 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
     protected int lastAnimationTick = -1;
 
     private static final int SUFFOCATION_GRACE_TICKS = 10;
+
+    private static final int NUDGE_RADIUS = 2;
 
     private int suffocationTicks = 0;
 
@@ -260,9 +262,9 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
             return;
         }
 
-        var suffocating = findSuffocatingBlocks(level);
+        var scan = scanSuffocation(level);
 
-        if (suffocating.isEmpty()) {
+        if (!scan.stuck()) {
             suffocationTicks = 0;
             return;
         }
@@ -271,48 +273,103 @@ public class AbstractAlienEntity extends PathfinderMob implements MovementCapabi
             return;
         }
 
-        if (!level.getGameRules().get(GameRules.MOB_GRIEFING)) {
+        suffocationTicks = 0;
+
+        if (!scan.breakable().isEmpty() && XenoServices.COMMON_REGISTRY.canEntityGrief(level, this)) {
+            for (var pos : scan.breakable()) {
+                level.destroyBlock(pos, true, this);
+            }
             return;
         }
 
-        for (var pos : suffocating) {
-            level.destroyBlock(pos, true, this);
-        }
-
-        suffocationTicks = 0;
+        nudgeToFreeSpace(level);
     }
 
     /**
-     * Mirrors vanilla {@code Entity#isInWall()} (the check that drives IN_WALL damage) but returns every offending
-     * position instead of a boolean. Unbreakable blocks, resin, and vents are left alone.
+     * @param stuck     whether the mob's head is inside any suffocating block other than resin or vents
+     * @param breakable the subset of those blocks that can be broken (excludes unbreakable blocks)
      */
-    private List<BlockPos> findSuffocatingBlocks(ServerLevel level) {
-        var result = new ArrayList<BlockPos>();
+    private record SuffocationScan(
+        boolean stuck,
+        List<BlockPos> breakable
+    ) {}
+
+    private SuffocationScan scanSuffocation(ServerLevel level) {
+        var breakable = new ArrayList<BlockPos>();
+        var stuck = false;
         var width = this.getBbWidth() * 0.8F;
         var eyeBox = AABB.ofSize(this.getEyePosition(), width, 1.0E-6, width);
         var eyeShape = Shapes.create(eyeBox);
 
-        BlockPos.betweenClosedStream(eyeBox).forEach(mutable -> {
+        for (var mutable : (Iterable<BlockPos>) BlockPos.betweenClosedStream(eyeBox)::iterator) {
             var state = level.getBlockState(mutable);
 
             if (state.isAir() || !state.isSuffocating(level, mutable))
-                return;
+                continue;
 
             if (state.is(ModTags.RESIN) || state.is(ModTags.VENT_BLOCKS))
-                return;
-
-            if (state.getDestroySpeed(level, mutable) < 0F)
-                return;
+                continue;
 
             var collision = state.getCollisionShape(level, mutable)
                 .move(mutable.getX(), mutable.getY(), mutable.getZ());
 
-            if (Shapes.joinIsNotEmpty(collision, eyeShape, BooleanOp.AND)) {
-                result.add(mutable.immutable());
-            }
-        });
+            if (!Shapes.joinIsNotEmpty(collision, eyeShape, BooleanOp.AND))
+                continue;
 
-        return result;
+            stuck = true;
+
+            if (state.getDestroySpeed(level, mutable) >= 0F) {
+                breakable.add(mutable.immutable());
+            }
+        }
+
+        return new SuffocationScan(stuck, breakable);
+    }
+
+    /**
+     * Moves the mob to the closest block-centered position within {@link #NUDGE_RADIUS} where its full bounding box is
+     * free of collisions. Upward positions win ties so mobs don't get pushed down into caves. Does nothing if there is
+     * no open space nearby; the next escape attempt will try again.
+     *
+     * @return whether the mob was moved
+     */
+    private boolean nudgeToFreeSpace(ServerLevel level) {
+        var origin = this.blockPosition();
+        var dimensions = this.getDimensions(this.getPose());
+        var current = this.position();
+
+        Vec3 best = null;
+        var bestScore = Double.MAX_VALUE;
+
+        for (var dx = -NUDGE_RADIUS; dx <= NUDGE_RADIUS; dx++) {
+            for (var dy = -NUDGE_RADIUS; dy <= NUDGE_RADIUS; dy++) {
+                for (var dz = -NUDGE_RADIUS; dz <= NUDGE_RADIUS; dz++) {
+                    var candidate = new Vec3(
+                        origin.getX() + dx + 0.5D,
+                        origin.getY() + dy,
+                        origin.getZ() + dz + 0.5D
+                    );
+
+                    var score = candidate.distanceToSqr(current) - dy * 0.01D;
+                    if (score >= bestScore)
+                        continue;
+
+                    if (!level.noCollision(this, dimensions.makeBoundingBox(candidate)))
+                        continue;
+
+                    best = candidate;
+                    bestScore = score;
+                }
+            }
+        }
+
+        if (best == null)
+            return false;
+
+        this.getNavigation().stop();
+        this.setDeltaMovement(Vec3.ZERO);
+        this.teleportTo(best.x, best.y, best.z);
+        return true;
     }
 
     @Override
