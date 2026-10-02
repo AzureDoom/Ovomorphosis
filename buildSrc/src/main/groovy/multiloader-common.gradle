@@ -54,6 +54,32 @@ repositories {
     }
 }
 
+publishing {
+    repositories {
+        maven {
+            name = project.mod_id
+            url = project.maven_url
+            credentials(PasswordCredentials)
+            authentication {
+                basic(BasicAuthentication)
+            }
+        }
+    }
+    publications {
+        maven(MavenPublication) {
+            artifactId base.archivesName.get()
+            from components.java
+            pom.withXml {
+                asNode().dependencies.dependency.each { dep ->
+                    if (dep.groupId.text() == 'com.terraformersmc' && dep.artifactId.text() == 'modmenu') {
+                        dep.parent().remove(dep)
+                    }
+                }
+            }
+        }
+    }
+}
+
 dependencies {
     implementation 'org.jetbrains:annotations:24.1.0'
 }
