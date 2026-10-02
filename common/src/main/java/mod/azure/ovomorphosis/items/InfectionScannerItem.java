@@ -2,6 +2,7 @@ package mod.azure.ovomorphosis.items;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -25,6 +26,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import mod.azure.ovomorphosis.CommonMod;
+import mod.azure.ovomorphosis.api.scanner.InfectionScanners;
 import mod.azure.ovomorphosis.infection.InfectionManager;
 
 public class InfectionScannerItem extends Item {
@@ -46,9 +48,9 @@ public class InfectionScannerItem extends Item {
 
     @Override
     public @NotNull InteractionResultHolder<ItemStack> use(
-        @NotNull Level level,
-        @NotNull Player player,
-        @NotNull InteractionHand hand
+            @NotNull Level level,
+            @NotNull Player player,
+            @NotNull InteractionHand hand
     ) {
         var stack = player.getItemInHand(hand);
 
@@ -68,12 +70,12 @@ public class InfectionScannerItem extends Item {
         tag.putUUID("ScanTarget", targetId);
 
         level.playSound(
-            null,
-            player.blockPosition(),
-            SoundEvents.NOTE_BLOCK_PLING.value(),
-            SoundSource.PLAYERS,
-            CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
-            0.7F
+                null,
+                player.blockPosition(),
+                SoundEvents.NOTE_BLOCK_PLING.value(),
+                SoundSource.PLAYERS,
+                CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
+                0.7F
         );
 
         return InteractionResultHolder.success(stack);
@@ -81,11 +83,11 @@ public class InfectionScannerItem extends Item {
 
     @Override
     public void inventoryTick(
-        @NotNull ItemStack stack,
-        @NotNull Level level,
-        @NotNull Entity entity,
-        int slotId,
-        boolean isSelected
+            @NotNull ItemStack stack,
+            @NotNull Level level,
+            @NotNull Entity entity,
+            int slotId,
+            boolean isSelected
     ) {
         super.inventoryTick(stack, level, entity, slotId, isSelected);
 
@@ -120,12 +122,12 @@ public class InfectionScannerItem extends Item {
 
         if (elapsed % 5 == 0) {
             level.playSound(
-                null,
-                player.blockPosition(),
-                SoundEvents.NOTE_BLOCK_PLING.value(),
-                SoundSource.PLAYERS,
-                CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
-                2.0F
+                    null,
+                    player.blockPosition(),
+                    SoundEvents.NOTE_BLOCK_PLING.value(),
+                    SoundSource.PLAYERS,
+                    CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
+                    2.0F
             );
         }
     }
@@ -170,9 +172,9 @@ public class InfectionScannerItem extends Item {
         }
 
         if (
-            serverLevel.getEntity(targetId) instanceof LivingEntity living
-                && living.isAlive()
-                && living.distanceToSqr(player) <= MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE
+                serverLevel.getEntity(targetId) instanceof LivingEntity living
+                        && living.isAlive()
+                        && living.distanceToSqr(player) <= MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE
         ) {
             return living;
         }
@@ -185,18 +187,18 @@ public class InfectionScannerItem extends Item {
         clearScanTime(stack);
 
         player.displayClientMessage(
-            Component.translatable("item.ovomorphosis.infection_scanner.tooltip.target_lost")
-                .withStyle(ChatFormatting.YELLOW),
-            true
+                Component.translatable("item.ovomorphosis.infection_scanner.tooltip.target_lost")
+                        .withStyle(ChatFormatting.YELLOW),
+                true
         );
 
         level.playSound(
-            null,
-            player.blockPosition(),
-            SoundEvents.NOTE_BLOCK_BASS.value(),
-            SoundSource.PLAYERS,
-            CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
-            0.8F
+                null,
+                player.blockPosition(),
+                SoundEvents.NOTE_BLOCK_BASS.value(),
+                SoundSource.PLAYERS,
+                CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
+                0.8F
         );
     }
 
@@ -214,20 +216,20 @@ public class InfectionScannerItem extends Item {
         }
 
         var heldSlot = player.getMainHandItem() == stack
-            ? EquipmentSlot.MAINHAND
-            : player.getOffhandItem() == stack ? EquipmentSlot.OFFHAND : null;
+                ? EquipmentSlot.MAINHAND
+                : player.getOffhandItem() == stack ? EquipmentSlot.OFFHAND : null;
 
         stack.hurtAndBreak(1, player, p -> {
             if (heldSlot != null) {
                 p.broadcastBreakEvent(heldSlot);
             } else {
                 serverLevel.playSound(
-                    null,
-                    p.blockPosition(),
-                    SoundEvents.ITEM_BREAK,
-                    p.getSoundSource(),
-                    0.8F,
-                    0.8F + serverLevel.getRandom().nextFloat() * 0.4F
+                        null,
+                        p.blockPosition(),
+                        SoundEvents.ITEM_BREAK,
+                        p.getSoundSource(),
+                        0.8F,
+                        0.8F + serverLevel.getRandom().nextFloat() * 0.4F
                 );
             }
         });
@@ -255,97 +257,77 @@ public class InfectionScannerItem extends Item {
 
     private void scanEntity(LivingEntity target, Player scanner, ItemStack stack) {
         var level = scanner.level();
-        var infected = InfectionManager.isInfected(target);
-        var isSelf = target == scanner;
-
-        if (infected) {
-            var phase = InfectionManager.getPhase(target);
-            if (phase == null) {
-                return;
-            }
-            var remainingTicks = InfectionManager.getInfectionRemainingTime(target);
-            var phaseStr = switch (phase) {
-                case DORMANT -> "DORMANT";
-                case SYMPTOMATIC -> "SYMPTOMATIC";
-                case CRITICAL -> "CRITICAL";
-            };
-
-            var modelData = switch (phase) {
-                case DORMANT -> MODEL_CLEAR;
-                case SYMPTOMATIC -> MODEL_SYMPTOMATIC;
-                case CRITICAL -> MODEL_CRITICAL;
-            };
-
-            setScannerModel(stack, modelData);
-
-            if (modelData > MODEL_CLEAR) {
-                stack.getOrCreateTag().putLong("ScanTime", level.getGameTime());
-            } else {
-                clearScanTime(stack);
-            }
-
-            var who = isSelf
+        var detailed = !CommonMod.getConfig().itemConfigs.disableInfectionScannerTimeOutput;
+        var who = target == scanner
                 ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
                 : target.getDisplayName();
 
-            var phaseKey = Component.translatable(
-                "item.ovomorphosis.infection_scanner.tooltip.stage." + phaseStr.toLowerCase(Locale.ROOT)
-            );
+        MutableComponent message = null;
+        var model = MODEL_CLEAR;
+        var pitch = 1.5F;
 
-            if (CommonMod.getConfig().itemConfigs.disableInfectionScannerTimeOutput) {
-                scanner.displayClientMessage(
-                    Component.translatable(
-                        "item.ovomorphosis.infection_scanner.tooltip.infected_no_time",
-                        who,
-                        phaseKey
-                    ).withStyle(ChatFormatting.RED),
-                    true
+        // Ovomorphosis' own xenomorph infection
+        if (InfectionManager.isInfected(target)) {
+            var phase = InfectionManager.getPhase(target);
+            if (phase != null) {
+                var phaseKey = Component.translatable(
+                        "item.ovomorphosis.infection_scanner.tooltip.stage." + phase.name().toLowerCase(Locale.ROOT)
                 );
-            } else {
-                scanner.displayClientMessage(
-                    Component.translatable(
+                message = detailed
+                        ? Component.translatable(
                         "item.ovomorphosis.infection_scanner.tooltip.infected",
                         who,
                         phaseKey,
-                        remainingTicks / 20
-                    ).withStyle(ChatFormatting.RED),
-                    true
+                        InfectionManager.getInfectionRemainingTime(target) / 20
+                )
+                        : Component.translatable(
+                        "item.ovomorphosis.infection_scanner.tooltip.infected_no_time",
+                        who,
+                        phaseKey
                 );
+                message.withStyle(ChatFormatting.RED);
+                model = switch (phase) {
+                    case DORMANT -> MODEL_CLEAR;
+                    case SYMPTOMATIC -> MODEL_SYMPTOMATIC;
+                    case CRITICAL -> MODEL_CRITICAL;
+                };
+                pitch = 0.5F;
             }
-
-            level.playSound(
-                null,
-                scanner.blockPosition(),
-                SoundEvents.NOTE_BLOCK_PLING.value(),
-                SoundSource.PLAYERS,
-                CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
-                0.5F
-            );
-        } else {
-            setScannerModel(stack, MODEL_CLEAR);
-            clearScanTime(stack);
-
-            var who = isSelf
-                ? Component.translatable("item.ovomorphosis.infection_scanner.tooltip.self")
-                : target.getDisplayName();
-
-            scanner.displayClientMessage(
-                Component.translatable(
-                    "item.ovomorphosis.infection_scanner.tooltip.clear",
-                    who
-                ).withStyle(ChatFormatting.GREEN),
-                true
-            );
-
-            level.playSound(
-                null,
-                scanner.blockPosition(),
-                SoundEvents.NOTE_BLOCK_PLING.value(),
-                SoundSource.PLAYERS,
-                CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
-                1.5F
-            );
         }
+
+        // Readings contributed by addons (e.g. Pathogenesis exposure / infection)
+        for (var reading : InfectionScanners.collect(target, scanner, detailed)) {
+            var line = reading.detail().copy().withStyle(reading.severity().color);
+            if (message == null) {
+                message = Component.translatable("item.ovomorphosis.infection_scanner.tooltip.reading", who, line);
+            } else {
+                message.append(Component.literal(" | ").withStyle(ChatFormatting.GRAY)).append(line);
+            }
+            model = Math.max(model, reading.severity().model);
+            pitch = Math.min(pitch, reading.severity().pitch);
+        }
+
+        if (message == null) {
+            message = Component.translatable("item.ovomorphosis.infection_scanner.tooltip.clear", who)
+                    .withStyle(ChatFormatting.GREEN);
+        }
+
+        setScannerModel(stack, model);
+        if (model > MODEL_CLEAR) {
+            stack.getOrCreateTag().putLong("ScanTime", level.getGameTime());
+        } else {
+            clearScanTime(stack);
+        }
+
+        scanner.displayClientMessage(message, true);
+        level.playSound(
+                null,
+                scanner.blockPosition(),
+                SoundEvents.NOTE_BLOCK_PLING.value(),
+                SoundSource.PLAYERS,
+                CommonMod.getConfig().itemConfigs.infectionScannerSoundVolume,
+                pitch
+        );
     }
 
     /**
@@ -357,33 +339,33 @@ public class InfectionScannerItem extends Item {
         var lookVec = player.getLookAngle();
 
         return level.getEntitiesOfClass(
-            LivingEntity.class,
-            new AABB(player.blockPosition()).inflate(4),
-            e -> e != player && e.isAlive() && player.hasLineOfSight(e)
-        )
-            .stream()
-            .filter(e -> {
-                var toEntity = e.getEyePosition().subtract(eyePos).normalize();
-                return toEntity.dot(lookVec) > 0.85;
-            })
-            .min((a, b) -> {
-                var dA = a.getEyePosition().subtract(eyePos).cross(lookVec).lengthSqr();
-                var dB = b.getEyePosition().subtract(eyePos).cross(lookVec).lengthSqr();
-                return Double.compare(dA, dB);
-            })
-            .orElse(null);
+                        LivingEntity.class,
+                        new AABB(player.blockPosition()).inflate(4),
+                        e -> e != player && e.isAlive() && player.hasLineOfSight(e)
+                )
+                .stream()
+                .filter(e -> {
+                    var toEntity = e.getEyePosition().subtract(eyePos).normalize();
+                    return toEntity.dot(lookVec) > 0.85;
+                })
+                .min((a, b) -> {
+                    var dA = a.getEyePosition().subtract(eyePos).cross(lookVec).lengthSqr();
+                    var dB = b.getEyePosition().subtract(eyePos).cross(lookVec).lengthSqr();
+                    return Double.compare(dA, dB);
+                })
+                .orElse(null);
     }
 
     @Override
     public void appendHoverText(
-        @NotNull ItemStack stack,
-        @Nullable Level level,
-        List<Component> components,
-        @NotNull TooltipFlag isAdvanced
+            @NotNull ItemStack stack,
+            @Nullable Level level,
+            List<Component> components,
+            @NotNull TooltipFlag isAdvanced
     ) {
         components.add(
-            Component.translatable("item.ovomorphosis.infection_scanner.tooltip")
-                .withStyle(ChatFormatting.GRAY)
+                Component.translatable("item.ovomorphosis.infection_scanner.tooltip")
+                        .withStyle(ChatFormatting.GRAY)
         );
         super.appendHoverText(stack, level, components, isAdvanced);
     }
