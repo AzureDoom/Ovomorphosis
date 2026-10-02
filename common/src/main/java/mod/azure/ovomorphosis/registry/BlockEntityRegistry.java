@@ -12,6 +12,7 @@ public class BlockEntityRegistry {
 
     private BlockEntityRegistry() {}
 
+    @SuppressWarnings("DataFlowIssue")
     public static final Supplier<BlockEntityType<ResinWebBlockEntity>> RESIN_WEB_CROSS_BE =
         XenoServices.COMMON_REGISTRY.register(
             BuiltInRegistries.BLOCK_ENTITY_TYPE,
