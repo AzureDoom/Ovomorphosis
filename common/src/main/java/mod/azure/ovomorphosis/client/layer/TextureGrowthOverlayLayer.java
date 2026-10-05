@@ -2,7 +2,6 @@ package mod.azure.ovomorphosis.client.layer;
 
 import mod.azure.azurelib.core.object.Color;
 import mod.azure.azurelib.model.AzBone;
-import mod.azure.azurelib.render.AzRendererPipeline;
 import mod.azure.azurelib.render.AzRendererPipelineContext;
 import mod.azure.azurelib.render.layer.AzRenderLayer;
 import net.minecraft.client.renderer.RenderType;
@@ -22,21 +21,31 @@ public class TextureGrowthOverlayLayer<T extends AbstractAlienEntity & Growable>
 
     @Override
     public void render(AzRendererPipelineContext<UUID, T> context) {
-        T animatable = context.animatable();
-        AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
-        var rendertype = RenderType.entityTranslucentCull(getEntityTexture(animatable));
+        var animatable = context.animatable();
 
-        if (animatable.getGrowth() < animatable.getMaxGrowth() && animatable.isAlive()) {
-            context.setRenderType(rendertype);
-            context.setVertexConsumer(context.multiBufferSource().getBuffer(rendertype));
+        if (!animatable.isAlive() || animatable.getGrowth() >= animatable.getMaxGrowth())
+            return;
 
-            var progress = (animatable.getMaxGrowth() - animatable.getGrowth()) / animatable.getMaxGrowth();
-            var alpha = (int) (progress * 0xFF) << 24;
-            var color = 0x00FFFFFF | alpha;
+        var progress = (animatable.getMaxGrowth() - animatable.getGrowth()) / animatable.getMaxGrowth();
 
-            context.setColor(Color.ofOpaque(color));
-            renderPipeline.reRender(context);
-        }
+        var renderType = RenderType.entityTranslucentCull(getEntityTexture(animatable));
+
+        var prevType = context.renderType();
+        var prevConsumer = context.vertexConsumer();
+        float prevR = context.red(), prevG = context.green(), prevB = context.blue(), prevA = context.alpha();
+
+        context.setRenderType(renderType);
+        context.setVertexConsumer(context.multiBufferSource().getBuffer(renderType));
+        context.setColor(Color.WHITE);
+        context.setAlpha(progress);
+        context.rendererPipeline().reRender(context);
+
+        context.setRenderType(prevType);
+        context.setVertexConsumer(prevConsumer);
+        context.setRed(prevR);
+        context.setGreen(prevG);
+        context.setBlue(prevB);
+        context.setAlpha(prevA);
     }
 
     @Override

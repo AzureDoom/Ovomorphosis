@@ -2,7 +2,6 @@ package mod.azure.ovomorphosis.client.layer;
 
 import mod.azure.azurelib.core.object.Color;
 import mod.azure.azurelib.model.AzBone;
-import mod.azure.azurelib.render.AzRendererPipeline;
 import mod.azure.azurelib.render.AzRendererPipelineContext;
 import mod.azure.azurelib.render.layer.AzRenderLayer;
 import net.minecraft.client.renderer.RenderType;
@@ -23,25 +22,34 @@ public class BloodLayer<T extends AbstractAlienEntity & Growable> implements AzR
 
     @Override
     public void render(AzRendererPipelineContext<UUID, T> context) {
-        T animatable = context.animatable();
+        var animatable = context.animatable();
+        var half = animatable.getMaxGrowth() / 2F;
+        var growth = animatable.getGrowth();
 
-        AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
-        var rendertype = RenderType.entityTranslucentCull(textureLocation);
-        var maxGrowth = animatable.getMaxGrowth() / 2;
-        if (animatable.getGrowth() < maxGrowth && animatable.isAlive()) {
-            context.setRenderType(rendertype);
-            context.setVertexConsumer(context.multiBufferSource().getBuffer(rendertype));
-            var progress = (maxGrowth - animatable.getGrowth()) / maxGrowth;
-            progress = progress * progress;
+        if (!animatable.isAlive() || growth >= half)
+            return;
 
-            var maxAlpha = 80;
-            var alpha = (int) (progress * maxAlpha) << 24;
+        var progress = (half - growth) / half;
+        progress *= progress;
 
-            var color = 0x00FFFFFF | alpha;
+        var renderType = RenderType.entityTranslucentCull(textureLocation);
 
-            context.setColor(Color.ofOpaque(color));
-            renderPipeline.reRender(context);
-        }
+        var prevType = context.renderType();
+        var prevConsumer = context.vertexConsumer();
+        float prevR = context.red(), prevG = context.green(), prevB = context.blue(), prevA = context.alpha();
+
+        context.setRenderType(renderType);
+        context.setVertexConsumer(context.multiBufferSource().getBuffer(renderType));
+        context.setColor(Color.ofOpaque(0xFFC8C8)); // RGB only
+        context.setAlpha(progress * (0xB0 / 255F));
+        context.rendererPipeline().reRender(context);
+
+        context.setRenderType(prevType);
+        context.setVertexConsumer(prevConsumer);
+        context.setRed(prevR);
+        context.setGreen(prevG);
+        context.setBlue(prevB);
+        context.setAlpha(prevA);
     }
 
     @Override
