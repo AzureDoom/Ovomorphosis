@@ -4,11 +4,11 @@
 ![NeoForge Supported](https://img.shields.io/badge/NeoForge-supported-orange?style=for-the-badge)
 ![Forge Supported](https://img.shields.io/badge/Forge_1.20.1-supported-red?style=for-the-badge)
 
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1_%7C_1.20.1-green?style=for-the-badge)
+![Minecraft](https://img.shields.io/badge/Minecraft-26.3_%7C_1.21.1_%7C_1.20.1-green?style=for-the-badge)
 ![Requires AzureLib](https://img.shields.io/badge/Requires-AzureLib-purple?style=for-the-badge)
 ![License MIT](https://img.shields.io/badge/License-MIT-lightgrey?style=for-the-badge)
 
-![Discord](https://www.bisecthosting.com/images/CF/OVOMORPHOSIS/MP_OVOMORPHOSIS_Discord.webp)
+[![Discord](https://www.bisecthosting.com/images/CF/OVOMORPHOSIS/MP_OVOMORPHOSIS_Discord.webp)](https://discord.gg/WmKD7ByJFZ)
 
 ## An infestation that grows with your world
 
@@ -94,6 +94,7 @@ Ignore it for too long, and the life cycle may continue without you.
 
 | Minecraft  | Fabric | NeoForge | Forge |
 |:----------:|:------:|:--------:|:-----:|
+|  **26.3**  |   ✅   |    ✅    |  ❌   |
 | **1.21.1** |   ✅   |    ✅    |  ❌   |
 | **1.20.1** |   ✅   |    ❌    |  ✅   |
 
@@ -102,6 +103,16 @@ Ignore it for too long, and the life cycle may continue without you.
 ---
 
 ## Requirements
+
+### Minecraft 26.3
+
+| Requirement   | Minimum Version |
+|---------------|----------------:|
+| Minecraft     |            26.3 |
+| AzureLib      |          4.0.3+ |
+| Fabric Loader |         0.19.5+ |
+| Fabric API    |        0.161.0+ |
+| NeoForge      |  26.3.0.1-beta+ |
 
 ### Minecraft 1.21.1
 
@@ -126,30 +137,6 @@ Ignore it for too long, and the life cycle may continue without you.
 **AzureLib is required on both the client and server.**
 
 Make sure you install the AzureLib file that matches both your **Minecraft version** and **mod loader**.
-
----
-
-## Installation
-
-1. Install **Minecraft 1.21.1** or **Minecraft 1.20.1**.
-2. Install the supported mod loader for your version:
-
-   * **Fabric** — 1.21.1 or 1.20.1
-   * **NeoForge** — 1.21.1
-   * **Forge** — 1.20.1
-3. Download the matching version of **AzureLib**.
-4. Download the matching version of **Ovomorphosis**.
-5. Place both `.jar` files in your `mods` folder.
-6. Launch Minecraft.
-
-### Multiplayer
-
-For multiplayer, install **Ovomorphosis** and **AzureLib** on:
-
-* The server
-* Every client joining the server
-
-All players should use compatible Minecraft, loader, and mod versions.
 
 ---
 
