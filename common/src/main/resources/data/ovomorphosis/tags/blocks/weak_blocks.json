@@ -446,6 +446,10 @@
     "minecraft:stripped_crimson_stem",
     "minecraft:stripped_warped_stem",
     "minecraft:crimson_hyphae",
-    "minecraft:warped_hyphae"
+    "minecraft:warped_hyphae",
+    {
+      "id": "#pathogenesis:contaminated",
+      "required": false
+    }
   ]
 }
