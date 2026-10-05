@@ -1,7 +1,6 @@
 package mod.azure.ovomorphosis.client.layer;
 
 import mod.azure.azurelib.model.AzBone;
-import mod.azure.azurelib.render.AzRendererPipeline;
 import mod.azure.azurelib.render.AzRendererPipelineContext;
 import mod.azure.azurelib.render.layer.AzRenderLayer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -21,21 +20,29 @@ public class TextureGrowthOverlayLayer<T extends AbstractAlienEntity & Growable>
 
     @Override
     public void render(AzRendererPipelineContext<UUID, T> context) {
-        T animatable = context.animatable();
-        AzRendererPipeline<UUID, T> renderPipeline = context.rendererPipeline();
-        var rendertype = RenderTypes.entityTranslucentCull(getEntityTexture(animatable));
+        var animatable = context.animatable();
 
-        if (animatable.getGrowth() < animatable.getMaxGrowth() && animatable.isAlive()) {
-            context.setRenderType(rendertype);
-            context.setVertexConsumer(context.multiBufferSource().getBuffer(rendertype));
+        if (!animatable.isAlive() || animatable.getGrowth() >= animatable.getMaxGrowth())
+            return;
 
-            var progress = (animatable.getMaxGrowth() - animatable.getGrowth()) / animatable.getMaxGrowth();
-            var alpha = (int) (progress * 0xFF) << 24;
-            var color = (context.renderColor() & 0xFFFFFF) | alpha;
+        var renderType = RenderTypes.entityTranslucentCull(getEntityTexture(animatable));
 
-            context.setRenderColor(color);
-            renderPipeline.reRender(context);
-        }
+        var prevType = context.renderType();
+        var prevConsumer = context.vertexConsumer();
+        var prevColor = context.renderColor();
+
+        float progress = (animatable.getMaxGrowth() - animatable.getGrowth()) / animatable.getMaxGrowth();
+        int alpha = Math.round(progress * 0xFF) & 0xFF;
+        int color = (prevColor & 0xFFFFFF) | (alpha << 24);
+
+        context.setRenderType(renderType);
+        context.setVertexConsumer(context.multiBufferSource().getBuffer(renderType));
+        context.setRenderColor(color);
+        context.rendererPipeline().reRender(context);
+
+        context.setRenderType(prevType);
+        context.setVertexConsumer(prevConsumer);
+        context.setRenderColor(prevColor);
     }
 
     @Override
