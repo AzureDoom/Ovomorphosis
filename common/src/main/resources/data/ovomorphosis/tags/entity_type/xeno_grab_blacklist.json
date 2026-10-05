@@ -9,6 +9,10 @@
     "minecraft:bogged",
     "minecraft:wither",
     {
+      "id": "#pathogenesis:alien_organisms",
+      "required": false
+    },
+    {
       "id": "#avp_alien:aliens",
       "required": false
     },
