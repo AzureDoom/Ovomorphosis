@@ -39,6 +39,10 @@
     "minecraft:armadillo",
     "minecraft:bogged",
     {
+      "id": "#pathogenesis:alien_organisms",
+      "required": false
+    },
+    {
       "id": "#minecraft:undead",
       "required": false
     },
