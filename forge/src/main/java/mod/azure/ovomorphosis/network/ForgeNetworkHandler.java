@@ -29,6 +29,16 @@ public final class ForgeNetworkHandler {
             .decoder(EggmorphProgressPacket::new)
             .consumerMainThread((packet, ctx) -> packet.handle())
             .add();
+
+        CHANNEL.messageBuilder(
+            HeadDataSyncPacket.class,
+            packetId++,
+            NetworkDirection.PLAY_TO_CLIENT
+        )
+            .encoder(HeadDataSyncPacket::encode)
+            .decoder(HeadDataSyncPacket::new)
+            .consumerMainThread((packet, ctx) -> packet.handle())
+            .add();
     }
 
     private ForgeNetworkHandler() {}

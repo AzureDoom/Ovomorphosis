@@ -6,7 +6,6 @@ import mod.azure.azurelib.render.AzLayerRenderer;
 import mod.azure.azurelib.render.entity.AzEntityRendererPipeline;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.npc.AbstractVillager;
 
 import java.util.UUID;
 
@@ -38,24 +37,18 @@ public class FacehuggerModelRenderer extends XenoModelRenderer<FacehuggerEntity>
             super.applyRotations(animatable, poseStack, ageInTicks, rotationYaw, partialTick, nativeScale);
             return;
         }
-
-        var host = (LivingEntity) animatable.getVehicle();
-
-        if (host == null) {
+        if (!(animatable.getVehicle() instanceof LivingEntity host)) {
             return;
         }
-
-        var data = EntityHeadData.ENTITY_HEAD_DATA_BY_TYPE.get(host.getType());
-
+        var data = EntityHeadData.get(host.getType());
         if (data == null) {
             return;
         }
-
         applyFaceRotations(animatable, poseStack, partialTick, host, data);
     }
 
     private void applyFaceRotations(
-        FacehuggerEntity facehuggerEntity,
+        FacehuggerEntity facehugger,
         PoseStack poseStack,
         float partialTick,
         LivingEntity host,
@@ -63,21 +56,13 @@ public class FacehuggerModelRenderer extends XenoModelRenderer<FacehuggerEntity>
     ) {
         var bodyYaw = Mth.rotLerp(partialTick, host.yBodyRotO, host.yBodyRot);
         var headYaw = Mth.rotLerp(partialTick, host.yHeadRotO, host.yHeadRot) - bodyYaw;
-        var headPitch = Mth.rotLerp(partialTick, host.getXRot(), host.xRotO);
+        var headPitch = Mth.lerp(partialTick, host.xRotO, host.getXRot());
 
         poseStack.mulPose(Axis.YN.rotationDegrees(bodyYaw));
         poseStack.mulPose(Axis.YN.rotationDegrees(headYaw));
         poseStack.mulPose(Axis.XP.rotationDegrees(headPitch));
 
-        var offsetZ = 0.0;
-        if (host instanceof AbstractVillager) {
-            offsetZ = 0.2;
-        }
-        var result = EntityHeadOffsetData.resolve(host.getType(), data, facehuggerEntity);
-        if (result != null) {
-            poseStack.translate(0, result.vertical(), result.face());
-        } else {
-            poseStack.translate(0, -data.size().y / 2.0, data.size().z - offsetZ);
-        }
+        var offsets = data.resolveOffsets(facehugger);
+        poseStack.translate(0, offsets.vertical(), offsets.face());
     }
 }

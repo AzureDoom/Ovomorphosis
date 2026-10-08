@@ -13,6 +13,7 @@ import mod.azure.ovomorphosis.client.ovomorph.OvomorphRenderer;
 import mod.azure.ovomorphosis.client.runner.RunnerRenderer;
 import mod.azure.ovomorphosis.client.xenomorph.XenomorphRenderer;
 import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
+import mod.azure.ovomorphosis.network.HeadDataSyncPacket;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 
@@ -32,6 +33,13 @@ public class FabricLibClientMod implements ClientModInitializer {
             EggmorphProgressPacket.ID,
             (client, handler, buf, responseSender) -> {
                 EggmorphProgressPacket packet = new EggmorphProgressPacket(buf);
+                client.execute(packet::handle);
+            }
+        );
+        ClientPlayNetworking.registerGlobalReceiver(
+            HeadDataSyncPacket.ID,
+            (client, handler, buf, responseSender) -> {
+                var packet = new HeadDataSyncPacket(buf);
                 client.execute(packet::handle);
             }
         );

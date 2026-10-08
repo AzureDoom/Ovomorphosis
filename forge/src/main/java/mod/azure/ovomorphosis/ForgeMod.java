@@ -13,6 +13,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
 import net.minecraftforge.event.entity.SpawnPlacementRegisterEvent;
 import net.minecraftforge.event.level.LevelEvent;
@@ -21,7 +22,7 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 
-import mod.azure.ovomorphosis.client.facehugger.EntityHeadOffsetData;
+import mod.azure.ovomorphosis.client.facehugger.EntityHeadData;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
@@ -73,7 +74,10 @@ public final class ForgeMod {
         itemDeferredRegister.register(modEventBus);
         soundEventDeferredRegister.register(modEventBus);
         MinecraftForge.EVENT_BUS.addListener(
-            (AddReloadListenerEvent event) -> event.addListener(new EntityHeadOffsetData.ReloadListener())
+            (AddReloadListenerEvent event) -> event.addListener(new EntityHeadData.ReloadListener())
+        );
+        MinecraftForge.EVENT_BUS.addListener(
+            (OnDatapackSyncEvent event) -> ForgeNetworkDispatcher.sendHeadData(event.getPlayer())
         );
         MinecraftForge.EVENT_BUS.addListener(
             (LevelEvent.Unload event) -> {

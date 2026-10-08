@@ -1,0 +1,8 @@
+{
+  "entities": ["minecraft:villager", "minecraft:wandering_trader", "minecraft:evoker", "minecraft:illusioner", "minecraft:pillager", "minecraft:vindicator", "minecraft:witch", "minecraft:zombie_villager"],
+  "size": [8, 10, 8],
+  "position": [-4, 24, -4],
+  "pivot": [0, 24, 0],
+  "vertical_offset": "-size_y / 2",
+  "face_offset": "size_z - 0.2"
+}

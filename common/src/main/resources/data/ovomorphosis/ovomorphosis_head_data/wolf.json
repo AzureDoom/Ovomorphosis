@@ -1,0 +1,8 @@
+{
+  "entities": ["minecraft:wolf"],
+  "size": [6, 6, 4],
+  "position": [-3, 7.5, -9],
+  "pivot": [1, 10.5, -7],
+  "vertical_offset": "-size_y / 2",
+  "face_offset": "size_z"
+}
