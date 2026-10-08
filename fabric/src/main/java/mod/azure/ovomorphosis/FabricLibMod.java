@@ -4,6 +4,8 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.registry.FlammableBlockRegistry;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
@@ -14,13 +16,14 @@ import net.minecraft.world.entity.SpawnPlacements;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.level.levelgen.Heightmap;
 
-import mod.azure.ovomorphosis.client.facehugger.EntityHeadOffsetData;
+import mod.azure.ovomorphosis.client.facehugger.EntityHeadData;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
+import mod.azure.ovomorphosis.network.HeadDataSyncPacket;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
@@ -36,9 +39,13 @@ public final class FabricLibMod implements ModInitializer {
         FabricLootInjects.init();
         ResourceLoader.get(PackType.SERVER_DATA)
             .registerReloadListener(
-                CommonMod.modResource("ovomorphosis_head_offsets"),
-                new EntityHeadOffsetData.ReloadListener()
+                CommonMod.modResource("ovomorphosis_head_data"),
+                new EntityHeadData.ReloadListener()
             );
+        PayloadTypeRegistry.clientboundPlay().register(HeadDataSyncPacket.TYPE, HeadDataSyncPacket.CODEC);
+        ServerLifecycleEvents.SYNC_DATA_PACK_CONTENTS.register(
+            (player, joined) -> ServerPlayNetworking.send(player, HeadDataSyncPacket.fromCurrent())
+        );
         ServerLifecycleEvents.SERVER_STARTED.register(FabricStructureSpawnPatcher::patch);
 
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resourceManager, success) -> {

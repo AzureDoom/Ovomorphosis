@@ -1,0 +1,8 @@
+{
+  "entities": ["minecraft:polar_bear"],
+  "size": [7, 7, 7],
+  "position": [-3.5, 10, -19],
+  "pivot": [0, 14, -19],
+  "vertical_offset": "-size_y / 2",
+  "face_offset": "size_z"
+}
