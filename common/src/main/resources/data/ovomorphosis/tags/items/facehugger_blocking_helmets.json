@@ -1,5 +1,9 @@
 {
   "values": [
-    "minecraft:carved_pumpkin"
+    "minecraft:carved_pumpkin",
+    {
+      "id": "avp_predator:jungle_predator_helmet",
+      "required": false
+    }
   ]
 }

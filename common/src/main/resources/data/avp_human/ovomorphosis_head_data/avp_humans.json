@@ -1,0 +1,11 @@
+{
+  "entities": [
+    "avp_human:marine",
+    "avp_human:colonist"
+  ],
+  "size": [8, 8, 8],
+  "position": [-4, 24, -4],
+  "pivot": [0, 24, 0],
+  "vertical_offset": "0",
+  "face_offset": "size_z / 2"
+}

@@ -21,6 +21,10 @@
     "minecraft:sniffer",
     "minecraft:trader_llama",
     {
+      "id": "avp_human:marine_dog",
+      "required": false
+    },
+    {
       "id": "red_panda:red_panda",
       "required": false
     },
