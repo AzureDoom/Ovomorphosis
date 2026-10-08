@@ -24,6 +24,10 @@
       "required": false
     },
     {
+      "id": "avp_human:colonist",
+      "required": false
+    },
+    {
       "id": "#avp_predator:predators",
       "required": false
     },

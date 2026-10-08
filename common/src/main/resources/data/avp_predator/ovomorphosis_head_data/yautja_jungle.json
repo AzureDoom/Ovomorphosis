@@ -1,0 +1,8 @@
+{
+  "entity": "avp_predator:yautja_jungle",
+  "size": [7, 8, 8],
+  "position": [-3.5, 29.5, -5],
+  "pivot": [0.065, 31.9, 1.876],
+  "vertical_offset": "-0.25",
+  "face_offset": "(size_z / 2) + 0.15"
+}
