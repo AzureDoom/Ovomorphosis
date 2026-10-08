@@ -4,6 +4,8 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.registry.FlammableBlockRegistry;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
@@ -20,6 +22,7 @@ import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
 import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
+import mod.azure.ovomorphosis.network.HeadDataSyncPacket;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
@@ -32,8 +35,12 @@ public final class FabricLibMod implements ModInitializer {
     public void onInitialize() {
         CommonMod.initRegistries();
         FabricLootInjects.init();
-        ResourceManagerHelper.get(PackType.SERVER_DATA)
-            .registerReloadListener(new FabricHeadOffsetReloadListener());
+        ResourceManagerHelper.get(PackType.SERVER_DATA).registerReloadListener(new FabricHeadDataListener());
+        PayloadTypeRegistry.playS2C().register(HeadDataSyncPacket.TYPE, HeadDataSyncPacket.CODEC);
+        ServerLifecycleEvents.SYNC_DATA_PACK_CONTENTS.register(
+            (player, joined) -> ServerPlayNetworking.send(player, HeadDataSyncPacket.fromCurrent())
+        );
+
         ServerLifecycleEvents.SERVER_STARTED.register(FabricStructureSpawnPatcher::patch);
 
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resourceManager, success) -> {

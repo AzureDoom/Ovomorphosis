@@ -1,0 +1,8 @@
+{
+  "entities": ["minecraft:sniffer"],
+  "size": [13, 18, 11],
+  "position": [-6.5, 5, -31],
+  "pivot": [0, 12.5, -19.5],
+  "vertical_offset": "-size_y / 2",
+  "face_offset": "size_z + 0.7"
+}

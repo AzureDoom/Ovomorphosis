@@ -1,0 +1,8 @@
+{
+  "entities": ["minecraft:piglin", "minecraft:piglin_brute"],
+  "size": [10, 8, 8],
+  "position": [-5, 24, -4],
+  "pivot": [0, 24, 0],
+  "vertical_offset": "-size_y / 2",
+  "face_offset": "size_z - 0.2"
+}

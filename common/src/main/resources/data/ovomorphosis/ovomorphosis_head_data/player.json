@@ -1,0 +1,8 @@
+{
+  "entities": ["minecraft:player"],
+  "size": [8, 8, 8],
+  "position": [-4, 24, -4],
+  "pivot": [0, 24, 0],
+  "vertical_offset": "-size_y / 2",
+  "face_offset": "size_z"
+}

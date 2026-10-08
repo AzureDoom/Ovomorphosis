@@ -1,0 +1,8 @@
+{
+  "entities": ["minecraft:llama", "minecraft:trader_llama"],
+  "size": [4, 4, 9],
+  "position": [-2, 27, -16],
+  "pivot": [0, 17, -11],
+  "vertical_offset": "0.4",
+  "face_offset": "0.3"
+}

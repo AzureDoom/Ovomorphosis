@@ -16,14 +16,16 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.RegisterSpawnPlacementsEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-import mod.azure.ovomorphosis.client.facehugger.EntityHeadOffsetData;
+import mod.azure.ovomorphosis.client.facehugger.EntityHeadData;
 import mod.azure.ovomorphosis.entities.chestburster.ChestbursterEntity;
 import mod.azure.ovomorphosis.entities.facehugger.FacehuggerEntity;
 import mod.azure.ovomorphosis.entities.ovomorph.OvomorphEntity;
@@ -31,6 +33,7 @@ import mod.azure.ovomorphosis.entities.runner.RunnerEntity;
 import mod.azure.ovomorphosis.entities.xenomorph.XenomorphEntity;
 import mod.azure.ovomorphosis.level.ResinWebRegistry;
 import mod.azure.ovomorphosis.network.EggmorphProgressPacket;
+import mod.azure.ovomorphosis.network.HeadDataSyncPacket;
 import mod.azure.ovomorphosis.registry.BlockRegistry;
 import mod.azure.ovomorphosis.registry.EntityRegistry;
 import mod.azure.ovomorphosis.registry.ItemRegistry;
@@ -70,9 +73,13 @@ public final class NeoForgeMod {
         blockEntityDeferredRegister.register(modEventBus);
         itemDeferredRegister.register(modEventBus);
         soundEventDeferredRegister.register(modEventBus);
-        NeoForge.EVENT_BUS.addListener(
-            (AddReloadListenerEvent event) -> event.addListener(new EntityHeadOffsetData.ReloadListener())
-        );
+        NeoForge.EVENT_BUS.addListener((AddReloadListenerEvent event) -> {
+            event.addListener(new EntityHeadData.ReloadListener());
+        });
+        NeoForge.EVENT_BUS.addListener((OnDatapackSyncEvent event) -> {
+            var packet = HeadDataSyncPacket.fromCurrent();
+            event.getRelevantPlayers().forEach(p -> PacketDistributor.sendToPlayer(p, packet));
+        });
         NeoForge.EVENT_BUS.addListener(
             (LevelEvent.Unload event) -> {
                 if (event.getLevel() instanceof ServerLevel serverLevel) {
@@ -93,6 +100,11 @@ public final class NeoForgeMod {
         registrar.playToClient(
             EggmorphProgressPacket.TYPE,
             EggmorphProgressPacket.CODEC,
+            (msg, ctx) -> msg.handle()
+        );
+        registrar.playToClient(
+            HeadDataSyncPacket.TYPE,
+            HeadDataSyncPacket.CODEC,
             (msg, ctx) -> msg.handle()
         );
     }
