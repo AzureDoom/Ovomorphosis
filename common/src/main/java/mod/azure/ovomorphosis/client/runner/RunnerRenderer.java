@@ -32,8 +32,8 @@ public class RunnerRenderer extends AzEntityRenderer<RunnerEntity> {
                 .setShadowRadius(0.75F)
                 .withLodConfig(
                     AzLodConfig.builder()
-                        .boneLod(1028, 3)
-                        .animLod(1028, 2)
+                        .boneLod(32, 3)
+                        .animLod(48, 2)
                         .build()
                 )
                 .build(),
