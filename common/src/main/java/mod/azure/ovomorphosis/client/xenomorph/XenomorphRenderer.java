@@ -33,8 +33,8 @@ public class XenomorphRenderer extends AzEntityRenderer<XenomorphEntity> {
                 .setScale(XenomorphEntity::getGrowthScale)
                 .withLodConfig(
                     AzLodConfig.builder()
-                        .boneLod(1028, 3)
-                        .animLod(1028, 2)
+                        .boneLod(32, 3)
+                        .animLod(48, 2)
                         .build()
                 )
                 .build(),
